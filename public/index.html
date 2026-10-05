@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WENDY — Anticipatory Executive Intelligence</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="bg-[#0b0c0e] text-[#ededed] font-sans antialiased min-h-screen flex flex-col">
+
+  <!-- Top Executive Horizon Bar -->
+  <header class="border-b border-[#22252a] bg-[#101214] px-6 py-3 flex items-center justify-between sticky top-0 z-30">
+    <div class="flex items-center gap-6">
+      <div class="flex items-baseline gap-2">
+        <span class="font-serif-editorial text-2xl font-light tracking-wide text-white">W E N D Y</span>
+        <span class="text-[10px] font-mono-code uppercase tracking-widest text-[#727a83]">Executive Intelligence</span>
+      </div>
+
+      <div class="hidden md:flex items-center gap-3 text-xs font-mono-code text-[#8e969f] pl-4 border-l border-[#24272d]">
+        <span>PRINCIPAL: <strong class="text-white">JOÃO MENDES</strong></span>
+        <span>•</span>
+        <span id="header-clock">OCTOBER 5, 2026 • 08:30 AM</span>
+        <span>•</span>
+        <span class="flex items-center gap-1.5 text-emerald-400">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>AWARENESS ACTIVE</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- View Switcher -->
+    <div class="flex items-center gap-2">
+      <button onclick="switchView('workspace')" id="btn-view-workspace" class="px-3 py-1.5 rounded text-xs font-mono-code font-medium bg-[#22252a] text-white border border-[#32363d] transition-colors">
+        3-Zone Workspace
+      </button>
+      <button onclick="switchView('memory')" id="btn-view-memory" class="px-3 py-1.5 rounded text-xs font-mono-code font-medium text-[#8e969f] hover:text-white transition-colors">
+        Memory Graph
+      </button>
+      <button onclick="switchView('audit')" id="btn-view-audit" class="px-3 py-1.5 rounded text-xs font-mono-code font-medium text-[#8e969f] hover:text-white transition-colors">
+        Audit Ledger
+      </button>
+      <button onclick="openEventSimulator()" class="px-3 py-1.5 rounded text-xs font-mono-code font-medium bg-indigo-950 text-indigo-300 border border-indigo-800 hover:bg-indigo-900 transition-colors">
+        + Inject Signal
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER: THREE-ZONE WORKSPACE -->
+  <main id="view-workspace" class="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden h-[calc(100vh-53px)]">
+    
+    <!-- ZONE A: THE STRATEGIC DOSSIER (4 Columns) -->
+    <section class="lg:col-span-4 border-r border-[#22252a] bg-[#111316] flex flex-col overflow-hidden">
+      <!-- Section Header -->
+      <div class="px-6 py-4 border-b border-[#22252a] flex items-center justify-between">
+        <div>
+          <span class="text-[10px] font-mono-code uppercase tracking-wider text-[#727a83] block">Zone A</span>
+          <h2 class="text-base font-serif-editorial font-medium text-white">The Strategic Dossier</h2>
+        </div>
+        <span class="text-xs font-mono-code text-[#727a83]" id="dossier-timestamp">08:30 Sync</span>
+      </div>
+
+      <!-- Scrollable Dossier Items -->
+      <div class="flex-1 overflow-y-auto p-5 space-y-4">
+        
+        <!-- Salience Quadrant 1: Urgent -->
+        <div class="p-4 rounded-xl border border-amber-900/40 bg-amber-950/20 hover:border-amber-700/60 transition-all cursor-pointer" onclick="inspectProvenance('urgent')">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] font-mono-code px-2 py-0.5 rounded bg-amber-900/60 text-amber-300 font-semibold flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>1. URGENT • 14:00
+            </span>
+            <span class="badge-fact">FACT</span>
+          </div>
+          <h3 class="text-sm font-semibold text-white">Meeting with Carlos Drummond</h3>
+          <p class="text-xs text-[#a3acb5] mt-1 font-serif-editorial text-[13px] leading-relaxed">
+            Carlos replied last night at 23:42 citing pricing anxiety in Clause 4 before his Thursday board meeting. I pulled previous commitments, correspondence, and prepared a counter-rebate proposal.
+          </p>
+          <div class="mt-3 pt-2 border-t border-amber-900/30 flex items-center justify-between text-[11px] font-mono-code text-amber-300/80">
+            <span>Horizon Capital • Tier 1</span>
+            <span class="underline">View Provenance →</span>
+          </div>
+        </div>
+
+        <!-- Salience Quadrant 2: Relationship Milestone -->
+        <div class="p-4 rounded-xl border border-purple-900/40 bg-purple-950/20 hover:border-purple-700/60 transition-all cursor-pointer" onclick="inspectProvenance('relationship')">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] font-mono-code px-2 py-0.5 rounded bg-purple-900/60 text-purple-300 font-semibold flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>2. RELATIONSHIP • TOMORROW
+            </span>
+            <span class="badge-fact">FACT</span>
+          </div>
+          <h3 class="text-sm font-semibold text-white">Mariana Vance's Birthday</h3>
+          <p class="text-xs text-[#a3acb5] mt-1 font-serif-editorial text-[13px] leading-relaxed">
+            Mariana is a Tier 1 European partner. You sent a personal message last year that was warmly received. I've prepared a draft in your authentic tone ready for dispatch at 08:30 tomorrow.
+          </p>
+          <div class="mt-3 pt-2 border-t border-purple-900/30 flex items-center justify-between text-[11px] font-mono-code text-purple-300/80">
+            <span>Apex Bio • Tier 1</span>
+            <span class="underline">Review Draft in Zone C →</span>
+          </div>
+        </div>
+
+        <!-- Salience Quadrant 3: Commitment -->
+        <div class="p-4 rounded-xl border border-sky-900/40 bg-sky-950/20 hover:border-sky-700/60 transition-all cursor-pointer" onclick="inspectProvenance('commitment')">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] font-mono-code px-2 py-0.5 rounded bg-sky-900/60 text-sky-300 font-semibold flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>3. COMMITMENT • DUE TODAY
+            </span>
+            <span class="badge-fact">FACT</span>
+          </div>
+          <h3 class="text-sm font-semibold text-white">Valuation Sensitivities Promised to Carlos</h3>
+          <p class="text-xs text-[#a3acb5] mt-1 font-serif-editorial text-[13px] leading-relaxed">
+            You committed on Tuesday to send revised numbers by today. The file is in Drive (Pricing_Sensitivity_Matrix_Q4.xlsx). It has not been sent yet.
+          </p>
+          <div class="mt-3 pt-2 border-t border-sky-900/30 flex items-center justify-between text-[11px] font-mono-code text-sky-300/80">
+            <span>Commitment Status: Pending</span>
+            <span class="underline">Details →</span>
+          </div>
+        </div>
+
+        <!-- Salience Quadrant 4: Can Wait (Suppressed) -->
+        <div class="p-4 rounded-xl border border-[#22252a] bg-[#141619] text-[#727a83] hover:text-[#a3acb5] transition-colors">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-[10px] font-mono-code text-[#727a83] uppercase tracking-wider">4. CAN WAIT (SUPPRESSED)</span>
+            <span class="text-[10px] font-mono-code text-stone-500">Salience: 0.38</span>
+          </div>
+          <h4 class="text-xs font-medium text-[#a3acb5]">Q4 Tool Vendor Sync Next Wednesday</h4>
+          <p class="text-xs text-[#727a83] mt-1 font-serif-editorial">
+            Minor scheduling overlap next week. Non-strategic. Deliberately held back from morning interruption.
+          </p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ZONE B: THE ACTIVE THREAD (AG-UI Agentic Conversation) (4 Columns) -->
+    <section class="lg:col-span-4 border-r border-[#22252a] bg-[#0c0d0e] flex flex-col overflow-hidden">
+      <!-- Section Header -->
+      <div class="px-6 py-4 border-b border-[#22252a] flex items-center justify-between">
+        <div>
+          <span class="text-[10px] font-mono-code uppercase tracking-wider text-[#727a83] block">Zone B</span>
+          <h2 class="text-base font-serif-editorial font-medium text-white">Agentic Intelligence Thread</h2>
+        </div>
+        <div class="flex items-center gap-1.5 text-[11px] font-mono-code text-[#8e969f]">
+          <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+          <span>AG-UI v1.0</span>
+        </div>
+      </div>
+
+      <!-- Messages Stream -->
+      <div id="chat-stream" class="flex-1 overflow-y-auto p-5 space-y-4">
+        
+        <!-- Wendy Proactive Briefing Turn -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between text-xs text-[#727a83]">
+            <span class="font-serif-editorial font-medium text-white text-sm">Wendy</span>
+            <span class="font-mono-code text-[10px]">08:30:02</span>
+          </div>
+
+          <!-- Tool Progress Cards (AG-UI Backend Tool Rendering) -->
+          <div class="p-3 rounded-lg border border-[#22252a] bg-[#141618] space-y-2 text-xs font-mono-code text-[#8e969f]">
+            <div class="flex items-center gap-2 text-emerald-400">
+              <span>✓</span>
+              <span>Indexed calendar events & 14:00 Carlos meeting</span>
+            </div>
+            <div class="flex items-center gap-2 text-emerald-400">
+              <span>✓</span>
+              <span>Retrieved late-night email (23:42) citing Clause 4 concerns</span>
+            </div>
+            <div class="flex items-center gap-2 text-emerald-400">
+              <span>✓</span>
+              <span>Detected Mariana Vance birthday tomorrow (Tier 1 Relationship)</span>
+            </div>
+            <div class="flex items-center gap-2 text-emerald-400">
+              <span>✓</span>
+              <span>Identified unfulfilled financial sensitivity commitment due today</span>
+            </div>
+            <div class="flex items-center gap-2 text-indigo-400">
+              <span class="animate-spin">●</span>
+              <span>Staged Level 3 birthday draft and Level 1 Carlos pre-briefing</span>
+            </div>
+          </div>
+
+          <!-- Wendy Dialogue Text -->
+          <div class="p-4 rounded-xl border border-[#22252a] bg-[#141619] text-white font-serif-editorial text-[14px] leading-relaxed space-y-3">
+            <p>
+              Good morning João. I’ve reviewed the overnight signals and your schedule. I found four things worth your attention before your first call.
+            </p>
+            <p>
+              I prepared the two actions that are worth taking. Carlos’s meeting briefing is compiled with recommended rebate concessions, and Mariana’s birthday note is staged in your customary voice. You can review and authorize them in Zone C.
+            </p>
+            <div class="pt-2 border-t border-[#22252a] flex items-center justify-between text-[11px] font-mono-code text-[#8e969f]">
+              <span class="badge-recommendation">RECOMMENDATION</span>
+              <span>Standing by for authorization</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Chat Input Area -->
+      <div class="p-4 border-t border-[#22252a] bg-[#101214]">
+        <form id="chat-form" onsubmit="handleUserMessage(event)" class="relative">
+          <input
+            id="chat-input"
+            type="text"
+            placeholder="Ask Wendy (e.g. 'Why is Carlos important?' or 'What did I promise?')..."
+            class="w-full bg-[#181a1d] text-white text-xs py-3.5 pl-4 pr-12 rounded-lg border border-[#2b2f36] focus:outline-none focus:border-indigo-500 font-sans"
+          />
+          <button
+            type="submit"
+            class="absolute right-2.5 top-2.5 px-2.5 py-1 rounded bg-stone-800 text-white hover:bg-stone-700 text-xs font-mono-code transition-colors"
+          >
+            ⏎
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ZONE C: ACTION STAGING DRAWER (4 Columns) -->
+    <section class="lg:col-span-4 bg-[#111316] flex flex-col overflow-hidden">
+      <!-- Section Header -->
+      <div class="px-6 py-4 border-b border-[#22252a] flex items-center justify-between">
+        <div>
+          <span class="text-[10px] font-mono-code uppercase tracking-wider text-[#727a83] block">Zone C</span>
+          <h2 class="text-base font-serif-editorial font-medium text-white">Action Staging Drawer</h2>
+        </div>
+        <span class="px-2 py-0.5 rounded text-[11px] font-mono-code bg-amber-950 text-amber-300 border border-amber-800" id="staging-counter">
+          1 Action Awaiting Approval
+        </span>
+      </div>
+
+      <!-- Staged Action Cards Container -->
+      <div class="flex-1 overflow-y-auto p-5 space-y-5" id="staged-actions-container">
+        
+        <!-- ACTION CARD 1: LEVEL 3 EMAIL (Mariana's Birthday) -->
+        <div id="card-mariana-birthday" class="p-5 rounded-xl border border-amber-900/50 bg-[#16181b] space-y-4">
+          <div class="flex items-center justify-between">
+            <span class="badge-level3">LEVEL 3 — EXTERNAL COMMUNICATION</span>
+            <span class="text-[10px] font-mono-code text-[#727a83]">IRREVERSIBLE ON SEND</span>
+          </div>
+
+          <div>
+            <h3 class="text-sm font-semibold text-white">Send Birthday Greeting to Mariana Vance</h3>
+            <p class="text-xs text-[#8e969f] font-mono-code mt-0.5">Recipient: mariana@apexbio.com • Scheduled: Tomorrow 08:30</p>
+          </div>
+
+          <!-- Evidence Badges -->
+          <div class="p-2.5 rounded bg-[#0d0e10] border border-[#22252a] text-[11px] font-mono-code text-[#a3acb5] space-y-1">
+            <div class="text-[#727a83] font-semibold text-[10px] uppercase">Why Wendy staged this:</div>
+            <div>• Birthday verified tomorrow (Fact)</div>
+            <div>• Tier 1 European partner (Closeness: 0.88)</div>
+            <div>• Sent personal note last year; highly appreciated</div>
+          </div>
+
+          <!-- Editable Message Preview -->
+          <div class="space-y-1.5">
+            <label class="text-[10px] font-mono-code uppercase text-[#727a83] flex items-center justify-between">
+              <span>Message Draft (Editable)</span>
+              <span class="text-emerald-400 font-sans">Synced with Wendy Context</span>
+            </label>
+            <textarea
+              id="draft-mariana-body"
+              rows="6"
+              oninput="syncDraftState('act-mariana-birthday', this.value)"
+              class="w-full bg-[#0d0e10] text-[#ededed] p-3 text-xs rounded border border-[#272a30] focus:outline-none focus:border-indigo-500 font-serif-editorial text-[13px] leading-relaxed resize-none"
+            >Mariana,
+
+Wishing you a wonderful birthday tomorrow. 
+
+I was reflecting on our discussion last month regarding the European market expansion—the pace of execution at Apex continues to impress me. I hope you take time away from the pipeline to celebrate with family.
+
+Warmly,
+João</textarea>
+          </div>
+
+          <!-- Authorization Controls -->
+          <div class="pt-2 flex items-center gap-2">
+            <button
+              id="btn-auth-mariana"
+              onclick="authorizeAction('act-mariana-birthday')"
+              class="flex-1 py-2.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              <span>Authorize & Queue Dispatch</span>
+            </button>
+            <button
+              onclick="rejectAction('act-mariana-birthday')"
+              class="px-3 py-2.5 rounded-lg text-xs font-mono-code border border-[#2b2f36] text-[#8e969f] hover:text-white hover:bg-[#1f2227] transition-colors"
+            >
+              Dismiss
+            </button>
+          </div>
+
+          <!-- Verified State Banner (Hidden by default) -->
+          <div id="verified-banner-mariana" class="hidden p-3 rounded-lg bg-emerald-950/40 border border-emerald-800 text-xs font-mono-code text-emerald-300 space-y-1">
+            <div class="flex items-center gap-1.5 font-bold">
+              <span>✓</span>
+              <span>AUTHORIZED & EXECUTED</span>
+            </div>
+            <div class="text-[11px] text-emerald-200/80" id="verified-receipt-text">
+              Cryptographic hash recorded in ledger • Verification confirmed
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ACTION CARD 2: LEVEL 1 PREPARATION (Carlos Pre-Briefing) -->
+        <div class="p-5 rounded-xl border border-[#22252a] bg-[#16181b] space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-mono-code px-2 py-0.5 rounded bg-stone-800 text-stone-300 border border-stone-700 font-semibold">
+              LEVEL 1 — PREPARATION DOSSIER
+            </span>
+            <span class="text-[10px] font-mono-code text-emerald-400">READY</span>
+          </div>
+
+          <div>
+            <h3 class="text-sm font-semibold text-white">Carlos Meeting Dossier & Sensitivity Analysis</h3>
+            <p class="text-xs text-[#8e969f] font-mono-code mt-0.5">Pre-call briefing for 14:00 session</p>
+          </div>
+
+          <div class="p-3 rounded bg-[#0d0e10] border border-[#22252a] text-xs font-serif-editorial text-[#a3acb5] space-y-2 leading-relaxed">
+            <p><strong>Strategic Stance:</strong> Carlos supports the Horizon partnership but must defend Clause 4 escalation pricing to his Thursday investment committee.</p>
+            <p><strong>Recommendation:</strong> Propose a 3% volume rebate tier locked for 24 months in exchange for expedited committee closing.</p>
+          </div>
+
+          <button onclick="alert('Displaying full briefing: Pulled documents include Horizon_Partnership_Agreement_v3_draft.pdf and Pricing_Sensitivity_Matrix_Q4.xlsx')" class="w-full py-2 rounded-lg text-xs font-mono-code border border-[#2b2f36] text-white hover:bg-[#1f2227] transition-colors">
+            View Complete Dossier & Pulled Docs →
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- VIEW: MEMORY & RELATIONSHIP GRAPH (Hidden by default) -->
+  <section id="view-memory" class="hidden flex-1 p-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-6">
+    <div class="border-b border-[#22252a] pb-4 flex items-center justify-between">
+      <div>
+        <h2 class="text-2xl font-serif-editorial font-light text-white">Persistent Memory & Relationship Graph</h2>
+        <p class="text-xs text-[#8e969f] mt-1 font-mono-code">6-Strata Memory Store • Survives application and agent restarts</p>
+      </div>
+      <button onclick="switchView('workspace')" class="text-xs font-mono-code px-3 py-1.5 rounded border border-[#2b2f36] hover:bg-[#181a1d]">
+        ← Back to Workspace
+      </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="memory-cards-container">
+      <!-- Dynamically filled by app.js -->
+    </div>
+  </section>
+
+  <!-- VIEW: CRYPTOGRAPHIC AUDIT LEDGER (Hidden by default) -->
+  <section id="view-audit" class="hidden flex-1 p-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-6">
+    <div class="border-b border-[#22252a] pb-4 flex items-center justify-between">
+      <div>
+        <h2 class="text-2xl font-serif-editorial font-light text-white">Cryptographic Audit Ledger</h2>
+        <p class="text-xs text-[#8e969f] mt-1 font-mono-code">Immutable tamper-evident record of all Level 3/4 approvals and dispatches</p>
+      </div>
+      <button onclick="switchView('workspace')" class="text-xs font-mono-code px-3 py-1.5 rounded border border-[#2b2f36] hover:bg-[#181a1d]">
+        ← Back to Workspace
+      </button>
+    </div>
+
+    <div class="border border-[#22252a] rounded-xl overflow-hidden bg-[#111316]">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs font-mono-code">
+          <thead class="bg-[#181a1d] text-[#727a83] border-b border-[#22252a]">
+            <tr>
+              <th class="p-3">#</th>
+              <th class="p-3">Timestamp</th>
+              <th class="p-3">Event Type</th>
+              <th class="p-3">Level</th>
+              <th class="p-3">Actor</th>
+              <th class="p-3">Verification</th>
+              <th class="p-3">Entry Hash (SHA-256)</th>
+            </tr>
+          </thead>
+          <tbody id="audit-table-body" class="divide-y divide-[#22252a] text-[#ededed]">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- MODAL: PROVENANCE INSPECTOR -->
+  <div id="modal-provenance" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-[#141619] border border-[#2b2f36] rounded-xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-[#22252a] pb-3">
+        <div class="flex items-center gap-2">
+          <span class="badge-fact">PROVENANCE VERIFIED</span>
+          <h3 class="text-sm font-semibold text-white" id="modal-prov-title">Evidence Chain</h3>
+        </div>
+        <button onclick="closeProvenanceModal()" class="text-[#727a83] hover:text-white font-mono-code text-sm">✕</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <span class="text-[10px] font-mono-code uppercase text-[#727a83] block">Observed Entity</span>
+          <p class="text-white font-medium mt-0.5" id="modal-prov-entity">-</p>
+        </div>
+
+        <div>
+          <span class="text-[10px] font-mono-code uppercase text-[#727a83] block">Evidence Telemetry</span>
+          <ul class="mt-1 space-y-1.5 text-[#a3acb5] font-mono-code" id="modal-prov-evidence">
+            <!-- Items injected -->
+          </ul>
+        </div>
+
+        <div class="p-3 rounded bg-[#0d0e10] border border-[#22252a] space-y-1">
+          <span class="text-[10px] font-mono-code uppercase text-[#727a83] block">Cryptographic Hash Anchor</span>
+          <span class="text-[11px] font-mono-code text-emerald-400 break-all" id="modal-prov-hash">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</span>
+        </div>
+      </div>
+
+      <div class="pt-2 border-t border-[#22252a] flex justify-end">
+        <button onclick="closeProvenanceModal()" class="px-4 py-1.5 rounded text-xs font-mono-code bg-stone-800 hover:bg-stone-700 text-white">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SIGNAL INJECTOR (Event Bus Simulator) -->
+  <div id="modal-simulator" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-[#141619] border border-[#2b2f36] rounded-xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-[#22252a] pb-3">
+        <h3 class="text-sm font-semibold text-white">Sensory Event Bus Simulator</h3>
+        <button onclick="closeEventSimulator()" class="text-[#727a83] hover:text-white font-mono-code text-sm">✕</button>
+      </div>
+
+      <p class="text-xs text-[#8e969f]">
+        Inject a live external signal into Wendy's Reactive Event Bus to test real-time continuous awareness evaluation and attention filtering.
+      </p>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="text-[10px] font-mono-code uppercase text-[#727a83] block mb-1">Signal Scenario</label>
+          <select id="sim-scenario" class="w-full bg-[#0d0e10] border border-[#272a30] text-white p-2.5 rounded text-xs font-mono-code focus:outline-none focus:border-indigo-500">
+            <option value="carlos_reply">Carlos emails: "Pricing agreed, sending agreement to board now"</option>
+            <option value="flight_delay">Flight Alert: João's Thursday flight to London delayed 3h</option>
+            <option value="competitor_news">External Signal: Competitor raises $50M Series B in European market</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t border-[#22252a] flex justify-end gap-2">
+        <button onclick="closeEventSimulator()" class="px-3 py-1.5 rounded text-xs font-mono-code border border-[#2b2f36] text-[#8e969f]">
+          Cancel
+        </button>
+        <button onclick="injectSimulatedEvent()" class="px-4 py-1.5 rounded text-xs font-mono-code bg-indigo-600 hover:bg-indigo-500 text-white">
+          Publish Event to Bus
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

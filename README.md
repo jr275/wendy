@@ -24,6 +24,7 @@ credit balance). See `WENDY_PHASE_1_COMPLETION_REPORT.md`.
 | `npm run migrate` | Create/upgrade the schema in `wendy` |
 | `npm test` | Deterministic suite (85 tests, isolated schemas in `wendy_test`; no Claude) |
 | `npm run test:live` | Live suite against real Claude (11 tests; requires API credit) |
+| `npm run gate` | Preflight (one real call) → live tests → both demos; raw results in `gate-results/` |
 | `npm run demo` / `npm run demo -- b` | "First wow": one new email → one cognitive cycle with real Claude |
 | `npm run worker` | Continuous loop: detectors, event processing, execution (real Claude) |
 | `npm run inspector` | Read-only UI at http://127.0.0.1:3457 (Hoje, Aprovações, Atividade, Ontologia, Pessoas e memória, Integrações, Auditoria) |

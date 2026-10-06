@@ -6,3 +6,4 @@ dist/
 *.tmp.*
 data-archive-*/
 legacy/data/
+gate-results/

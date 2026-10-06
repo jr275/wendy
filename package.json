@@ -18,7 +18,8 @@
     "legacy:test": "node legacy/tests/phase_2_5_reality_test.js",
     "legacy:ui": "WENDY_DATA_DIR=legacy/data node legacy/server.js",
     "inspector": "tsx inspector/server.ts",
-    "inspector:sample": "tsx scripts/sample-test-double.ts"
+    "inspector:sample": "tsx scripts/sample-test-double.ts",
+    "gate": "tsx scripts/gate.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

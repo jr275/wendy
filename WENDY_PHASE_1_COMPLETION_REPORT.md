@@ -313,6 +313,18 @@ O status de cada teste do gate **não muda**: os testes dependentes do Claude co
 
 **Próximo passo:** adicionar créditos de API à organização `a9312976-…` (Console → Settings → Billing → Credit balance > 0) e rodar `npm run test:live` e `npm run demo`.
 
+## Atualização — 2026-10-06 (interface e verificações)
+
+- **Saldo da API:** verificado de novo, ainda `credit balance is too low` (organização `a9312976-…`). Os testes que dependem do Claude continuam **BLOCKED**.
+- **Interface "Menlo / Remax AI Platform"** sobre o inspetor, só leitura. Telas: Hoje (torre de controle), Insight (revisar proposta, explicar, mostrar lógica), Aprovações, Atividade, Ontologia, Pessoas e memória, Integrações, Auditoria. Temas claro e escuro. Aceitar e Modificar ficam **desativados** até existir a API de aprovação com autenticação.
+- **Garantias novas testadas:**
+  - a conexão do inspetor é rejeitada pelo Postgres em qualquer escrita;
+  - os números da tela batem com o estado persistido;
+  - os rótulos de evidência vêm dos registros reais;
+  - o grafo da ontologia só contém registros e ligações existentes.
+- **Testes determinísticos:** 85/85 (eram 81).
+- Os dados da interface ainda são do **substituto de teste**, e a interface avisa isso em todas as telas.
+
 ---
 
 NOT READY FOR PHASE 2

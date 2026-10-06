@@ -491,6 +491,8 @@ function miniRow(i) {
 
 /* ---------- INSIGHT ---------- */
 let evidenceIndex = {};
+let factLabels = {};
+const factLabel = (f) => { const e = f.evidence[0]; return (e && factLabels[`${e.kind}:${e.id}`]) || f.statement.split('\n')[0]; };
 let insightView = 'summary';
 let logicData = null;
 let lastInsight = null;
@@ -498,6 +500,7 @@ async function viewInsight(id) {
   if (lastInsight !== id) { insightView = 'summary'; lastInsight = id; }
   const d = await api('/api/insight', { id });
   const { insight: ins, claims, actions, calls, event, memoriesWritten } = d;
+  factLabels = d.labels ?? {};
   const valid = claims.filter((c) => c.validation_status === 'VALID');
   const rejected = claims.filter((c) => c.validation_status !== 'VALID');
   const facts = valid.filter((c) => c.kind === 'FACT');
@@ -527,13 +530,13 @@ async function viewInsight(id) {
   h += ins.narrative ? `<div class="narr">${esc(stripRefs(ins.narrative))}</div>` : `<div class="narr" style="color:var(--muted)">A narrativa do modelo não passou na validação; abaixo, só o que foi comprovado.</div>`;
 
   const eventFact = facts.find((f) => f.evidence.some((e) => e.kind === 'event'));
-  h += `<div class="kv"><div class="k">O que aconteceu</div><div>${eventFact ? `<div class="claim"><div class="s">${esc(eventFact.statement.split('\n').slice(0, 3).join(' · '))}</div></div>` : '—'}</div></div>`;
+  h += `<div class="kv"><div class="k">O que aconteceu</div><div>${eventFact ? `<div class="claim"><div class="s">${esc(factLabel(eventFact))}</div><div class="ev"><button data-ev="${esc(eventFact.label)}">ver registro completo</button></div></div>` : '—'}</div></div>`;
   for (const kind of ['INFERENCE', 'ANTICIPATION', 'HYPOTHESIS', 'RECOMMENDATION']) {
     const group = valid.filter((c) => c.kind === kind);
     if (!group.length) continue;
     h += `<div class="kv"><div class="k">${KIND_PT[kind]}</div><div>${group.map((c) => claimHtml(c, byOrd)).join('')}</div></div>`;
   }
-  h += `<div class="kv"><div class="k">A evidência</div><div><div class="ev">${facts.map((f) => `<button data-ev="${esc(f.label)}">${esc(f.statement.split('\n')[0].slice(0, 90))}</button>`).join('')}</div><div class="evbox" id="evbox"></div></div></div>`;
+  h += `<div class="kv"><div class="k">A evidência</div><div><div class="ev">${facts.map((f) => `<button data-ev="${esc(f.label)}">${esc(factLabel(f).slice(0, 90))}</button>`).join('')}</div><div class="evbox" id="evbox"></div></div></div>`;
   const v = ins.validation ?? {};
   if ((v.gaps ?? []).length) h += `<div class="kv"><div class="k">O que eu não sei</div><div>${v.gaps.map((g) => `<div class="claim"><div class="s">${esc(g)}</div></div>`).join('')}</div></div>`;
   if ((v.conflicts ?? []).length) h += `<div class="kv"><div class="k">Evidências em conflito</div><div>${v.conflicts.map((c) => `<div class="claim"><div class="s">${esc(c.description)}</div></div>`).join('')}</div></div>`;
@@ -567,7 +570,7 @@ function logicHtml(claims) {
   ];
   return `<div class="card logic" id="logic"><svg class="links" id="logicLinks"></svg><div class="lcols">${cols
     .map(([title, list]) => `<div class="lcol"><h5>${title} · ${list.length}</h5>${list
-      .map((c) => `<div class="node ${c.kind === 'FACT' ? 'fact' : c.kind === 'RECOMMENDATION' ? 'rec' : ''}" data-ord="${c.ordinal}"><div class="k"><span>${esc(c.kind === 'FACT' ? c.evidence.map((e) => e.handle).join(' ') : c.label)}</span><span>${c.kind === 'FACT' ? 'fonte' : Number(c.confidence).toFixed(2)}</span></div>${esc((c.kind === 'FACT' ? c.statement.split('\n')[0] : c.statement).slice(0, 160))}</div>`)
+      .map((c) => `<div class="node ${c.kind === 'FACT' ? 'fact' : c.kind === 'RECOMMENDATION' ? 'rec' : ''}" data-ord="${c.ordinal}"><div class="k"><span>${esc(c.kind === 'FACT' ? c.evidence.map((e) => e.handle).join(' ') : c.label)}</span><span>${c.kind === 'FACT' ? 'fonte' : Number(c.confidence).toFixed(2)}</span></div>${esc((c.kind === 'FACT' ? factLabel(c) : c.statement).slice(0, 160))}</div>`)
       .join('') || '<div class="note">—</div>'}</div>`)
     .join('')}</div></div>
     <div class="note" style="margin-top:8px">Cada linha liga uma afirmação ao que a sustenta. Fatos são gerados pelo código a partir dos registros; o resto vem do raciocínio e passou pela validação.</div>`;
@@ -597,7 +600,7 @@ window.addEventListener('resize', () => drawLogic());
 function claimHtml(c, byOrd) {
   const basis = c.derived_from.map((o) => byOrd[o]).filter((x) => x && x.kind === 'FACT');
   return `<div class="claim"><div class="s">${esc(c.statement)}</div><div class="m">${conf(c.confidence)} (${Number(c.confidence).toFixed(2)})${basis.length ? ` · baseado em ${basis.length} fato(s)` : ''}</div>
-    ${basis.length ? `<div class="ev">${basis.map((b) => `<button data-ev="${esc(b.label)}">${esc(b.statement.split('\n')[0].slice(0, 70))}</button>`).join('')}</div>` : ''}</div>`;
+    ${basis.length ? `<div class="ev">${basis.map((b) => `<button data-ev="${esc(b.label)}">${esc(factLabel(b).slice(0, 70))}</button>`).join('')}</div>` : ''}</div>`;
 }
 function actionCard(a) {
   const [sl, sc] = ACTION_STATE[a.state] ?? [a.state, 'grey'];

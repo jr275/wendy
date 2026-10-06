@@ -33,25 +33,36 @@ const INSIGHT_CARD_SQL = `
 
 const LABEL_SQL: Record<string, string> = {
   person: `SELECT id, full_name AS label FROM people WHERE id = ANY($1::uuid[])`,
-  message: `SELECT id, subject AS label FROM messages WHERE id = ANY($1::uuid[])`,
-  meeting: `SELECT id, title AS label FROM meetings WHERE id = ANY($1::uuid[])`,
-  commitment: `SELECT id, description AS label FROM commitments WHERE id = ANY($1::uuid[])`,
-  memory: `SELECT id, content AS label FROM memories WHERE id = ANY($1::uuid[])`,
-  event: `SELECT id, event_type AS label FROM events WHERE id = ANY($1::uuid[])`,
-  insight: `SELECT id, coalesce(headline, 'insight anterior') AS label FROM insights WHERE id = ANY($1::uuid[])`,
+  message: `SELECT m.id, concat_ws(' · ', CASE WHEN m.direction = 'OUTBOUND' THEN 'E-mail seu' ELSE 'E-mail de ' || coalesce(p.full_name, m.from_address) END,
+                    to_char(m.sent_at, 'DD/MM'), m.subject) AS label
+            FROM messages m LEFT JOIN message_participants mp ON mp.message_id = m.id AND mp.role = 'FROM' LEFT JOIN people p ON p.id = mp.person_id
+            WHERE m.id = ANY($1::uuid[])`,
+  meeting: `SELECT id, concat_ws(' · ', 'Reunião ' || title, to_char(starts_at, 'DD/MM HH24:MI'), CASE WHEN status = 'CANCELLED' THEN 'cancelada' END) AS label FROM meetings WHERE id = ANY($1::uuid[])`,
+  commitment: `SELECT id, concat_ws(' · ', 'Compromisso: ' || description, 'vence ' || to_char(due_at, 'DD/MM HH24:MI'), CASE status WHEN 'OPEN' THEN 'aberto' WHEN 'DONE' THEN 'concluído' ELSE 'cancelado' END) AS label FROM commitments WHERE id = ANY($1::uuid[])`,
+  memory: `SELECT id, 'Memória: ' || content AS label FROM memories WHERE id = ANY($1::uuid[])`,
+  event: `SELECT id, CASE event_type WHEN 'EMAIL_RECEIVED' THEN 'E-mail recebido' WHEN 'COMMITMENT_DUE' THEN 'Compromisso vencendo (detectado)' WHEN 'PERSON_DATE_APPROACHING' THEN 'Data pessoal chegando (detectada)' WHEN 'PRINCIPAL_NOTE' THEN 'Nota sua' ELSE event_type END
+              || ' · ' || to_char(occurred_at, 'DD/MM HH24:MI') AS label FROM events WHERE id = ANY($1::uuid[])`,
+  insight: `SELECT id, 'Insight anterior: ' || coalesce(headline, '—') AS label FROM insights WHERE id = ANY($1::uuid[])`,
+  relationship: `SELECT id, 'Relação: ' || kind AS label FROM relationships WHERE id = ANY($1::uuid[])`,
 };
 
-/** Attaches a human label to each cited evidence reference. */
-async function labelEvidence(db: pg.Pool, rows: { cited: { handle: string; kind: string; id: string }[] | null }[]) {
+/** Human labels (pt-BR) for a set of evidence references, keyed "kind:id". */
+export async function evidenceLabels(db: pg.Pool, refs: { kind: string; id: string }[]): Promise<Record<string, string>> {
   const byKind = new Map<string, Set<string>>();
-  for (const r of rows) for (const c of r.cited ?? []) byKind.set(c.kind, (byKind.get(c.kind) ?? new Set()).add(c.id));
-  const labels = new Map<string, string>();
+  for (const r of refs) byKind.set(r.kind, (byKind.get(r.kind) ?? new Set()).add(r.id));
+  const out: Record<string, string> = {};
   for (const [kind, ids] of byKind) {
     const sql = LABEL_SQL[kind];
     if (!sql) continue;
-    for (const row of (await db.query<{ id: string; label: string }>(sql, [[...ids]])).rows) labels.set(`${kind}:${row.id}`, row.label);
+    for (const row of (await db.query<{ id: string; label: string }>(sql, [[...ids]])).rows) out[`${kind}:${row.id}`] = row.label;
   }
-  for (const r of rows) for (const c of r.cited ?? []) (c as Record<string, unknown>).label = labels.get(`${c.kind}:${c.id}`) ?? null;
+  return out;
+}
+
+/** Attaches a human label to each cited evidence reference. */
+async function labelEvidence(db: pg.Pool, rows: { cited: { handle: string; kind: string; id: string }[] | null }[]) {
+  const labels = await evidenceLabels(db, rows.flatMap((r) => r.cited ?? []));
+  for (const r of rows) for (const c of r.cited ?? []) (c as Record<string, unknown>).label = labels[`${c.kind}:${c.id}`] ?? null;
 }
 
 export async function today(db: pg.Pool, principalIdParam: string | null) {
@@ -118,7 +129,8 @@ export async function insightDetail(db: pg.Pool, id: string) {
   const memoriesWritten = (
     await db.query(`SELECT id, kind, content, confidence FROM memories WHERE evidence @> $1::jsonb AND written_by = 'WENDY'`, [JSON.stringify([{ kind: 'event', id: insight.event_id }])])
   ).rows;
-  return { insight, event, claims, actions, calls, memoriesWritten };
+  const labels = await evidenceLabels(db, claims.flatMap((c: { evidence: { kind: string; id: string }[] }) => c.evidence));
+  return { insight, event, claims, actions, calls, memoriesWritten, labels };
 }
 
 export async function actionsList(db: pg.Pool, principalIdParam: string | null) {

@@ -15,6 +15,7 @@ import pg from 'pg';
 import { verifyLedgerIntegrity } from '../src/audit/ledger.js';
 import { loadEnv } from '../src/config.js';
 import '../src/db/db.js'; // registers pg type parsers
+import { readOnlyPool } from './readOnlyPool.js';
 import { activity, actionsList, insightDetail, modelCalls, ontology, people, principals, today } from './views.js';
 
 loadEnv();
@@ -29,8 +30,7 @@ function poolFor(schema: string | null): pg.Pool {
   const key = schema ?? '';
   let p = pools.get(key);
   if (!p) {
-    const options = ['-c default_transaction_read_only=on', ...(schema ? [`-c search_path=${schema}`] : [])].join(' ');
-    p = new pg.Pool({ connectionString: DB_URL, max: 4, options });
+    p = readOnlyPool(DB_URL, schema);
     pools.set(key, p);
   }
   return p;

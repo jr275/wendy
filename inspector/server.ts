@@ -1,8 +1,8 @@
 /**
- * WENDY BRAIN INSPECTOR — read-only.
- * Shows exactly what the Cognitive Core persisted for each event: evidence, claims, salience,
- * actions, model calls, ledger. Every DB session is opened with default_transaction_read_only=on,
- * so this server cannot change Wendy's state. Not the product UI.
+ * WENDY UI server.
+ * Reads: every read pool is opened with default_transaction_read_only=on, so the read side cannot
+ * change Wendy's state. Writes: only through the authenticated write API (writeApi.ts), on a
+ * separate pool, via the domain services (locked, principal-scoped, audited).
  *
  *   npm run inspector            → http://127.0.0.1:3457
  *   INSPECT_DATABASE_URL=postgres:///wendy_test npm run inspector   (e.g. a kept live-test schema)
@@ -14,8 +14,9 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { verifyLedgerIntegrity } from '../src/audit/ledger.js';
 import { loadEnv } from '../src/config.js';
-import '../src/db/db.js'; // registers pg type parsers
+import { createPool } from '../src/db/db.js'; // also registers pg type parsers
 import { readOnlyPool } from './readOnlyPool.js';
+import { createWriteApi } from './writeApi.js';
 import { activity, actionsList, configuration, insightDetail, modelCalls, ontology, people, principals, today } from './views.js';
 
 loadEnv();
@@ -57,6 +58,23 @@ async function listSchemas() {
   }
   return out;
 }
+
+const writePools = new Map<string, pg.Pool>();
+function writePoolFor(schema: string | null): pg.Pool {
+  const key = schema ?? '';
+  let p = writePools.get(key);
+  if (!p) {
+    p = createPool(DB_URL, schema ?? undefined);
+    writePools.set(key, p);
+  }
+  return p;
+}
+
+const writeApi = createWriteApi({
+  sessionsDb: writePoolFor(null),
+  dataDb: async (schema) => writePoolFor(schema),
+  allowedOrigins: [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`],
+});
 
 async function schemaGuard(schema: string | null): Promise<string> {
   if (!schema || !SCHEMA_RE.test(schema)) throw Object.assign(new Error('invalid schema'), { status: 400 });
@@ -160,7 +178,8 @@ http
   .createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     try {
-      if (req.method !== 'GET') return send(res, 405, { error: 'read-only' });
+      if (await writeApi.handle(req, res, url, () => schemaGuard(url.searchParams.get('schema')))) return;
+      if (req.method !== 'GET') return send(res, 405, { error: 'method not allowed' });
       if (url.pathname === '/') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
         return res.end(fs.readFileSync(PAGE));
@@ -195,4 +214,7 @@ http
       send(res, e.status ?? 500, { error: e.message });
     }
   })
-  .listen(PORT, '127.0.0.1', () => console.log(`Wendy brain inspector (read-only) on http://127.0.0.1:${PORT} — database ${DB_URL}`));
+  .listen(PORT, '127.0.0.1', () => {
+    console.log(`Wendy UI on http://127.0.0.1:${PORT} — database ${DB_URL}`);
+    console.log(`Para habilitar aprovações e edições, abra (uso único, vale 10 min):\n  http://127.0.0.1:${PORT}/login?t=${writeApi.issueLoginToken()}`);
+  });

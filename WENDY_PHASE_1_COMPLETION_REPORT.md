@@ -296,6 +296,23 @@ Nenhum teste que depende do Claude foi executado. A pergunta central deste gate 
 2. Rode `npm run test:live`, depois `npm run demo` e `npm run demo -- b`.
 3. Este relatório será atualizado com o resultado real de cada teste. Se algum teste live falhar, o status será FAIL.
 
+## Atualização do gate — 2026-10-06
+
+**A credencial foi resolvida. O bloqueio restante é de saldo.**
+
+| Item | Situação |
+|---|---|
+| `ANTHROPIC_API_KEY` | Chave própria do projeto Wendy, gravada no `.env` a partir da área de transferência (valor nunca exibido). Não é nenhuma das chaves coladas no chat. |
+| Escopo de workspace | A primeira chave não tinha workspace (`400 … must include the anthropic-workspace-id header`). Correção mínima em `src/cognition/llm.ts`: quando `ANTHROPIC_WORKSPACE_ID` existe, o cliente envia o header `anthropic-workspace-id` via `defaultHeaders`; sem a variável, o comportamento é idêntico ao anterior. A chave atual já tem workspace próprio e não precisa da variável. **Alteração ainda não commitada**, por instrução. |
+| Autenticação | A API aceita a chave. Organização `a9312976-1885-48fc-a429-b5618524db65`, workspace `wrkspc_016KhYUkYRZAGAjUKfG4xT2P`. |
+| Saldo | **Bloqueado**: `400 Your credit balance is too low to access the Anthropic API`. O mesmo erro bloqueia a contagem de tokens, por isso o custo por rodada ainda não foi medido. |
+| `npm run test:live` | 1 / 11 passa, só o teste de integridade do ledger, que não chama o Claude. Os 10 testes cognitivos falham no erro de saldo e nenhuma resposta do Claude foi obtida. |
+| Testes determinísticos | 81 / 81 e legado 28 / 28, re-executados depois da correção do header. Typecheck limpo. |
+
+O status de cada teste do gate **não muda**: os testes dependentes do Claude continuam **BLOCKED**.
+
+**Próximo passo:** adicionar créditos de API à organização `a9312976-…` (Console → Settings → Billing → Credit balance > 0) e rodar `npm run test:live` e `npm run demo`.
+
 ---
 
 NOT READY FOR PHASE 2

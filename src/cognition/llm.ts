@@ -85,7 +85,9 @@ export class ClaudeReasoningClient implements ReasoningClient {
     opts: { client?: Anthropic; model?: string } = {},
     private readonly model: string = opts.model ?? MODELS.reasoning,
   ) {
-    this.client = opts.client ?? new Anthropic();
+    // Keys not scoped to a workspace must name one via this header (same env var name the SDK uses for profiles).
+    const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
+    this.client = opts.client ?? new Anthropic(workspaceId ? { defaultHeaders: { 'anthropic-workspace-id': workspaceId } } : {});
   }
 
   async generate<T>(req: ReasoningRequest<T>): Promise<ReasoningResult<T>> {

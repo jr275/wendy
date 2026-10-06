@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wendy · Inspetor</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --panel: #ffffff; --ink: #1c1d1f; --muted: #6b6e74; --line: #e3e3df;
+    --accent: #3b5bdb; --ok: #2b8a3e; --warn: #b7791f; --bad: #c92a2a; --chip: #f0f0ec;
+    --fact: #495057; --inference: #3b5bdb; --hypothesis: #862e9c; --anticipation: #0b7285; --recommendation: #2b8a3e;
+    --banner-bg: #fff4e5; --banner-ink: #8a4b00; --banner-line: #f0c36d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121315; --panel: #1a1b1e; --ink: #e8e8e6; --muted: #9a9ca2; --line: #2b2d31;
+      --accent: #748ffc; --ok: #51cf66; --warn: #fcc419; --bad: #ff6b6b; --chip: #25272b;
+      --fact: #adb5bd; --inference: #748ffc; --hypothesis: #da77f2; --anticipation: #3bc9db; --recommendation: #69db7c;
+      --banner-bg: #2b2010; --banner-ink: #ffd8a8; --banner-line: #7a5214;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+  header .ro { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+  header .spacer { flex: 1; }
+  select, button { font: inherit; color: var(--ink); background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+  .badge.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+  .badge.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+  .badge.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+  .banner { margin: 14px 20px 0; padding: 10px 14px; border-radius: 8px; background: var(--banner-bg); color: var(--banner-ink); border: 1px solid var(--banner-line); font-weight: 550; }
+  main { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 16px; padding: 16px 20px 40px; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .list { padding: 6px; max-height: calc(100vh - 140px); overflow: auto; position: sticky; top: 64px; }
+  @media (max-width: 860px) { .list { position: static; max-height: 40vh; } }
+  .ev { padding: 9px 10px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
+  .ev:hover { background: var(--chip); }
+  .ev.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+  .ev .t { font-weight: 600; font-size: 13px; }
+  .ev .m { font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
+  .ev .h { font-size: 12.5px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  section.card { padding: 14px 16px; margin-bottom: 14px; }
+  section.card > h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 10px; font-weight: 650; }
+  .kv { display: grid; grid-template-columns: 140px 1fr; gap: 4px 12px; font-size: 13px; }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; word-break: break-word; }
+  pre { white-space: pre-wrap; word-break: break-word; background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 6px 0 0; max-height: 420px; overflow: auto; }
+  .claim { border-left: 3px solid var(--line); padding: 6px 10px; margin: 8px 0; }
+  .claim .k { font-size: 11px; font-weight: 700; letter-spacing: .5px; }
+  .claim.rej { opacity: .6; } .claim.rej .s { text-decoration: line-through; }
+  .claim .err { color: var(--bad); font-size: 12px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+  .chip { font-size: 11.5px; background: var(--chip); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; cursor: pointer; font-family: ui-monospace, Menlo, monospace; }
+  .chip:hover { border-color: var(--accent); }
+  .evi { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; margin: 6px 0; }
+  .evi.flash { outline: 2px solid var(--accent); }
+  .evi .hd { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .evi .hd b { font-family: ui-monospace, Menlo, monospace; }
+  .evi.uncited { opacity: .55; }
+  .muted { color: var(--muted); } .small { font-size: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .bar { height: 7px; border-radius: 4px; background: var(--chip); overflow: hidden; min-width: 80px; }
+  .bar > span { display: block; height: 100%; background: var(--accent); }
+  .rendered { white-space: pre-wrap; line-height: 1.55; }
+  .tl { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; margin-top: 6px; }
+  .empty { padding: 40px; text-align: center; color: var(--muted); }
+  details summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Wendy · Inspetor do cérebro</h1>
+  <span class="ro">somente leitura</span>
+  <span class="spacer"></span>
+  <label class="small muted" for="schema">Schema</label>
+  <select id="schema"></select>
+  <span id="ledger" class="badge">ledger…</span>
+  <button id="viewLedger">Ver ledger</button>
+</header>
+<div id="banner"></div>
+<main>
+  <div class="panel list" id="events"><div class="empty">Carregando…</div></div>
+  <div id="detail"><div class="panel empty">Selecione um evento.</div></div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = (d) => (d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
+const KIND = { FACT: ['FATO', 'fact'], INFERENCE: ['INFERÊNCIA', 'inference'], HYPOTHESIS: ['HIPÓTESE', 'hypothesis'], ANTICIPATION: ['ANTECIPAÇÃO', 'anticipation'], RECOMMENDATION: ['RECOMENDAÇÃO', 'recommendation'] };
+const FACTOR = { importance: 'Importância', urgency: 'Urgência', relationship_relevance: 'Relevância da relação', business_impact: 'Impacto no negócio', novelty: 'Novidade', confidence: 'Confiança', time_sensitivity: 'Sensibilidade ao tempo', actionability: 'Acionabilidade', executive_preference: 'Preferência do executivo' };
+const STATUS = { SURFACED: ['apresentado', 'ok'], SUPPRESSED: ['suprimido', ''], REJECTED_BY_VALIDATION: ['rejeitado pela validação', 'bad'] };
+let state = { schema: null, schemas: [], selected: null };
+
+async function api(path, params = {}) {
+  const q = new URLSearchParams({ schema: state.schema ?? '', ...params });
+  const r = await fetch(`${path}?${q}`);
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+
+async function init() {
+  const { schemas } = await api('/api/schemas');
+  state.schemas = schemas;
+  const sel = $('#schema');
+  if (!schemas.length) {
+    $('#events').innerHTML = '<div class="empty">Nenhum schema com dados da Wendy neste banco.</div>';
+    return;
+  }
+  sel.innerHTML = schemas.map((s) => `<option value="${esc(s.schema)}">${esc(s.schema)} · ${s.events} eventos</option>`).join('');
+  const fromHash = new URLSearchParams(location.hash.slice(1));
+  state.schema = schemas.some((s) => s.schema === fromHash.get('schema')) ? fromHash.get('schema') : schemas[0].schema;
+  sel.value = state.schema;
+  sel.onchange = () => { state.schema = sel.value; state.selected = null; location.hash = `schema=${state.schema}`; load(); };
+  $('#viewLedger').onclick = showLedger;
+  await load(fromHash.get('event'));
+}
+
+function banner() {
+  const s = state.schemas.find((x) => x.schema === state.schema);
+  const b = $('#banner');
+  if (s && s.test_double_calls > 0 && s.real_calls === 0) {
+    b.innerHTML = `<div class="banner">⚠ Este schema contém apenas raciocínio do SUBSTITUTO DE TESTE (TEST_DOUBLE) — não é o Claude. Ele demonstra a mecânica (evidências, validação, salience, ações, ledger), não a inteligência da Wendy.</div>`;
+  } else if (s && s.test_double_calls > 0) {
+    b.innerHTML = `<div class="banner">⚠ Este schema mistura chamadas reais ao Claude e do substituto de teste. Cada evento indica qual foi usado.</div>`;
+  } else b.innerHTML = '';
+}
+
+async function load(eventId) {
+  banner();
+  const [{ events, principals }, led] = await Promise.all([api('/api/overview'), api('/api/ledger')]);
+  const L = $('#ledger');
+  L.className = `badge ${led.integrity.valid ? 'ok' : 'bad'}`;
+  L.textContent = led.integrity.valid ? `ledger íntegro · ${led.integrity.blockCount} blocos` : `LEDGER COMPROMETIDO`;
+  L.title = led.integrity.valid ? '' : led.integrity.error;
+  const pname = Object.fromEntries(principals.map((p) => [p.id, p.display_name]));
+  const box = $('#events');
+  if (!events.length) { box.innerHTML = '<div class="empty">Nenhum evento.</div>'; return; }
+  box.innerHTML = events.map((e) => {
+    const st = STATUS[e.insight_status];
+    return `<div class="ev" data-id="${esc(e.id)}">
+      <div class="t">${esc(e.event_type)}</div>
+      <div class="m"><span>${esc(fmt(e.received_at))}</span><span>· ${esc(pname[e.principal_id] ?? '')}</span>
+        <span class="badge ${e.processing_status === 'FAILED' ? 'bad' : e.processing_status === 'SKIPPED' ? 'warn' : ''}">${esc(e.processing_status)}</span>
+        ${st ? `<span class="badge ${st[1]}">${esc(st[0])}${e.score != null ? ` · ${Number(e.score).toFixed(2)}` : ''}</span>` : ''}
+        ${e.test_double ? '<span class="badge warn">substituto de teste</span>' : ''}</div>
+      ${e.headline ? `<div class="h">${esc(e.headline)}</div>` : e.last_error ? `<div class="h muted">${esc(e.last_error)}</div>` : ''}
+    </div>`;
+  }).join('');
+  box.querySelectorAll('.ev').forEach((el) => (el.onclick = () => select(el.dataset.id)));
+  await select(eventId && events.some((e) => e.id === eventId) ? eventId : events[0].id);
+}
+
+async function select(id) {
+  state.selected = id;
+  location.hash = `schema=${state.schema}&event=${id}`;
+  document.querySelectorAll('.ev').forEach((el) => el.classList.toggle('sel', el.dataset.id === id));
+  const d = await api('/api/event', { id });
+  $('#detail').innerHTML = renderDetail(d);
+  bindDetail(d);
+}
+
+function evidenceChip(e) { return `<span class="chip" data-ev="${esc(e.handle)}" title="${esc(e.kind)}">${esc(e.handle)}</span>`; }
+
+function renderDetail({ event, insight, claims, actions, calls, records, memoriesWritten }) {
+  const out = [];
+  const isDouble = calls.some((c) => c.model === 'TEST_DOUBLE');
+  if (isDouble) out.push(`<div class="banner" style="margin:0 0 14px">⚠ Raciocínio deste evento produzido pelo SUBSTITUTO DE TESTE, não pelo Claude.</div>`);
+
+  out.push(`<section class="panel card"><h2>Evento</h2><dl class="kv">
+    <dt>Tipo</dt><dd>${esc(event.event_type)}</dd>
+    <dt>Origem</dt><dd>${esc(event.source)} · ${esc(event.provenance?.origin)}${event.provenance?.detector ? ` · ${esc(event.provenance.detector)}` : ''}</dd>
+    <dt>Ocorreu / recebido</dt><dd>${esc(fmt(event.occurred_at))} / ${esc(fmt(event.received_at))}</dd>
+    <dt>Processamento</dt><dd>${esc(event.processing_status)} · ${esc(event.processing_attempts)} tentativa(s)${event.last_error ? ` · <span class="muted">${esc(event.last_error)}</span>` : ''}</dd>
+    <dt>Chave idempotente</dt><dd class="small">${esc(event.source_event_key)}</dd>
+    <dt>Payload</dt><dd><pre>${esc(JSON.stringify(event.payload, null, 2))}</pre></dd>
+  </dl></section>`);
+
+  if (!insight) { out.push(`<div class="panel empty">Sem insight para este evento${event.processing_status === 'SKIPPED' ? ' (evento obsoleto / ignorado)' : ''}.</div>`); return out.join(''); }
+
+  const st = STATUS[insight.status] ?? [insight.status, ''];
+  out.push(`<section class="panel card"><h2>Insight <span class="badge ${st[1]}">${esc(st[0])}</span></h2>
+    <div class="rendered">${esc(insight.rendered)}</div></section>`);
+
+  const factors = insight.salience.factors ?? [];
+  out.push(`<section class="panel card"><h2>Por que isso apareceu · salience ${Number(insight.salience.score).toFixed(3)} (limiar ${insight.salience.threshold})</h2>
+    <table><thead><tr><th>Fator</th><th>Valor</th><th style="width:22%"></th><th>Peso</th><th>Contribuição</th><th>Base</th></tr></thead><tbody>
+    ${factors.map((f) => `<tr><td>${esc(FACTOR[f.name] ?? f.name)}</td>
+      <td>${f.value == null ? '<span class="muted">n/a</span>' : Number(f.value).toFixed(2)}</td>
+      <td>${f.value == null ? '' : `<div class="bar"><span style="width:${Math.round(f.value * 100)}%"></span></div>`}</td>
+      <td>${(f.weight * 100).toFixed(0)}%</td><td>${Number(f.contribution).toFixed(3)}</td><td class="small">${esc(f.basis)}</td></tr>`).join('')}
+    </tbody></table></section>`);
+
+  const byOrd = Object.fromEntries(claims.map((c) => [c.ordinal, c]));
+  const claimHtml = (c) => {
+    const [label, cls] = KIND[c.kind] ?? [c.kind, 'fact'];
+    const rej = c.validation_status !== 'VALID';
+    return `<div class="claim ${rej ? 'rej' : ''}" style="border-left-color:var(--${cls})">
+      <div><span class="k" style="color:var(--${cls})">${label}</span> <span class="small muted">${esc(c.label)} · ${c.produced_by === 'CODE' ? 'gerado por código' : 'Claude'}${c.kind !== 'FACT' ? ` · confiança ${Number(c.confidence).toFixed(2)}` : ''}</span></div>
+      <div class="s">${esc(c.kind === 'FACT' ? c.statement.split('\n')[0] : c.statement)}</div>
+      <div class="chips">${c.evidence.map(evidenceChip).join('')}${c.derived_from.filter((o) => byOrd[o] && byOrd[o].kind !== 'FACT').map((o) => `<span class="chip">← ${esc(byOrd[o].label)}</span>`).join('')}</div>
+      ${rej ? `<div class="err">Rejeitado: ${esc(c.validation_errors.join('; '))}</div>` : ''}
+    </div>`;
+  };
+  const valid = claims.filter((c) => c.validation_status === 'VALID');
+  const rejected = claims.filter((c) => c.validation_status !== 'VALID');
+  out.push(`<section class="panel card"><h2>Raciocínio · ${valid.length} válidas, ${rejected.length} rejeitadas</h2>
+    ${['INFERENCE', 'HYPOTHESIS', 'ANTICIPATION', 'RECOMMENDATION', 'FACT'].map((k) => valid.filter((c) => c.kind === k).map(claimHtml).join('')).join('')}
+    ${rejected.length ? `<details><summary>Afirmações rejeitadas pela validação (${rejected.length})</summary>${rejected.map(claimHtml).join('')}</details>` : ''}
+  </section>`);
+
+  const cited = new Set(claims.filter((c) => c.validation_status === 'VALID').flatMap((c) => c.evidence.map((e) => e.handle)));
+  const map = insight.evidence_map ?? {};
+  const handles = Object.keys(map).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+  out.push(`<section class="panel card"><h2>Evidências recuperadas e enviadas ao modelo · ${handles.length} (${cited.size} citadas)</h2>
+    ${handles.map((h) => {
+      const ref = map[h]; const r = records[`${ref.kind}:${ref.id}`];
+      return `<div class="evi ${cited.has(h) ? '' : 'uncited'}" id="ev-${esc(h)}"><div class="hd"><b>${esc(h)}</b><span class="badge">${esc(ref.kind)}</span>${cited.has(h) ? '<span class="badge ok">citada</span>' : '<span class="small muted">não citada</span>'}</div>
+        ${r ? `<div>${esc(r.title)}</div><div class="small muted">${esc(r.detail ?? '')}</div>${r.body ? `<details><summary>conteúdo</summary><pre>${esc(r.body)}</pre></details>` : ''}` : `<div class="err small">registro não encontrado</div>`}
+        <div class="small muted">${esc(ref.id)}</div></div>`;
+    }).join('')}</section>`);
+
+  const v = insight.validation ?? {};
+  const issues = [
+    ...(v.understandingErrors ?? []).map((x) => `Entendimento: ${x}`),
+    ...(v.urgencyErrors ?? []).map((x) => `Urgência: ${x}`),
+    ...(v.businessImpact?.errors ?? []).map((x) => `Impacto: ${x}`),
+    ...(v.narrative && !v.narrative.valid ? v.narrative.errors.map((x) => `Narrativa: ${x}`) : []),
+    ...(v.rejectedActions ?? []).map((a) => `Ação ${a.type} rejeitada: ${a.errors.join('; ')}`),
+    ...(v.rejectedMemoryProposals ?? []).map((m) => `Memória rejeitada "${m.content}": ${m.errors.join('; ')}`),
+  ];
+  const res = v.resolution ?? {};
+  out.push(`<section class="panel card"><h2>Validação e entendimento</h2><dl class="kv">
+    <dt>Entidades resolvidas</dt><dd>${(res.resolved ?? []).map((r) => `${esc(r.mention.name ?? r.mention.email)} <span class="small muted">(${esc(r.method)})</span>`).join(', ') || '—'}</dd>
+    <dt>Ambíguas / não resolvidas</dt><dd>${[...(res.ambiguous ?? []).map((a) => `${esc(a.mention.name)} (${a.candidateIds.length} candidatos)`), ...(res.unresolved ?? []).map((m) => esc(m.name ?? m.email))].join(', ') || '—'}</dd>
+    <dt>Urgência</dt><dd>${v.urgency ? `${Number(v.urgency.value).toFixed(2)} ${v.urgency.quotes.map((q) => `“${esc(q)}”`).join(' ')}` : '<span class="muted">não aplicável</span>'}</dd>
+    <dt>Conflitos</dt><dd>${(v.conflicts ?? []).map((c) => esc(c.description)).join('<br>') || '—'}</dd>
+    <dt>Lacunas</dt><dd>${(v.gaps ?? []).map(esc).join('<br>') || '—'}</dd>
+    <dt>Conclusão de compromisso</dt><dd>${esc(v.completion?.status ?? '—')}</dd>
+    <dt>Problemas detectados</dt><dd>${issues.map(esc).join('<br>') || '<span class="muted">nenhum</span>'}</dd>
+  </dl>${insight.understanding ? `<details><summary>Entendimento validado (JSON)</summary><pre>${esc(JSON.stringify(insight.understanding, null, 2))}</pre></details>` : ''}</section>`);
+
+  out.push(`<section class="panel card"><h2>Ações · ${actions.length}</h2>${actions.length ? actions.map((a) => {
+    const last = a.versions?.[a.versions.length - 1];
+    return `<div class="evi"><div class="hd"><b>${esc(a.action_type)}</b><span class="badge ${a.state === 'VERIFIED' ? 'ok' : a.state === 'AWAITING_APPROVAL' ? 'warn' : ['FAILED', 'REJECTED', 'EXPIRED', 'CANCELLED'].includes(a.state) ? 'bad' : ''}">${esc(a.state)}</span>
+      <span class="small muted">nível ${esc(a.authorization_level)} · política ${esc(a.policy_decision?.mode)}${a.expires_at ? ` · expira ${esc(fmt(a.expires_at))}` : ''}</span></div>
+      <div class="tl">${(a.transitions ?? []).map((t) => `<span class="badge" title="${esc(t.reason ?? '')} · ${esc(fmt(t.at))}">${esc(t.to)} <span class="muted">· ${esc(t.actor)}</span></span>`).join('→')}</div>
+      ${a.execution ? `<div class="small" style="margin-top:6px">Execução: ${esc(a.execution.status)} via ${esc(a.execution.provider)} · ${esc(a.execution.attempts)} tentativa(s) · chave <code>${esc(a.execution.idempotency_key)}</code>
+        ${a.execution.verification ? `· verificação: ${a.execution.verification.contentMatches ? 'conteúdo confere' : 'NÃO confere'}${a.execution.verification.deliversExternally === false ? ' · <b>não entregue externamente (provider local)</b>' : ''}` : ''}</div>` : '<div class="small muted" style="margin-top:6px">Sem execução (não aprovada).</div>'}
+      ${last ? `<details><summary>conteúdo v${esc(last.version)} (${esc(last.author)})</summary><pre>${esc(JSON.stringify(last.content, null, 2))}</pre></details>` : ''}
+    </div>`;
+  }).join('') : '<div class="muted">Nenhuma ação proposta.</div>'}
+  ${memoriesWritten.length ? `<h2 style="margin-top:14px">Memórias escritas</h2>${memoriesWritten.map((m) => `<div class="evi"><span class="badge">${esc(m.kind)}</span> ${esc(m.content)} <span class="small muted">conf ${esc(m.confidence)}</span></div>`).join('')}` : ''}
+  </section>`);
+
+  out.push(`<section class="panel card"><h2>Chamadas ao modelo · ${calls.length}</h2>
+    <table><thead><tr><th>Etapa</th><th>Modelo</th><th>Respondido por</th><th>ID da API</th><th>Evidências enviadas</th><th>Tokens (in/out)</th><th></th></tr></thead><tbody>
+    ${calls.map((c) => `<tr><td>${esc(c.purpose)}</td><td>${c.model === 'TEST_DOUBLE' ? '<span class="badge warn">TEST_DOUBLE</span>' : esc(c.model)}</td><td>${esc(c.served_by_model ?? '—')}</td>
+      <td class="small">${esc(c.api_message_id ?? '—')}</td><td>${esc(c.evidence_sent)}</td>
+      <td>${c.usage ? `${esc(c.usage.input_tokens ?? '?')} / ${esc(c.usage.output_tokens ?? '?')}` : '—'}</td>
+      <td><button data-call="${esc(c.id)}">prompt e resposta</button></td></tr>
+      <tr class="callrow" id="call-${esc(c.id)}" hidden><td colspan="7"></td></tr>`).join('')}
+    </tbody></table></section>`);
+  return out.join('');
+}
+
+function bindDetail() {
+  document.querySelectorAll('#detail .chip[data-ev]').forEach((ch) => (ch.onclick = () => {
+    const el = document.getElementById(`ev-${ch.dataset.ev}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400);
+  }));
+  document.querySelectorAll('#detail button[data-call]').forEach((b) => (b.onclick = async () => {
+    const row = document.getElementById(`call-${b.dataset.call}`);
+    if (!row.hidden) { row.hidden = true; return; }
+    const c = await api('/api/model-call', { id: b.dataset.call });
+    row.firstElementChild.innerHTML = `${c.input?.system ? `<div class="small muted">System</div><pre>${esc(c.input.system)}</pre>` : ''}
+      <div class="small muted" style="margin-top:8px">Mensagem enviada (contexto real recuperado)</div><pre>${esc(c.input?.user ?? '')}</pre>
+      <div class="small muted" style="margin-top:8px">Resposta${c.error ? ` · erro: ${esc(c.error)}` : ''}</div><pre>${esc(JSON.stringify(c.output, null, 2))}</pre>`;
+    row.hidden = false;
+  }));
+}
+
+async function showLedger() {
+  const { integrity, blocks } = await api('/api/ledger');
+  document.querySelectorAll('.ev').forEach((el) => el.classList.remove('sel'));
+  $('#detail').innerHTML = `<section class="panel card"><h2>Ledger de auditoria</h2>
+    <p><span class="badge ${integrity.valid ? 'ok' : 'bad'}">${integrity.valid ? `íntegro · ${integrity.blockCount} blocos verificados do gênese à cabeça` : `COMPROMETIDO: ${esc(integrity.error)}`}</span></p>
+    <table><thead><tr><th>#</th><th>Quando</th><th>Evento</th><th>Ator</th><th>Sujeito</th><th>Hash</th></tr></thead><tbody>
+    ${blocks.map((b) => `<tr><td>${esc(b.seq)}</td><td class="small">${esc(fmt(b.at))}</td><td>${esc(b.event_type)}</td><td>${esc(b.actor)}</td><td class="small">${esc(b.subject_type)} ${esc(b.subject_id.slice(0, 8))}</td><td class="small"><code>${esc(b.hash.slice(0, 16))}…</code></td></tr>`).join('')}
+    </tbody></table></section>`;
+}
+
+init().catch((e) => { $('#events').innerHTML = `<div class="empty">Erro: ${esc(e.message)}</div>`; });
+</script>
+</body>
+</html>

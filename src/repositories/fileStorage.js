@@ -11,7 +11,8 @@ import {
   MemoryRepository
 } from './interfaces.js';
 
-const DATA_DIR = path.resolve('data');
+// Overridable so tests never touch the project's data/ directory.
+const DATA_DIR = path.resolve(process.env.WENDY_DATA_DIR || 'data');
 
 function ensureDir() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -26,15 +27,15 @@ function atomicWrite(filepath, data) {
   fs.renameSync(tmp, filepath);
 }
 
+// Missing file => default. Unreadable/corrupt file => throw (fail closed): silently
+// starting from an empty store would lose idempotency records and approvals.
 function readJsonSafe(filepath, defaultValue) {
+  if (!fs.existsSync(filepath)) return defaultValue;
   try {
-    if (fs.existsSync(filepath)) {
-      return JSON.parse(fs.readFileSync(filepath, 'utf-8'));
-    }
+    return JSON.parse(fs.readFileSync(filepath, 'utf-8'));
   } catch (err) {
-    console.error(`Error reading ${filepath}:`, err);
+    throw new Error(`Corrupt state file ${filepath}: ${err.message}`);
   }
-  return defaultValue;
 }
 
 // -------------------------------------------------------------
@@ -211,6 +212,21 @@ export const ActionState = {
   EXPIRED: 'EXPIRED'
 };
 
+const TERMINAL = [];
+export const ALLOWED_TRANSITIONS = {
+  PROPOSED: ['STAGED', 'AWAITING_APPROVAL', 'CANCELLED', 'EXPIRED'],
+  STAGED: ['AWAITING_APPROVAL', 'APPROVED', 'CANCELLED', 'EXPIRED'],
+  AWAITING_APPROVAL: ['APPROVED', 'REJECTED', 'CANCELLED', 'EXPIRED'],
+  APPROVED: ['EXECUTING', 'CANCELLED'],
+  EXECUTING: ['EXECUTED', 'FAILED'],
+  EXECUTED: ['VERIFIED', 'FAILED'],
+  VERIFIED: TERMINAL,
+  REJECTED: TERMINAL,
+  FAILED: TERMINAL,
+  CANCELLED: TERMINAL,
+  EXPIRED: TERMINAL
+};
+
 export class FileActionRepository extends ActionRepository {
   constructor() {
     super();
@@ -225,6 +241,9 @@ export class FileActionRepository extends ActionRepository {
   async saveAction(action) {
     const now = new Date().toISOString();
     const existing = this.actions[action.actionId];
+    if (existing && action.state && existing.state !== action.state) {
+      throw new Error(`saveAction cannot change state of ${action.actionId}; use updateActionState`);
+    }
     this.actions[action.actionId] = {
       createdAt: now,
       ...existing,
@@ -242,6 +261,10 @@ export class FileActionRepository extends ActionRepository {
   async updateActionState(actionId, state, metadata = {}) {
     const action = this.actions[actionId];
     if (!action) throw new Error(`Action not found: ${actionId}`);
+    const allowed = ALLOWED_TRANSITIONS[action.state] || [];
+    if (action.state !== state && !allowed.includes(state)) {
+      throw new Error(`Illegal action transition ${action.state} -> ${state} for ${actionId}`);
+    }
 
     const now = new Date().toISOString();
     action.state = state;
@@ -288,6 +311,11 @@ export class FileIdempotencyRepository extends IdempotencyRepository {
     if (existing && existing.status === 'COMPLETED') {
       return { alreadyCompleted: true, record: existing };
     }
+    if (existing && existing.status === 'IN_PROGRESS') {
+      // A previous attempt started and never recorded an outcome (crash/restart).
+      // The external effect may or may not have happened: refuse to re-run blindly.
+      return { alreadyCompleted: false, inDoubt: true, record: existing };
+    }
 
     const record = {
       idempotencyKey: key,
@@ -303,7 +331,7 @@ export class FileIdempotencyRepository extends IdempotencyRepository {
 
     this.records[key] = record;
     this.save();
-    return { alreadyCompleted: false, record };
+    return { alreadyCompleted: false, inDoubt: false, record };
   }
 
   async completeAttempt(key, result) {
@@ -332,51 +360,66 @@ export class FileIdempotencyRepository extends IdempotencyRepository {
 }
 
 // -------------------------------------------------------------
-// 6. AUDIT REPOSITORY (Cryptographic Ledger with Integrity Verification)
+// 6. AUDIT REPOSITORY (Hash-chained ledger, FAIL CLOSED)
 // -------------------------------------------------------------
+const GENESIS_HASH = 'GENESIS';
+
+// Deterministic JSON: object keys sorted recursively, so the hash covers every field unambiguously.
+export function canonicalJson(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  const keys = Object.keys(value).filter(k => value[k] !== undefined).sort();
+  return `{${keys.map(k => `${JSON.stringify(k)}:${canonicalJson(value[k])}`).join(',')}}`;
+}
+
 export class FileAuditRepository extends AuditRepository {
   constructor() {
     super();
     this.file = path.join(DATA_DIR, 'audit_ledger.json');
-    this.blocks = readJsonSafe(this.file, []);
+    this.headFile = path.join(DATA_DIR, 'audit_head.json');
+    this.loadError = null;
+    this.blocks = [];
+    this.head = null;
+    try {
+      if (fs.existsSync(this.file)) this.blocks = JSON.parse(fs.readFileSync(this.file, 'utf-8'));
+      if (fs.existsSync(this.headFile)) this.head = JSON.parse(fs.readFileSync(this.headFile, 'utf-8'));
+      if (!Array.isArray(this.blocks)) throw new Error('ledger file is not an array');
+    } catch (err) {
+      // Never fall back to an empty ledger: remember the failure and refuse to verify.
+      this.loadError = `Ledger unreadable: ${err.message}`;
+      this.blocks = [];
+    }
   }
 
   save() {
     atomicWrite(this.file, this.blocks);
+    const last = this.blocks[this.blocks.length - 1];
+    this.head = { sequenceNumber: last.sequenceNumber, entryHash: last.entryHash };
+    atomicWrite(this.headFile, this.head);
   }
 
-  computeBlockHash({ prevHash, timestamp, eventType, actionId, payload }) {
-    const payloadString = JSON.stringify(payload);
-    return crypto.createHash('sha256')
-      .update(prevHash + timestamp + eventType + actionId + payloadString)
-      .digest('hex');
+  computeBlockHash(block) {
+    const { entryHash, ...hashed } = block;
+    return crypto.createHash('sha256').update(canonicalJson(hashed)).digest('hex');
   }
 
   async appendBlock({ eventType, actionId, actorId, authorizationLevel, payload, verificationStatus = 'RECORDED' }) {
-    const timestamp = new Date().toISOString();
+    const integrity = await this.verifyLedgerIntegrity();
+    if (!integrity.valid) throw new Error(`Refusing to append to compromised ledger: ${integrity.error}`);
+
     const previousBlock = this.blocks[this.blocks.length - 1];
-    const prevHash = previousBlock ? previousBlock.entryHash : 'GENESIS_BLOCK_00000000000000000';
-
-    const entryHash = this.computeBlockHash({
-      prevHash,
-      timestamp,
-      eventType,
-      actionId,
-      payload
-    });
-
     const block = {
       sequenceNumber: this.blocks.length + 1,
-      timestamp,
+      timestamp: new Date().toISOString(),
       eventType,
       actionId,
       actorId,
       authorizationLevel,
       payload,
       verificationStatus,
-      prevHash,
-      entryHash
+      prevHash: previousBlock ? previousBlock.entryHash : GENESIS_HASH
     };
+    block.entryHash = this.computeBlockHash(block);
 
     this.blocks.push(block);
     this.save();
@@ -388,53 +431,37 @@ export class FileAuditRepository extends AuditRepository {
   }
 
   /**
-   * Cryptographically validates every block in the chain from genesis to head
+   * Verifies every block from genesis to head. Detects altered fields/hash/prevHash,
+   * removed, duplicated or reordered blocks, truncation (via the head anchor) and
+   * unreadable files. Any failure returns valid:false — callers must fail closed.
    */
   async verifyLedgerIntegrity() {
+    if (this.loadError) return { valid: false, error: this.loadError };
+
     if (this.blocks.length === 0) {
+      if (this.head) return { valid: false, error: `Ledger empty but head anchor records block #${this.head.sequenceNumber}` };
       return { valid: true, blockCount: 0 };
     }
 
     for (let i = 0; i < this.blocks.length; i++) {
       const current = this.blocks[i];
-      const expectedPrevHash = (i === 0) ? 'GENESIS_BLOCK_00000000000000000' : this.blocks[i - 1].entryHash;
-
-      // 1. Verify sequence order
+      const expectedPrevHash = i === 0 ? GENESIS_HASH : this.blocks[i - 1].entryHash;
       if (current.sequenceNumber !== i + 1) {
-        return {
-          valid: false,
-          error: `Sequence violation at block index ${i}: expected #${i + 1}, got #${current.sequenceNumber}`,
-          blockIndex: i
-        };
+        return { valid: false, error: `Sequence violation at index ${i}: expected #${i + 1}, got #${current.sequenceNumber}`, blockIndex: i };
       }
-
-      // 2. Verify previous hash chaining
       if (current.prevHash !== expectedPrevHash) {
-        return {
-          valid: false,
-          error: `Chain broken at block #${current.sequenceNumber}: prevHash mismatch. Expected ${expectedPrevHash}, found ${current.prevHash}`,
-          blockIndex: i
-        };
+        return { valid: false, error: `Chain broken at block #${current.sequenceNumber}: prevHash mismatch`, blockIndex: i };
       }
-
-      // 3. Recompute and verify block hash
-      const computedHash = this.computeBlockHash({
-        prevHash: current.prevHash,
-        timestamp: current.timestamp,
-        eventType: current.eventType,
-        actionId: current.actionId,
-        payload: current.payload
-      });
-
-      if (computedHash !== current.entryHash) {
-        return {
-          valid: false,
-          error: `Tampering detected at block #${current.sequenceNumber}: hash mismatch. Computed ${computedHash}, stored ${current.entryHash}`,
-          blockIndex: i
-        };
+      if (this.computeBlockHash(current) !== current.entryHash) {
+        return { valid: false, error: `Tampering detected at block #${current.sequenceNumber}: hash mismatch`, blockIndex: i };
       }
     }
 
+    const last = this.blocks[this.blocks.length - 1];
+    if (!this.head) return { valid: false, error: 'Head anchor missing for non-empty ledger' };
+    if (this.head.sequenceNumber !== last.sequenceNumber || this.head.entryHash !== last.entryHash) {
+      return { valid: false, error: `Head anchor mismatch: anchor #${this.head.sequenceNumber}, ledger ends at #${last.sequenceNumber} (truncation or rewrite)` };
+    }
     return { valid: true, blockCount: this.blocks.length };
   }
 }
@@ -457,7 +484,7 @@ export class FileMemoryRepository extends MemoryRepository {
     atomicWrite(this.file, this.data);
   }
 
-  async appendEpisodic({ interactionType, entityIds = [], summary, verbatimSnippet = null, provenanceSource = 'SYSTEM' }) {
+  async appendEpisodic({ interactionType, entityIds = [], summary, verbatimSnippet = null, provenanceSource = 'SYSTEM', sourceEventId = null }) {
     const rawContent = (summary || '') + (verbatimSnippet || '');
     const entry = {
       id: `ep-${crypto.randomUUID()}`,
@@ -467,7 +494,8 @@ export class FileMemoryRepository extends MemoryRepository {
       summary,
       verbatimSnippet,
       provenanceHash: crypto.createHash('sha256').update(rawContent).digest('hex'),
-      provenanceSource
+      provenanceSource,
+      sourceEventId
     };
     this.data.episodic.unshift(entry);
     this.save();

@@ -19,6 +19,7 @@ import { ActionAdapters } from './src/governance/actionAdapters.js';
 import { AguiProtocol } from './src/agui/aguiProtocol.js';
 
 const PORT = process.env.PORT || 3456;
+const PRINCIPAL_ID = process.env.WENDY_PRINCIPAL_ID || 'person-exec-joao';
 const PUBLIC_DIR = path.resolve('public');
 
 // 1. REPOSITORIES INITIALIZATION
@@ -33,7 +34,7 @@ const memoryRepo = new FileMemoryRepository();
 // 2. AUDIT INTEGRITY CHECK ON BOOT
 const ledgerCheck = await auditRepo.verifyLedgerIntegrity();
 if (!ledgerCheck.valid) {
-  console.error('\n🚨 FATAL: Cryptographic audit ledger integrity failure detected on startup!');
+  console.error('\nFATAL: audit ledger integrity check failed on startup.');
   console.error(`Error: ${ledgerCheck.error}`);
   console.error('Halting boot to prevent operating on compromised state.\n');
   process.exit(1);
@@ -56,10 +57,12 @@ const cognitivePipeline = new CognitivePipeline({
   relationshipRepo,
   memoryRepo,
   actionRepo,
-  eventBus: globalEventBus
+  eventBus: globalEventBus,
+  principalId: PRINCIPAL_ID
 });
 
 const reasoningEngine = new ReasoningEngine({
+  principalId: PRINCIPAL_ID,
   entityRepo,
   relationshipRepo,
   eventRepo,
@@ -104,6 +107,26 @@ const MIME_TYPES = {
   '.svg': 'image/svg+xml'
 };
 
+function sendJson(res, status, body) {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(body));
+}
+
+// Rejects non-JSON bodies so a cross-site "simple" (text/plain) POST cannot drive actions.
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    if (!(req.headers['content-type'] || '').startsWith('application/json')) {
+      reject(Object.assign(new Error('Content-Type must be application/json'), { status: 415 }));
+      return;
+    }
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try { resolve(JSON.parse(body || '{}')); } catch (e) { reject(Object.assign(e, { status: 400 })); }
+    });
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
   const pathname = parsedUrl.pathname;
@@ -147,174 +170,132 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 3. Chat / Executive Dialogue (Real Memory Retrieval)
+  // 3. Chat (legacy: lists persisted records, no reasoning)
   if (pathname === '/api/chat' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', async () => {
-      try {
-        const { query } = JSON.parse(body || '{}');
-        const response = await reasoningEngine.processExecutiveQuery(query);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(response));
-      } catch (err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
-      }
-    });
+    try {
+      const { query } = await readJsonBody(req);
+      sendJson(res, 200, await reasoningEngine.processExecutiveQuery(String(query || '')));
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message });
+    }
     return;
   }
 
-  // 4. Two-Way Shared State Sync (Draft updates - PERSISTED TO DISK)
+  // 4. Draft edits (persisted; only while awaiting approval)
   if (pathname === '/api/action/sync' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', async () => {
-      try {
-        const { actionId, modifiedBody } = JSON.parse(body || '{}');
-        const action = await actionRepo.getAction(actionId);
-        if (action) {
-          action.preview.body = modifiedBody;
-          await actionRepo.saveAction(action);
-          console.log(`[SHARED STATE SYNC] Action ${actionId} draft persisted to disk.`);
-        }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true }));
-      } catch (err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
+    try {
+      const { actionId, modifiedBody } = await readJsonBody(req);
+      const action = await actionRepo.getAction(actionId);
+      if (!action) return sendJson(res, 404, { error: 'Action not found' });
+      if (action.state !== ActionState.AWAITING_APPROVAL) {
+        return sendJson(res, 409, { error: `Action is ${action.state}; drafts can only be edited while AWAITING_APPROVAL` });
       }
-    });
+      action.preview = { ...action.preview, body: modifiedBody };
+      await actionRepo.saveAction(action);
+      sendJson(res, 200, { success: true });
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message });
+    }
     return;
   }
 
-  // 5. Human Authorization & Action Execution (Level 3/4 Gate)
+  // 5. Approval. Records the decision; dispatch reports honestly that nothing was sent.
   if (pathname === '/api/action/authorize' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', async () => {
-      try {
-        const { actionId, modifiedBody, actorId = 'person-exec-joao' } = JSON.parse(body || '{}');
-        const action = await actionRepo.getAction(actionId);
-        
-        if (!action) {
-          res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Action not found in staging repository' }));
-          return;
-        }
-
-        // 1. Record cryptographic approval entry
-        const approvalEntry = await auditRepo.appendBlock({
-          eventType: 'ACTION_APPROVED_BY_EXECUTIVE',
-          actionId,
-          actorId,
-          authorizationLevel: action.authorizationLevel,
-          payload: {
-            approvedAt: new Date().toISOString(),
-            recipient: action.preview.recipient,
-            bodyDispatched: modifiedBody || action.preview.body
-          },
-          verificationStatus: 'APPROVED'
-        });
-
-        // 2. Execute via durable idempotent Action Adapter
-        const dispatchResult = await actionAdapters.dispatchEmail({
-          actionId,
-          recipient: action.preview.recipient,
-          subject: action.preview.subject,
-          bodyText: modifiedBody || action.preview.body,
-          actorId
-        });
-
-        // 3. Broadcast verification to all connected AG-UI surfaces
-        broadcastSse('ACTION_VERIFIED_BROADCAST', {
-          actionId,
-          auditHash: approvalEntry.entryHash,
-          verification: dispatchResult.verificationReceipt
-        });
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          success: true,
-          auditEntry: approvalEntry,
-          verification: dispatchResult.verificationReceipt
-        }));
-      } catch (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
+    try {
+      const { actionId, modifiedBody } = await readJsonBody(req);
+      const action = await actionRepo.getAction(actionId);
+      if (!action) return sendJson(res, 404, { error: 'Action not found' });
+      if (action.state !== ActionState.AWAITING_APPROVAL) {
+        return sendJson(res, 409, { error: `Action is ${action.state}; only AWAITING_APPROVAL actions can be approved` });
       }
-    });
+
+      const body = modifiedBody || action.preview.body;
+      const approvalEntry = await auditRepo.appendBlock({
+        eventType: 'ACTION_APPROVED_BY_EXECUTIVE',
+        actionId,
+        actorId: PRINCIPAL_ID,
+        authorizationLevel: action.authorizationLevel,
+        payload: { recipient: action.preview.recipient, subject: action.preview.subject, body },
+        verificationStatus: 'APPROVED'
+      });
+      await actionRepo.updateActionState(actionId, ActionState.APPROVED, { preview: { ...action.preview, body } });
+
+      const dispatch = await actionAdapters.dispatchEmail({
+        actionId,
+        recipient: action.preview.recipient,
+        subject: action.preview.subject,
+        bodyText: body,
+        actorId: PRINCIPAL_ID
+      });
+
+      broadcastSse('ACTION_APPROVAL_RECORDED', { actionId, auditHash: approvalEntry.entryHash, dispatch });
+      sendJson(res, 200, { success: true, auditEntry: approvalEntry, dispatch });
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message });
+    }
     return;
   }
 
-  // 6. Cryptographic Audit Ledger Query & Integrity Status
+  // 5b. Rejection (persisted server-side + audited)
+  if (pathname === '/api/action/reject' && req.method === 'POST') {
+    try {
+      const { actionId, reason = null } = await readJsonBody(req);
+      const action = await actionRepo.getAction(actionId);
+      if (!action) return sendJson(res, 404, { error: 'Action not found' });
+      if (action.state !== ActionState.AWAITING_APPROVAL && action.state !== ActionState.PROPOSED) {
+        return sendJson(res, 409, { error: `Action is ${action.state}; cannot reject` });
+      }
+      const entry = await auditRepo.appendBlock({
+        eventType: 'ACTION_REJECTED_BY_EXECUTIVE',
+        actionId,
+        actorId: PRINCIPAL_ID,
+        authorizationLevel: action.authorizationLevel,
+        payload: { reason },
+        verificationStatus: 'REJECTED'
+      });
+      await actionRepo.updateActionState(actionId, ActionState.REJECTED, { rejectionReason: reason });
+      await memoryRepo.recordOutcome({ actionId, actionType: action.actionType, decision: 'REJECTED', wasSuccessful: false, executiveFeedback: reason });
+      sendJson(res, 200, { success: true, auditEntry: entry });
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message });
+    }
+    return;
+  }
+
+  // 6. Audit ledger + integrity
   if (pathname === '/api/audit' && req.method === 'GET') {
-    const blocks = await auditRepo.getBlocks(50);
-    const integrity = await auditRepo.verifyLedgerIntegrity();
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      integrity,
-      blocks
-    }));
+    sendJson(res, 200, { integrity: await auditRepo.verifyLedgerIntegrity(), blocks: await auditRepo.getBlocks(50) });
     return;
   }
 
-  // 7. Event Ingestion Pipeline (Processes Real Event via CognitivePipeline)
+  // 7. Inject a DEV FIXTURE event (clearly labeled) into the legacy pipeline
   if (pathname === '/api/events/simulate' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', async () => {
-      try {
-        const { scenario } = JSON.parse(body || '{}');
-        let rawEvent = null;
-
-        if (scenario === 'carlos_reply') {
-          rawEvent = {
-            eventType: 'EMAIL_RECEIVED',
-            source: 'GMAIL_MOCK',
-            actor: { id: 'person-carlos', type: 'EXTERNAL_CONTACT', identifier: 'carlos@horizoncap.com' },
-            payload: {
-              from: 'carlos@horizoncap.com',
-              subject: 'Urgent: Pricing review before Thursday meeting',
-              body: 'João, we need to revisit Clause 4 pricing immediately before tomorrow. The committee will not approve without revision.'
-            }
-          };
-        } else if (scenario === 'flight_delay') {
-          rawEvent = {
-            eventType: 'TRAVEL_CHANGED',
-            source: 'TRAVEL_API_MOCK',
-            payload: {
-              flight: 'Flight 428 to London',
-              status: 'DELAYED_3H',
-              text: 'Flight 428 delayed by 3 hours. Transit window impacted.'
-            }
-          };
-        } else {
-          rawEvent = {
-            eventType: 'PERSON_EVENT_APPROACHING',
-            source: 'CONTACTS_MOCK',
-            payload: {
-              person: 'Mariana Vance',
-              event: 'birthday',
-              date: 'tomorrow',
-              text: 'Mariana Vance birthday approaching tomorrow.'
-            }
-          };
+    try {
+      const { scenario } = await readJsonBody(req);
+      const fixtures = {
+        fixture_email: {
+          eventType: 'EMAIL_RECEIVED',
+          source: 'DEV_FIXTURE',
+          provenance: { sourceType: 'DEVELOPMENT_FIXTURE' },
+          payload: {
+            from: 'carlos@horizoncap.com',
+            subject: 'Pricing review before Thursday meeting',
+            body: 'João, we need to revisit Clause 4 pricing before tomorrow.'
+          }
+        },
+        fixture_travel: {
+          eventType: 'TRAVEL_CHANGED',
+          source: 'DEV_FIXTURE',
+          provenance: { sourceType: 'DEVELOPMENT_FIXTURE' },
+          payload: { flight: 'Flight 428 to London', status: 'DELAYED_3H' }
         }
-
-        // Process through real cognitive loop!
-        const pipelineOutput = await cognitivePipeline.processEvent(rawEvent);
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          success: true,
-          pipelineOutput
-        }));
-      } catch (err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
-      }
-    });
+      };
+      const rawEvent = fixtures[scenario];
+      if (!rawEvent) return sendJson(res, 400, { error: `Unknown fixture scenario: ${scenario}` });
+      sendJson(res, 200, { success: true, pipelineOutput: await cognitivePipeline.processEvent(rawEvent) });
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message });
+    }
     return;
   }
 
@@ -341,10 +322,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`\n======================================================`);
-  console.log(`🌟 WENDY EXECUTIVE INTELLIGENCE RUNNING (PHASE 2.5 HARDENED)`);
+  console.log(`WENDY LEGACY PROTOTYPE UI (frozen; no reasoning, no email provider)`);
   console.log(`📡 URL: http://127.0.0.1:${PORT}`);
-  console.log(`🔒 Audit Ledger: Cryptographically Verified`);
-  console.log(`💾 Persistence: Atomic Repositories Active`);
-  console.log(`🧠 Cognitive Loop: Autonomous Pipeline Connected`);
   console.log(`======================================================\n`);
 });

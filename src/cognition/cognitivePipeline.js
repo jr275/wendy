@@ -17,7 +17,8 @@ export class CognitivePipeline {
     relationshipRepo,
     memoryRepo,
     actionRepo,
-    eventBus
+    eventBus,
+    principalId = process.env.WENDY_PRINCIPAL_ID || 'person-exec-joao'
   }) {
     this.eventRepo = eventRepo;
     this.entityRepo = entityRepo;
@@ -26,7 +27,7 @@ export class CognitivePipeline {
     this.actionRepo = actionRepo;
     this.eventBus = eventBus;
 
-    this.entityResolver = new EntityResolver(entityRepo, relationshipRepo);
+    this.entityResolver = new EntityResolver(entityRepo, relationshipRepo, principalId);
     this.contextRetriever = new ContextRetriever({ entityRepo, relationshipRepo, memoryRepo });
     this.salienceEngine = new SalienceEngine();
     this.anticipationEngine = new AnticipationEngine(actionRepo);
@@ -50,9 +51,11 @@ export class CognitivePipeline {
 
     // 2. PERSIST EVENT (Append to durable ledger, check duplicate)
     const isDuplicate = await this.eventRepo.hasEvent(event.eventId);
-    if (!isDuplicate) {
-      await this.eventRepo.saveEvent(event);
+    if (isDuplicate) {
+      // Already processed: never repeat its side effects (memory writes, actions, insights).
+      return { eventId: event.eventId, duplicate: true };
     }
+    await this.eventRepo.saveEvent(event);
 
     // 3. IDENTIFY ENTITIES (Entity Resolution)
     const resolvedEntities = await this.entityResolver.resolveEntities(event);
@@ -85,6 +88,7 @@ export class CognitivePipeline {
         entityIds: resolvedEntities.allEntityIds,
         summary: anticipationResult.epistemicQuad.observation.statement,
         verbatimSnippet: event.payload?.body || event.payload?.text || null,
+        sourceEventId: event.eventId,
         provenanceSource: event.provenance?.sourceSystem || 'EVENT_PIPELINE'
       });
     }
@@ -97,6 +101,7 @@ export class CognitivePipeline {
       category: salienceResult.category,
       explanation: salienceResult.explanation,
       epistemicQuad: anticipationResult.epistemicQuad,
+      duplicate: false,
       stagedAction: anticipationResult.stagedAction,
       processedAt: new Date().toISOString()
     };
@@ -129,7 +134,7 @@ export class CognitivePipeline {
       provenance: {
         sourceSystem: raw.source || 'SENSORY_BUS',
         rawPayloadHash,
-        sourceType: raw.provenance?.sourceType || 'LIVE_TELEMETRY'
+        sourceType: raw.provenance?.sourceType || 'UNLABELED'
       },
       correlationId: raw.correlationId || `corr-${crypto.randomUUID()}`,
       permissions: raw.permissions || { accessScope: 'EXECUTIVE_PRIVATE' }

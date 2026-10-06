@@ -1,88 +1,83 @@
 /**
- * WENDY CLIENT APPLICATION & AG-UI INTERFACE PROTOCOL (PHASE 2.5)
- * Connected directly to hardened repositories and real cognitive pipeline.
+ * WENDY LEGACY PROTOTYPE CLIENT (frozen UI)
+ * Renders only server state. All server-provided text is HTML-escaped.
  */
 
 let appState = null;
-let eventSource = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  initApp();
+  fetchState();
+  const events = new EventSource('/api/stream');
+  events.addEventListener('PROACTIVE_INSIGHT_GENERATED', () => fetchState());
+  events.addEventListener('ACTION_APPROVAL_RECORDED', () => fetchState());
 });
 
-async function initApp() {
-  await fetchState();
-  initSseStream();
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+async function postJson(url, body) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
 }
 
 async function fetchState() {
   try {
     const res = await fetch('/api/state');
     appState = await res.json();
-    renderDossier();
+    document.getElementById('dossier-timestamp').innerText = `Loaded ${new Date().toLocaleTimeString()}`;
     renderStagedActions();
     renderMemoryView();
-    renderAuditLedger();
   } catch (err) {
     console.error('Failed to load state from server:', err);
   }
 }
 
-function initSseStream() {
-  eventSource = new EventSource('/api/stream');
-  
-  eventSource.addEventListener('AGUI_TOOL_PROGRESS', (e) => {
-    const data = JSON.parse(e.data);
-    appendToolProgressCard(data);
-  });
-
-  eventSource.addEventListener('PROACTIVE_INSIGHT_GENERATED', (e) => {
-    const insight = JSON.parse(e.data);
-    onProactiveInsightReceived(insight);
-  });
-
-  eventSource.addEventListener('ACTION_VERIFIED_BROADCAST', (e) => {
-    const data = JSON.parse(e.data);
-    onActionVerifiedBroadcast(data);
-  });
-}
-
-function renderDossier() {
-  if (!appState || !appState.dossier) return;
-  document.getElementById('dossier-timestamp').innerText = `${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} Verified`;
-}
-
 function renderStagedActions() {
-  if (!appState || !appState.dossier || !appState.dossier.stagedActions) return;
-  const actions = Object.values(appState.dossier.stagedActions);
+  const actions = Object.values(appState?.dossier?.stagedActions || {});
   const pending = actions.filter(a => a.state === 'AWAITING_APPROVAL' || a.state === 'PROPOSED');
-  
+
   const counter = document.getElementById('staging-counter');
-  if (pending.length > 0) {
-    counter.innerText = `${pending.length} Action${pending.length > 1 ? 's' : ''} Awaiting Approval`;
-    counter.className = 'px-2 py-0.5 rounded text-[11px] font-mono-code bg-amber-950 text-amber-300 border border-amber-800';
-  } else {
-    counter.innerText = '0 Actions Awaiting Approval';
-    counter.className = 'px-2 py-0.5 rounded text-[11px] font-mono-code bg-stone-800 text-stone-400 border border-stone-700';
+  counter.innerText = `${pending.length} Action${pending.length === 1 ? '' : 's'} Awaiting Approval`;
+
+  const container = document.getElementById('staged-actions-container');
+  if (actions.length === 0) {
+    container.innerHTML = `<div class="p-4 rounded-xl border border-[#22252a] bg-[#141619] text-xs font-mono-code text-[#a3acb5]">No persisted actions.</div>`;
+    return;
   }
 
-  // Populate draft textarea with persisted value
-  const birthdayAction = actions.find(a => a.actionId.includes('birthday') || (a.targetEntityName && a.targetEntityName.includes('Mariana')));
-  if (birthdayAction && birthdayAction.preview?.body) {
-    const textarea = document.getElementById('draft-mariana-body');
-    if (textarea) textarea.value = birthdayAction.preview.body;
-
-    if (birthdayAction.state === 'VERIFIED' || birthdayAction.state === 'EXECUTED') {
-      const btn = document.getElementById('btn-auth-mariana');
-      if (btn) btn.classList.add('hidden');
-      const banner = document.getElementById('verified-banner-mariana');
-      if (banner) {
-        banner.classList.remove('hidden');
-        document.getElementById('verified-receipt-text').innerText = 
-          `Verified in Ledger • Audit Hash: ${birthdayAction.auditHash ? birthdayAction.auditHash.slice(0, 16) : 'VERIFIED'}...`;
-      }
-    }
-  }
+  container.innerHTML = actions.map(a => {
+    const id = escapeHtml(a.actionId);
+    const editable = a.state === 'AWAITING_APPROVAL';
+    return `
+      <div class="p-5 rounded-xl border border-[#22252a] bg-[#16181b] space-y-3" data-action-id="${id}">
+        <div class="flex items-center justify-between text-[10px] font-mono-code">
+          <span class="text-amber-300">LEVEL ${escapeHtml(a.authorizationLevel)} — ${escapeHtml(a.actionType)}</span>
+          <span class="text-[#a3acb5]">${escapeHtml(a.state)}</span>
+        </div>
+        <h3 class="text-sm text-white">${escapeHtml(a.headline || a.actionId)}</h3>
+        <p class="text-[11px] font-mono-code text-[#727a83]">Recipient: ${escapeHtml(a.preview?.recipient || '-')}</p>
+        <textarea rows="6" class="w-full bg-[#0d0e10] border border-[#272a30] text-[#ededed] p-3 rounded text-xs" ${editable ? '' : 'disabled'}
+          oninput="syncDraftState('${id}', this.value)">${escapeHtml(a.preview?.body || '')}</textarea>
+        ${editable ? `
+        <div class="flex gap-2">
+          <button onclick="authorizeAction('${id}', this)" class="flex-1 py-2 rounded-lg text-xs font-mono-code bg-emerald-900 text-white">Approve</button>
+          <button onclick="rejectAction('${id}')" class="px-4 py-2 rounded-lg text-xs font-mono-code border border-[#2b2f36] text-white">Dismiss</button>
+        </div>` : ''}
+        ${a.rejectionReason ? `<p class="text-[11px] text-rose-300">Rejected: ${escapeHtml(a.rejectionReason)}</p>` : ''}
+      </div>`;
+  }).join('');
 }
 
 function switchView(viewName) {
@@ -92,305 +87,128 @@ function switchView(viewName) {
 
   ['workspace', 'memory', 'audit'].forEach(v => {
     const btn = document.getElementById(`btn-view-${v}`);
-    if (v === viewName) {
-      btn.className = 'px-3 py-1.5 rounded text-xs font-mono-code font-medium bg-[#22252a] text-white border border-[#32363d] transition-colors';
-    } else {
-      btn.className = 'px-3 py-1.5 rounded text-xs font-mono-code font-medium text-[#8e969f] hover:text-white transition-colors';
-    }
+    btn.className = v === viewName
+      ? 'px-3 py-1.5 rounded text-xs font-mono-code font-medium bg-[#22252a] text-white border border-[#32363d] transition-colors'
+      : 'px-3 py-1.5 rounded text-xs font-mono-code font-medium text-[#8e969f] hover:text-white transition-colors';
   });
 
   if (viewName === 'audit') fetchAuditData();
   if (viewName === 'memory') fetchState();
 }
 
-// --- Chat & Real Memory Retrieval ---
 async function handleUserMessage(e) {
   e.preventDefault();
   const input = document.getElementById('chat-input');
   const message = input.value.trim();
   if (!message) return;
-
-  // Append user message
-  appendChatMessage('João', message, false);
+  appendChatMessage('You', message);
   input.value = '';
-
-  const progressId = appendToolProgressCard({
-    userFacingMessage: 'Searching persisted episodic memories and relationship graph...'
-  });
-
   try {
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: message })
-    });
-    const data = await res.json();
-    
-    const pEl = document.getElementById(progressId);
-    if (pEl) pEl.remove();
-
-    appendChatMessage('Wendy', data.reply, true, data.epistemicBreakdown);
+    const data = await postJson('/api/chat', { query: message });
+    appendChatMessage('Legacy retrieval', data.reply, data.epistemicBreakdown);
   } catch (err) {
-    console.error('Chat error:', err);
+    appendChatMessage('Error', err.message);
   }
 }
 
-function appendChatMessage(sender, text, isWendy, epistemicList = []) {
+function appendChatMessage(sender, text, records = []) {
   const container = document.getElementById('chat-stream');
-  const msgWrapper = document.createElement('div');
-  msgWrapper.className = 'space-y-2';
-
-  const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-  let epistemicHtml = '';
-  if (epistemicList && epistemicList.length > 0) {
-    epistemicHtml = `
-      <div class="mt-3 pt-2 border-t border-[#22252a] space-y-1 text-[11px] font-mono-code">
-        ${epistemicList.map(item => `
-          <div class="flex items-start gap-2">
-            <span class="${item.type === 'FACT' ? 'badge-fact' : 'badge-recommendation'}">${item.type}</span>
-            <span class="text-[#a3acb5]">${item.text}</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  msgWrapper.innerHTML = `
-    <div class="flex items-center justify-between text-xs text-[#727a83]">
-      <span class="font-serif-editorial font-medium ${isWendy ? 'text-white' : 'text-stone-300'} text-sm">${sender}</span>
-      <span class="font-mono-code text-[10px]">${timeStr}</span>
-    </div>
-    <div class="p-4 rounded-xl border ${isWendy ? 'border-[#22252a] bg-[#141619]' : 'border-[#2a2e36] bg-[#1a1d22]'} text-[#ededed] font-serif-editorial text-[14px] leading-relaxed">
-      <div class="whitespace-pre-wrap">${formatMarkdown(text)}</div>
-      ${epistemicHtml}
-    </div>
-  `;
-
-  container.appendChild(msgWrapper);
+  const wrapper = document.createElement('div');
+  wrapper.className = 'space-y-2';
+  const recordsHtml = (records || []).map(r =>
+    `<div class="text-[11px] font-mono-code text-[#a3acb5]">[${escapeHtml(r.type)}] ${escapeHtml(r.text)}</div>`
+  ).join('');
+  wrapper.innerHTML = `
+    <div class="text-xs text-[#727a83]">${escapeHtml(sender)} • ${new Date().toLocaleTimeString()}</div>
+    <div class="p-4 rounded-xl border border-[#22252a] bg-[#141619] text-[#ededed] text-[14px]">
+      <div class="whitespace-pre-wrap">${escapeHtml(text)}</div>
+      ${recordsHtml ? `<div class="mt-3 pt-2 border-t border-[#22252a] space-y-1">${recordsHtml}</div>` : ''}
+    </div>`;
+  container.appendChild(wrapper);
   container.scrollTop = container.scrollHeight;
 }
 
-function appendToolProgressCard(data) {
-  const container = document.getElementById('chat-stream');
-  const card = document.createElement('div');
-  const id = `tool-prog-${Date.now()}`;
-  card.id = id;
-  card.className = 'p-3 rounded-lg border border-[#22252a] bg-[#141618] text-xs font-mono-code text-indigo-400 flex items-center gap-2 animate-pulse';
-  card.innerHTML = `
-    <span class="animate-spin">●</span>
-    <span>${data.userFacingMessage}</span>
-  `;
-  container.appendChild(card);
-  container.scrollTop = container.scrollHeight;
-  return id;
-}
-
-function formatMarkdown(text) {
-  return text
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>');
-}
-
-// --- Action Authorization & Durable Persistence ---
 async function syncDraftState(actionId, newBody) {
   try {
-    await fetch('/api/action/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actionId, modifiedBody: newBody })
-    });
+    await postJson('/api/action/sync', { actionId, modifiedBody: newBody });
   } catch (err) {
-    console.warn('Sync failed:', err);
+    console.warn('Draft sync failed:', err.message);
   }
 }
 
-async function authorizeAction(actionId) {
-  const btn = document.getElementById('btn-auth-mariana');
-  const originalText = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = `<span class="animate-spin">●</span><span>Dispatching & Verifying...</span>`;
-
-  const modifiedBody = document.getElementById('draft-mariana-body').value;
-
+async function authorizeAction(actionId, button) {
+  button.disabled = true;
+  const card = document.querySelector(`[data-action-id="${CSS.escape(actionId)}"]`);
+  const modifiedBody = card?.querySelector('textarea')?.value;
   try {
-    const res = await fetch('/api/action/authorize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actionId, modifiedBody })
-    });
-    const result = await res.json();
-
-    if (result.success) {
-      btn.classList.add('hidden');
-      const banner = document.getElementById('verified-banner-mariana');
-      banner.classList.remove('hidden');
-      document.getElementById('verified-receipt-text').innerText = 
-        `Durable Idempotency Token Verified • SMTP: ${result.verification.smtpResponse} • Audit Hash: ${result.auditEntry.entryHash.slice(0, 16)}...`;
-
-      document.getElementById('staging-counter').innerText = '0 Actions Awaiting Approval';
-      document.getElementById('staging-counter').className = 'px-2 py-0.5 rounded text-[11px] font-mono-code bg-stone-800 text-stone-400 border border-stone-700';
-
-      appendChatMessage('Wendy', `Action authorized: Mariana's birthday greeting has been signed, queued with a durable idempotency key, and verified. Recorded to your persistent episodic memory and cryptographic audit ledger.`, true, [
-        { type: 'FACT', text: `Verified dispatch via SMTP gateway. MessageId: ${result.verification.messageId}` },
-        { type: 'FACT', text: `Idempotency Token: ${result.verification.idempotencyKey}` }
-      ]);
-      await fetchState();
-    }
+    const result = await postJson('/api/action/authorize', { actionId, modifiedBody });
+    const d = result.dispatch;
+    appendChatMessage('System', `Approval recorded (audit block #${result.auditEntry.sequenceNumber}). Dispatch status: ${d.status}${d.result?.detail ? ` — ${d.result.detail}` : ''}`);
   } catch (err) {
-    console.error('Authorization error:', err);
-    btn.disabled = false;
-    btn.innerHTML = originalText;
-    alert('Authorization failed: ' + err.message);
+    appendChatMessage('Error', `Approval failed: ${err.message}`);
   }
+  await fetchState();
 }
 
 async function rejectAction(actionId) {
-  if (!confirm('Are you sure you want to dismiss this prepared action? Wendy will record your preference.')) return;
-  const card = document.getElementById('card-mariana-birthday');
-  if (card) card.remove();
-  document.getElementById('staging-counter').innerText = '0 Actions Awaiting Approval';
-}
-
-function onActionVerifiedBroadcast(data) {
-  console.log('Action verified via SSE:', data);
-}
-
-function onProactiveInsightReceived(insight) {
-  console.log('[PROACTIVE INSIGHT]:', insight);
-  const facts = [
-    { type: 'FACT', text: insight.epistemicQuad.observation.statement },
-    { type: 'INFERENCE', text: insight.epistemicQuad.interpretation.statement },
-    { type: 'RECOMMENDATION', text: insight.epistemicQuad.recommendation.statement }
-  ];
-  appendChatMessage('Wendy (Autonomous Insight)', `${insight.explanation}\n\n**Action**: ${insight.epistemicQuad.recommendation.statement}`, true, facts);
-  fetchState();
-}
-
-// --- Real Provenance Inspector ---
-async function inspectProvenance(type) {
-  if (!appState || !appState.dossier) return;
-  const item = appState.dossier.quadrants[type];
-  if (!item) return;
-
-  document.getElementById('modal-prov-title').innerText = `Evidence Chain: ${item.title}`;
-  document.getElementById('modal-prov-entity').innerText = item.entity;
-  
-  const ul = document.getElementById('modal-prov-evidence');
-  ul.innerHTML = (item.evidence || []).map(e => `<li>• ${e}</li>`).join('');
-
-  // Fetch real latest audit block hash or event hash
-  const auditRes = await fetch('/api/audit');
-  const auditData = await auditRes.json();
-  const latestHash = auditData.blocks.length > 0 ? auditData.blocks[0].entryHash : 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-
-  document.getElementById('modal-prov-hash').innerText = latestHash;
-  document.getElementById('modal-provenance').classList.remove('hidden');
+  const reason = prompt('Reason for dismissing this action (optional):');
+  if (reason === null) return;
+  try {
+    await postJson('/api/action/reject', { actionId, reason: reason || null });
+  } catch (err) {
+    appendChatMessage('Error', `Dismiss failed: ${err.message}`);
+  }
+  await fetchState();
 }
 
 function closeProvenanceModal() {
   document.getElementById('modal-provenance').classList.add('hidden');
 }
 
-// --- Memory & Audit Views ---
 function renderMemoryView() {
-  if (!appState) return;
   const container = document.getElementById('memory-cards-container');
-  if (!container) return;
-
+  if (!container || !appState) return;
   const people = Object.values(appState.memory.people || {});
   const preferences = appState.memory.preferences || [];
   const episodic = appState.memory.recentEpisodic || [];
-
-  container.innerHTML = `
+  const card = (title, items) => `
     <div class="p-5 rounded-xl border border-[#22252a] bg-[#141619] space-y-3">
-      <h3 class="text-sm font-semibold text-white font-mono-code uppercase">Persisted Entity Nodes (${people.length})</h3>
-      <div class="space-y-2 text-xs">
-        ${people.map(p => `
-          <div class="p-3 rounded bg-[#0d0e10] border border-[#22252a]">
-            <div class="flex items-center justify-between text-white font-medium">
-              <span>${p.fullName}</span>
-              <span class="badge-fact">Tier ${p.tier}</span>
-            </div>
-            <div class="text-[#727a83] text-[11px] font-mono-code mt-0.5">${p.title || 'Executive'}</div>
-            <div class="text-[#a3acb5] text-[11px] mt-1">${p.notesSummary || ''}</div>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-
-    <div class="p-5 rounded-xl border border-[#22252a] bg-[#141619] space-y-3">
-      <h3 class="text-sm font-semibold text-white font-mono-code uppercase">Persisted Episodic Logs (${episodic.length})</h3>
-      <div class="space-y-2 text-xs">
-        ${episodic.map(e => `
-          <div class="p-3 rounded bg-[#0d0e10] border border-[#22252a] space-y-1">
-            <div class="flex items-center justify-between text-[11px] font-mono-code">
-              <span class="text-indigo-400 font-semibold">${e.interactionType}</span>
-              <span class="text-[#727a83]">${new Date(e.occurredAt).toLocaleDateString()}</span>
-            </div>
-            <p class="text-xs text-[#ededed] font-serif-editorial">${e.summary}</p>
-            ${e.verbatimSnippet ? `<div class="text-[10px] font-mono-code text-[#727a83] italic">"${e.verbatimSnippet}"</div>` : ''}
-          </div>
-        `).join('')}
-      </div>
-    </div>
-
-    <div class="p-5 rounded-xl border border-[#22252a] bg-[#141619] space-y-3">
-      <h3 class="text-sm font-semibold text-white font-mono-code uppercase">Executive Preferences (${preferences.length})</h3>
-      <div class="space-y-2 text-xs">
-        ${preferences.map(p => `
-          <div class="p-3 rounded bg-[#0d0e10] border border-[#22252a] space-y-1">
-            <div class="flex items-center justify-between text-[11px] font-mono-code">
-              <span class="text-purple-400">${p.domain}</span>
-              <span class="text-[#727a83]">${p.strength}</span>
-            </div>
-            <p class="text-xs text-[#ededed] font-serif-editorial">${p.rule}</p>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
+      <h3 class="text-sm font-semibold text-white font-mono-code uppercase">${escapeHtml(title)}</h3>
+      <div class="space-y-2 text-xs">${items.join('')}</div>
+    </div>`;
+  const row = (head, body) => `<div class="p-3 rounded bg-[#0d0e10] border border-[#22252a]"><div class="text-white">${head}</div><div class="text-[#a3acb5] text-[11px] mt-1">${body}</div></div>`;
+  container.innerHTML =
+    card(`Persisted people (${people.length})`, people.map(p => row(escapeHtml(p.fullName), `${escapeHtml(p.title || '')} • source: ${escapeHtml(p.provenance?.sourceType || 'unlabeled')}`))) +
+    card(`Episodic records (${episodic.length})`, episodic.map(e => row(escapeHtml(e.interactionType), escapeHtml(e.summary)))) +
+    card(`Preferences (${preferences.length})`, preferences.map(p => row(escapeHtml(p.domain), escapeHtml(p.rule))));
 }
 
 async function fetchAuditData() {
   try {
     const res = await fetch('/api/audit');
     const { integrity, blocks } = await res.json();
+    const banner = document.getElementById('audit-integrity-status');
+    banner.innerHTML = integrity.valid
+      ? `<span class="text-emerald-400">Chain verified (${escapeHtml(integrity.blockCount)} blocks)</span>`
+      : `<span class="text-rose-400 font-bold">INTEGRITY FAILURE: ${escapeHtml(integrity.error)}</span>`;
     const tbody = document.getElementById('audit-table-body');
-    if (!tbody) return;
-
-    // Show integrity status banner
-    const integrityBanner = document.getElementById('audit-integrity-status');
-    if (integrityBanner) {
-      if (integrity.valid) {
-        integrityBanner.innerHTML = `<span class="text-emerald-400">✓ Cryptographic Chain Verified (${integrity.blockCount} blocks valid)</span>`;
-      } else {
-        integrityBanner.innerHTML = `<span class="text-rose-400 font-bold">🚨 TAMPERING DETECTED: ${integrity.error}</span>`;
-      }
-    }
-
-    if (!blocks || blocks.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-[#727a83]">No external actions executed yet. Authorize an action in Zone C to generate the first cryptographic block.</td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = blocks.map(e => `
-      <tr class="hover:bg-[#181a1d] transition-colors">
-        <td class="p-3 text-[#727a83] font-bold">#${e.sequenceNumber}</td>
-        <td class="p-3 text-[#a3acb5]">${new Date(e.timestamp).toLocaleTimeString()}</td>
-        <td class="p-3 text-white font-semibold">${e.eventType}</td>
-        <td class="p-3"><span class="badge-level3">Level ${e.authorizationLevel}</span></td>
-        <td class="p-3 text-[#a3acb5]">${e.actorId}</td>
-        <td class="p-3"><span class="badge-fact">${e.verificationStatus}</span></td>
-        <td class="p-3 text-emerald-400 font-mono-code">${e.entryHash.slice(0, 20)}...</td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = blocks.length === 0
+      ? `<tr><td colspan="7" class="p-4 text-center text-[#727a83]">No audit blocks yet.</td></tr>`
+      : blocks.map(e => `
+        <tr>
+          <td class="p-3 text-[#727a83]">#${escapeHtml(e.sequenceNumber)}</td>
+          <td class="p-3 text-[#a3acb5]">${escapeHtml(new Date(e.timestamp).toLocaleTimeString())}</td>
+          <td class="p-3 text-white">${escapeHtml(e.eventType)}</td>
+          <td class="p-3">Level ${escapeHtml(e.authorizationLevel)}</td>
+          <td class="p-3 text-[#a3acb5]">${escapeHtml(e.actorId)}</td>
+          <td class="p-3">${escapeHtml(e.verificationStatus)}</td>
+          <td class="p-3 text-emerald-400 font-mono-code">${escapeHtml(e.entryHash.slice(0, 20))}...</td>
+        </tr>`).join('');
   } catch (err) {
     console.error('Audit fetch error:', err);
   }
 }
 
-// --- Signal Simulator (Real Cognitive Pipeline Trigger) ---
 function openEventSimulator() {
   document.getElementById('modal-simulator').classList.remove('hidden');
 }
@@ -402,30 +220,11 @@ function closeEventSimulator() {
 async function injectSimulatedEvent() {
   const scenario = document.getElementById('sim-scenario').value;
   closeEventSimulator();
-
-  appendToolProgressCard({
-    userFacingMessage: `Processing real event through Cognitive Pipeline: ${scenario}...`
-  });
-
   try {
-    const res = await fetch('/api/events/simulate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scenario })
-    });
-    const result = await res.json();
-    const output = result.pipelineOutput;
-
-    setTimeout(() => {
-      const facts = [
-        { type: 'FACT', text: output.epistemicQuad.observation.statement },
-        { type: 'INFERENCE', text: output.epistemicQuad.interpretation.statement },
-        { type: 'RECOMMENDATION', text: output.epistemicQuad.recommendation.statement }
-      ];
-      appendChatMessage('Wendy (Autonomous Ingestion)', `${output.explanation}\n\n**Recommendation**: ${output.epistemicQuad.recommendation.statement}`, true, facts);
-      fetchState();
-    }, 800);
+    const { pipelineOutput: o } = await postJson('/api/events/simulate', { scenario });
+    appendChatMessage('Legacy pipeline (DEV FIXTURE)', `${o.epistemicQuad.observation.statement}\n\nInterpretation / anticipation / recommendation: NOT IMPLEMENTED in the legacy prototype.`);
   } catch (err) {
-    console.error('Simulation error:', err);
+    appendChatMessage('Error', err.message);
   }
+  fetchState();
 }

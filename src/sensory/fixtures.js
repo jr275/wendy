@@ -1,5 +1,3 @@
-import crypto from 'node:crypto';
-import { ActionState } from '../repositories/fileStorage.js';
 
 /**
  * CONTROLLED DEVELOPMENT FIXTURES
@@ -154,44 +152,6 @@ export async function initializeDatabaseWithFixtures({
     summary: 'Dinner discussion on Horizon partnership. Carlos expressed timeline urgency before Thursday board.',
     verbatimSnippet: 'Carlos: "If we can resolve Clause 4 pricing before Thursday, the committee will greenlight."',
     provenanceSource: 'DEVELOPMENT_FIXTURE'
-  });
-
-  // Seed default staged action into the ActionRepository so it is persistent!
-  await actionRepo.saveAction({
-    actionId: 'act-mariana-birthday',
-    actionType: 'SEND_EMAIL',
-    authorizationLevel: 3,
-    state: ActionState.AWAITING_APPROVAL,
-    targetEntityId: mariana.id,
-    targetEntityName: mariana.fullName,
-    headline: 'Send Birthday Greeting to Mariana Vance (Tier 1)',
-    justification: [
-      'Birthday is tomorrow (Fact: Verified in Contact profile)',
-      'Crucial European alliance partner (Fact: Tier 1 Closeness 0.88)',
-      'Sent personal message last year acknowledging expansion (Fact: Episodic log)',
-      'Calibrated in executive voice: Direct, personal, warm, unhurried (Rule: Preference #1)'
-    ],
-    preview: {
-      recipient: 'mariana@apexbio.com',
-      scheduledFor: 'Tomorrow at 08:30 (BST)',
-      subject: 'Happy Birthday, Mariana',
-      body: `Mariana,
-
-Wishing you a wonderful birthday tomorrow. 
-
-I was reflecting on our discussion last month regarding the European market expansion—the pace of execution at Apex continues to impress me. I hope you take time away from the pipeline to celebrate with family.
-
-Warmly,
-João`
-    },
-    consequences: {
-      reversibility: 'IRREVERSIBLE ON SEND',
-      impact: 'Reinforces critical European strategic alliance; zero commercial push.'
-    },
-    epistemicState: 'RECOMMENDATION',
-    provenance: {
-      sourceType: 'DEVELOPMENT_FIXTURE'
-    }
   });
 
   console.log('✅ Controlled development fixture initialization complete.');

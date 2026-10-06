@@ -20,11 +20,11 @@
       <div class="hidden md:flex items-center gap-3 text-xs font-mono-code text-[#8e969f] pl-4 border-l border-[#24272d]">
         <span>PRINCIPAL: <strong class="text-white">JOÃO MENDES</strong></span>
         <span>•</span>
-        <span id="header-clock">OCTOBER 5, 2026 • 08:30 AM</span>
+        <span id="header-clock">LEGACY PROTOTYPE</span>
         <span>•</span>
         <span class="flex items-center gap-1.5 text-emerald-400">
           <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>AWARENESS ACTIVE</span>
+          <span>NO BACKGROUND AWARENESS</span>
         </span>
       </div>
     </div>
@@ -63,73 +63,9 @@
       <!-- Scrollable Dossier Items -->
       <div class="flex-1 overflow-y-auto p-5 space-y-4">
         
-        <!-- Salience Quadrant 1: Urgent -->
-        <div class="p-4 rounded-xl border border-amber-900/40 bg-amber-950/20 hover:border-amber-700/60 transition-all cursor-pointer" onclick="inspectProvenance('urgent')">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-[10px] font-mono-code px-2 py-0.5 rounded bg-amber-900/60 text-amber-300 font-semibold flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>1. URGENT • 14:00
-            </span>
-            <span class="badge-fact">FACT</span>
-          </div>
-          <h3 class="text-sm font-semibold text-white">Meeting with Carlos Drummond</h3>
-          <p class="text-xs text-[#a3acb5] mt-1 font-serif-editorial text-[13px] leading-relaxed">
-            Carlos replied last night at 23:42 citing pricing anxiety in Clause 4 before his Thursday board meeting. I pulled previous commitments, correspondence, and prepared a counter-rebate proposal.
-          </p>
-          <div class="mt-3 pt-2 border-t border-amber-900/30 flex items-center justify-between text-[11px] font-mono-code text-amber-300/80">
-            <span>Horizon Capital • Tier 1</span>
-            <span class="underline">View Provenance →</span>
-          </div>
-        </div>
+        <div class="p-4 rounded-xl border border-[#22252a] bg-[#141619] text-xs font-mono-code text-[#a3acb5]">NOT IMPLEMENTED in the legacy prototype: the dossier is not derived from data. (Previously this zone showed hardcoded demo content.)</div>
 
-        <!-- Salience Quadrant 2: Relationship Milestone -->
-        <div class="p-4 rounded-xl border border-purple-900/40 bg-purple-950/20 hover:border-purple-700/60 transition-all cursor-pointer" onclick="inspectProvenance('relationship')">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-[10px] font-mono-code px-2 py-0.5 rounded bg-purple-900/60 text-purple-300 font-semibold flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>2. RELATIONSHIP • TOMORROW
-            </span>
-            <span class="badge-fact">FACT</span>
-          </div>
-          <h3 class="text-sm font-semibold text-white">Mariana Vance's Birthday</h3>
-          <p class="text-xs text-[#a3acb5] mt-1 font-serif-editorial text-[13px] leading-relaxed">
-            Mariana is a Tier 1 European partner. You sent a personal message last year that was warmly received. I've prepared a draft in your authentic tone ready for dispatch at 08:30 tomorrow.
-          </p>
-          <div class="mt-3 pt-2 border-t border-purple-900/30 flex items-center justify-between text-[11px] font-mono-code text-purple-300/80">
-            <span>Apex Bio • Tier 1</span>
-            <span class="underline">Review Draft in Zone C →</span>
-          </div>
-        </div>
-
-        <!-- Salience Quadrant 3: Commitment -->
-        <div class="p-4 rounded-xl border border-sky-900/40 bg-sky-950/20 hover:border-sky-700/60 transition-all cursor-pointer" onclick="inspectProvenance('commitment')">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-[10px] font-mono-code px-2 py-0.5 rounded bg-sky-900/60 text-sky-300 font-semibold flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>3. COMMITMENT • DUE TODAY
-            </span>
-            <span class="badge-fact">FACT</span>
-          </div>
-          <h3 class="text-sm font-semibold text-white">Valuation Sensitivities Promised to Carlos</h3>
-          <p class="text-xs text-[#a3acb5] mt-1 font-serif-editorial text-[13px] leading-relaxed">
-            You committed on Tuesday to send revised numbers by today. The file is in Drive (Pricing_Sensitivity_Matrix_Q4.xlsx). It has not been sent yet.
-          </p>
-          <div class="mt-3 pt-2 border-t border-sky-900/30 flex items-center justify-between text-[11px] font-mono-code text-sky-300/80">
-            <span>Commitment Status: Pending</span>
-            <span class="underline">Details →</span>
-          </div>
-        </div>
-
-        <!-- Salience Quadrant 4: Can Wait (Suppressed) -->
-        <div class="p-4 rounded-xl border border-[#22252a] bg-[#141619] text-[#727a83] hover:text-[#a3acb5] transition-colors">
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-[10px] font-mono-code text-[#727a83] uppercase tracking-wider">4. CAN WAIT (SUPPRESSED)</span>
-            <span class="text-[10px] font-mono-code text-stone-500">Salience: 0.38</span>
-          </div>
-          <h4 class="text-xs font-medium text-[#a3acb5]">Q4 Tool Vendor Sync Next Wednesday</h4>
-          <p class="text-xs text-[#727a83] mt-1 font-serif-editorial">
-            Minor scheduling overlap next week. Non-strategic. Deliberately held back from morning interruption.
-          </p>
-        </div>
-
-      </div>
+            </div>
     </section>
 
     <!-- ZONE B: THE ACTIVE THREAD (AG-UI Agentic Conversation) (4 Columns) -->
@@ -142,60 +78,16 @@
         </div>
         <div class="flex items-center gap-1.5 text-[11px] font-mono-code text-[#8e969f]">
           <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-          <span>AG-UI v1.0</span>
+          <span>SSE (not AG-UI)</span>
         </div>
       </div>
 
       <!-- Messages Stream -->
       <div id="chat-stream" class="flex-1 overflow-y-auto p-5 space-y-4">
         
-        <!-- Wendy Proactive Briefing Turn -->
-        <div class="space-y-3">
-          <div class="flex items-center justify-between text-xs text-[#727a83]">
-            <span class="font-serif-editorial font-medium text-white text-sm">Wendy</span>
-            <span class="font-mono-code text-[10px]">08:30:02</span>
-          </div>
+        <div class="p-4 rounded-xl border border-[#22252a] bg-[#141619] text-xs font-mono-code text-[#a3acb5]">Legacy prototype. The chat lists persisted records only; it does not reason.</div>
 
-          <!-- Tool Progress Cards (AG-UI Backend Tool Rendering) -->
-          <div class="p-3 rounded-lg border border-[#22252a] bg-[#141618] space-y-2 text-xs font-mono-code text-[#8e969f]">
-            <div class="flex items-center gap-2 text-emerald-400">
-              <span>✓</span>
-              <span>Indexed calendar events & 14:00 Carlos meeting</span>
             </div>
-            <div class="flex items-center gap-2 text-emerald-400">
-              <span>✓</span>
-              <span>Retrieved late-night email (23:42) citing Clause 4 concerns</span>
-            </div>
-            <div class="flex items-center gap-2 text-emerald-400">
-              <span>✓</span>
-              <span>Detected Mariana Vance birthday tomorrow (Tier 1 Relationship)</span>
-            </div>
-            <div class="flex items-center gap-2 text-emerald-400">
-              <span>✓</span>
-              <span>Identified unfulfilled financial sensitivity commitment due today</span>
-            </div>
-            <div class="flex items-center gap-2 text-indigo-400">
-              <span class="animate-spin">●</span>
-              <span>Staged Level 3 birthday draft and Level 1 Carlos pre-briefing</span>
-            </div>
-          </div>
-
-          <!-- Wendy Dialogue Text -->
-          <div class="p-4 rounded-xl border border-[#22252a] bg-[#141619] text-white font-serif-editorial text-[14px] leading-relaxed space-y-3">
-            <p>
-              Good morning João. I’ve reviewed the overnight signals and your schedule. I found four things worth your attention before your first call.
-            </p>
-            <p>
-              I prepared the two actions that are worth taking. Carlos’s meeting briefing is compiled with recommended rebate concessions, and Mariana’s birthday note is staged in your customary voice. You can review and authorize them in Zone C.
-            </p>
-            <div class="pt-2 border-t border-[#22252a] flex items-center justify-between text-[11px] font-mono-code text-[#8e969f]">
-              <span class="badge-recommendation">RECOMMENDATION</span>
-              <span>Standing by for authorization</span>
-            </div>
-          </div>
-        </div>
-
-      </div>
 
       <!-- Chat Input Area -->
       <div class="p-4 border-t border-[#22252a] bg-[#101214]">
@@ -203,7 +95,7 @@
           <input
             id="chat-input"
             type="text"
-            placeholder="Ask Wendy (e.g. 'Why is Carlos important?' or 'What did I promise?')..."
+            placeholder="Search persisted records (legacy prototype)..."
             class="w-full bg-[#181a1d] text-white text-xs py-3.5 pl-4 pr-12 rounded-lg border border-[#2b2f36] focus:outline-none focus:border-indigo-500 font-sans"
           />
           <button
@@ -225,109 +117,14 @@
           <h2 class="text-base font-serif-editorial font-medium text-white">Action Staging Drawer</h2>
         </div>
         <span class="px-2 py-0.5 rounded text-[11px] font-mono-code bg-amber-950 text-amber-300 border border-amber-800" id="staging-counter">
-          1 Action Awaiting Approval
+          0 Actions Awaiting Approval
         </span>
       </div>
 
       <!-- Staged Action Cards Container -->
       <div class="flex-1 overflow-y-auto p-5 space-y-5" id="staged-actions-container">
         
-        <!-- ACTION CARD 1: LEVEL 3 EMAIL (Mariana's Birthday) -->
-        <div id="card-mariana-birthday" class="p-5 rounded-xl border border-amber-900/50 bg-[#16181b] space-y-4">
-          <div class="flex items-center justify-between">
-            <span class="badge-level3">LEVEL 3 — EXTERNAL COMMUNICATION</span>
-            <span class="text-[10px] font-mono-code text-[#727a83]">IRREVERSIBLE ON SEND</span>
-          </div>
-
-          <div>
-            <h3 class="text-sm font-semibold text-white">Send Birthday Greeting to Mariana Vance</h3>
-            <p class="text-xs text-[#8e969f] font-mono-code mt-0.5">Recipient: mariana@apexbio.com • Scheduled: Tomorrow 08:30</p>
-          </div>
-
-          <!-- Evidence Badges -->
-          <div class="p-2.5 rounded bg-[#0d0e10] border border-[#22252a] text-[11px] font-mono-code text-[#a3acb5] space-y-1">
-            <div class="text-[#727a83] font-semibold text-[10px] uppercase">Why Wendy staged this:</div>
-            <div>• Birthday verified tomorrow (Fact)</div>
-            <div>• Tier 1 European partner (Closeness: 0.88)</div>
-            <div>• Sent personal note last year; highly appreciated</div>
-          </div>
-
-          <!-- Editable Message Preview -->
-          <div class="space-y-1.5">
-            <label class="text-[10px] font-mono-code uppercase text-[#727a83] flex items-center justify-between">
-              <span>Message Draft (Editable)</span>
-              <span class="text-emerald-400 font-sans">Synced with Wendy Context</span>
-            </label>
-            <textarea
-              id="draft-mariana-body"
-              rows="6"
-              oninput="syncDraftState('act-mariana-birthday', this.value)"
-              class="w-full bg-[#0d0e10] text-[#ededed] p-3 text-xs rounded border border-[#272a30] focus:outline-none focus:border-indigo-500 font-serif-editorial text-[13px] leading-relaxed resize-none"
-            >Mariana,
-
-Wishing you a wonderful birthday tomorrow. 
-
-I was reflecting on our discussion last month regarding the European market expansion—the pace of execution at Apex continues to impress me. I hope you take time away from the pipeline to celebrate with family.
-
-Warmly,
-João</textarea>
-          </div>
-
-          <!-- Authorization Controls -->
-          <div class="pt-2 flex items-center gap-2">
-            <button
-              id="btn-auth-mariana"
-              onclick="authorizeAction('act-mariana-birthday')"
-              class="flex-1 py-2.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-              <span>Authorize & Queue Dispatch</span>
-            </button>
-            <button
-              onclick="rejectAction('act-mariana-birthday')"
-              class="px-3 py-2.5 rounded-lg text-xs font-mono-code border border-[#2b2f36] text-[#8e969f] hover:text-white hover:bg-[#1f2227] transition-colors"
-            >
-              Dismiss
-            </button>
-          </div>
-
-          <!-- Verified State Banner (Hidden by default) -->
-          <div id="verified-banner-mariana" class="hidden p-3 rounded-lg bg-emerald-950/40 border border-emerald-800 text-xs font-mono-code text-emerald-300 space-y-1">
-            <div class="flex items-center gap-1.5 font-bold">
-              <span>✓</span>
-              <span>AUTHORIZED & EXECUTED</span>
-            </div>
-            <div class="text-[11px] text-emerald-200/80" id="verified-receipt-text">
-              Cryptographic hash recorded in ledger • Verification confirmed
-            </div>
-          </div>
-
-        </div>
-
-        <!-- ACTION CARD 2: LEVEL 1 PREPARATION (Carlos Pre-Briefing) -->
-        <div class="p-5 rounded-xl border border-[#22252a] bg-[#16181b] space-y-3">
-          <div class="flex items-center justify-between">
-            <span class="text-[10px] font-mono-code px-2 py-0.5 rounded bg-stone-800 text-stone-300 border border-stone-700 font-semibold">
-              LEVEL 1 — PREPARATION DOSSIER
-            </span>
-            <span class="text-[10px] font-mono-code text-emerald-400">READY</span>
-          </div>
-
-          <div>
-            <h3 class="text-sm font-semibold text-white">Carlos Meeting Dossier & Sensitivity Analysis</h3>
-            <p class="text-xs text-[#8e969f] font-mono-code mt-0.5">Pre-call briefing for 14:00 session</p>
-          </div>
-
-          <div class="p-3 rounded bg-[#0d0e10] border border-[#22252a] text-xs font-serif-editorial text-[#a3acb5] space-y-2 leading-relaxed">
-            <p><strong>Strategic Stance:</strong> Carlos supports the Horizon partnership but must defend Clause 4 escalation pricing to his Thursday investment committee.</p>
-            <p><strong>Recommendation:</strong> Propose a 3% volume rebate tier locked for 24 months in exchange for expedited committee closing.</p>
-          </div>
-
-          <button onclick="alert('Displaying full briefing: Pulled documents include Horizon_Partnership_Agreement_v3_draft.pdf and Pricing_Sensitivity_Matrix_Q4.xlsx')" class="w-full py-2 rounded-lg text-xs font-mono-code border border-[#2b2f36] text-white hover:bg-[#1f2227] transition-colors">
-            View Complete Dossier & Pulled Docs →
-          </button>
-        </div>
-
+        <!-- Rendered from persisted actions by app.js -->
       </div>
     </section>
 
@@ -392,7 +189,7 @@ João</textarea>
     <div class="bg-[#141619] border border-[#2b2f36] rounded-xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
       <div class="flex items-center justify-between border-b border-[#22252a] pb-3">
         <div class="flex items-center gap-2">
-          <span class="badge-fact">PROVENANCE VERIFIED</span>
+          <span class="badge-fact">RECORDS</span>
           <h3 class="text-sm font-semibold text-white" id="modal-prov-title">Evidence Chain</h3>
         </div>
         <button onclick="closeProvenanceModal()" class="text-[#727a83] hover:text-white font-mono-code text-sm">✕</button>
@@ -411,10 +208,6 @@ João</textarea>
           </ul>
         </div>
 
-        <div class="p-3 rounded bg-[#0d0e10] border border-[#22252a] space-y-1">
-          <span class="text-[10px] font-mono-code uppercase text-[#727a83] block">Cryptographic Hash Anchor</span>
-          <span class="text-[11px] font-mono-code text-emerald-400 break-all" id="modal-prov-hash">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</span>
-        </div>
       </div>
 
       <div class="pt-2 border-t border-[#22252a] flex justify-end">
@@ -441,9 +234,8 @@ João</textarea>
         <div>
           <label class="text-[10px] font-mono-code uppercase text-[#727a83] block mb-1">Signal Scenario</label>
           <select id="sim-scenario" class="w-full bg-[#0d0e10] border border-[#272a30] text-white p-2.5 rounded text-xs font-mono-code focus:outline-none focus:border-indigo-500">
-            <option value="carlos_reply">Carlos emails: "Pricing agreed, sending agreement to board now"</option>
-            <option value="flight_delay">Flight Alert: João's Thursday flight to London delayed 3h</option>
-            <option value="competitor_news">External Signal: Competitor raises $50M Series B in European market</option>
+            <option value="fixture_email">DEV FIXTURE: email from carlos@horizoncap.com about Clause 4 pricing</option>
+            <option value="fixture_travel">DEV FIXTURE: travel change (Flight 428 delayed 3h)</option>
           </select>
         </div>
       </div>

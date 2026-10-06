@@ -1,4 +1,6 @@
 # WENDY — PHASE 2 STRICT REALITY AUDIT
+
+> **SUPERSEDED** by `WENDY_INITIAL_ARCHITECTURE_AUDIT.md` (2026-10-05). This document describes the code at commit `1716bb1` and is kept for history only.
 **Document Classification:** Internal Technical & Architectural Audit  
 **Standard:** Zero-Delusion Reality Check  
 **Date of Audit:** October 5, 2026  

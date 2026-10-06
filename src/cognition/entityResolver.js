@@ -3,8 +3,9 @@
  * Resolves inbound signals (emails, phone numbers, names) to known ontological entities.
  */
 export class EntityResolver {
-  constructor(entityRepo, relationshipRepo) {
+  constructor(entityRepo, relationshipRepo, principalId) {
     this.entityRepo = entityRepo;
+    this.principalId = principalId;
     this.relationshipRepo = relationshipRepo;
   }
 
@@ -33,8 +34,10 @@ export class EntityResolver {
     // 3. Check name mentions in text or payload
     const nameToTest = payload.person || payload.name || payload.contact;
     if (nameToTest && candidates.length === 0) {
-      const matches = await this.entityRepo.searchPeople(nameToTest);
-      if (matches.length > 0) candidates.push(matches[0]);
+      const target = nameToTest.toLowerCase().trim();
+      const matches = (await this.entityRepo.searchPeople(nameToTest))
+        .filter(p => p.fullName.toLowerCase() === target);
+      if (matches.length === 1) candidates.push(matches[0]);
     }
 
     // If still no candidate, search in subject or body
@@ -42,7 +45,7 @@ export class EntityResolver {
       const fullText = `${payload.subject || ''} ${payload.body || ''} ${payload.text || ''}`;
       const allPeople = await this.entityRepo.getAllPeople();
       for (const person of allPeople) {
-        if (person.id !== 'person-exec-joao') {
+        if (person.id !== this.principalId) {
           const firstName = person.fullName.split(' ')[0].toLowerCase();
           if (fullText.toLowerCase().includes(firstName)) {
             candidates.push(person);
@@ -60,7 +63,7 @@ export class EntityResolver {
       if (primaryPerson.organizationId) {
         organization = await this.entityRepo.getOrganization(primaryPerson.organizationId);
       }
-      relationship = await this.relationshipRepo.getRelationshipBetween('person-exec-joao', primaryPerson.id);
+      relationship = await this.relationshipRepo.getRelationshipBetween(this.principalId, primaryPerson.id);
     }
 
     const allEntityIds = [];

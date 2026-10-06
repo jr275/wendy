@@ -287,3 +287,23 @@ export async function ontology(db: pg.Pool, principalIdParam: string | null) {
   const ids = new Set(nodes.map((n) => n.id));
   return { nodes, edges: edges.filter((e) => ids.has(e.source) && ids.has(e.target)) };
 }
+
+/** Current configuration as the core actually applies it (read from code constants and the database). */
+export async function configuration(db: pg.Pool, principalIdParam: string | null) {
+  const { ACTION_CATALOG, decidePolicy } = await import('../src/actions/actions.js');
+  const { DETECTOR_CONFIG } = await import('../src/cognition/detectors.js');
+  const { SALIENCE_WEIGHTS, SURFACE_THRESHOLD, MODELS } = await import('../src/config.js');
+  const pid = await resolvePrincipal(db, principalIdParam);
+  const principal = pid ? (await db.query('SELECT id, display_name, primary_email, timezone, locale FROM principals WHERE id = $1', [pid])).rows[0] : null;
+  const important = pid
+    ? (
+        await db.query(
+          `SELECT p.full_name, r.kind, r.explicit_importance FROM relationships r JOIN people p ON p.id = r.person_id
+           WHERE r.principal_id = $1 ORDER BY r.explicit_importance DESC NULLS LAST, p.full_name`,
+          [pid],
+        )
+      ).rows
+    : [];
+  const policy = (Object.keys(ACTION_CATALOG) as (keyof typeof ACTION_CATALOG)[]).map((type) => ({ type, ...ACTION_CATALOG[type], decision: decidePolicy(type) }));
+  return { principal, important, policy, detectors: DETECTOR_CONFIG, salience: { threshold: SURFACE_THRESHOLD, weights: SALIENCE_WEIGHTS }, model: MODELS.reasoning };
+}

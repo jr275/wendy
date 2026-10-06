@@ -1,5 +1,19 @@
 # WENDY — Decisões de produto pendentes
 
+> **Proposta pré-preenchida (2026-10-06), aguardando confirmação.** Você pediu "faz tudo", então a tabela abaixo traz as minhas recomendações (★). **Nada disto foi decidido por você ainda.** O plano da Fase 2 (`WENDY_PHASE_2_PLAN.md`) trata estes itens como *premissas*, e cada uma está marcada lá. Para confirmar, responda "confirmo" ou diga o que muda.
+>
+> | # | Proposta | Status |
+> |---|---|---|
+> | 1 | Wendy trabalha só para João Mendes no início; fuso `America/Sao_Paulo`; insights em `pt-BR` | aguardando confirmação |
+> | 2 | Primeiros sensores: Gmail + Google Calendar, **só leitura**, 90 dias de histórico; conta: **a definir** (Workspace ou pessoal) | aguardando confirmação |
+> | 3 | Postgres local neste Mac durante a validação; texto completo do e-mail vai para o Claude; lista de exclusão **a definir**; retenção total durante a validação | aguardando confirmação |
+> | 4 | Autonomia: briefing e rascunho automáticos; enviar e-mail, criar/alterar/cancelar reunião pedem aprovação; nada financeiro | aguardando confirmação |
+> | 5 | Página local como canal, imediato para urgente + resumo diário de manhã; até 5 interrupções por dia; horário silencioso **a definir** | aguardando confirmação |
+> | 6 | Você lista de 10 a 20 pessoas-chave com importância alta ou média — **a lista é sua, eu não tenho como inventar** | aguardando a lista |
+> | 7 | Preferências deduzidas pela Wendy entram como **proposta**, e você confirma | aguardando confirmação |
+> | 8 | Opus 5.5 em todas as etapas até medir o custo real; teto mensal **a definir** | aguardando confirmação |
+> | 9 | Roda neste Mac durante a validação; servidor 24h na fase de inteligência contínua | aguardando confirmação |
+
 Essas decisões não bloqueiam o gate da Fase 1, mas definem como serão a Fase 2 e as seguintes. Marque um `[x]` por pergunta, ou escreva outra resposta. ★ = minha recomendação.
 
 ---

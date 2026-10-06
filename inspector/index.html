@@ -242,6 +242,31 @@
   .ofilters button.off { opacity: .45; text-decoration: line-through; }
   .ohint { position: absolute; bottom: 12px; left: 14px; font: 11px var(--mono); color: var(--faint); }
 
+  /* Configuration (onboarding-style, live summary on the right) */
+  .cfg { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: calc(100vh - 82px); }
+  @media (max-width: 1000px) { .cfg { grid-template-columns: 1fr; } }
+  .cfg .left { padding: 36px 48px 60px; background: var(--panel); border-right: 1px solid var(--line); }
+  .cfg .right { position: relative; padding: 48px 40px; background-color: var(--mint-bg-2); background-image: radial-gradient(color-mix(in srgb, var(--mint) 35%, transparent) 1px, transparent 1.4px); background-size: 9px 9px; display: flex; align-items: center; justify-content: center; }
+  .cfg h2 { font-size: 30px; letter-spacing: -.8px; margin: 10px 0 6px; font-weight: 600; }
+  .cfg .lede { color: var(--muted); font-size: 15px; max-width: 520px; margin: 0 0 26px; }
+  .field { margin-bottom: 18px; }
+  .field .label { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; display: block; }
+  .field .box { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; background: var(--panel-2); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .field .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .chipset { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); }
+  .chipset .chip { white-space: normal; }
+  .ptable { border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+  .ptable .r { display: grid; grid-template-columns: 1fr 70px 150px; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line-2); align-items: center; font-size: 13px; }
+  .ptable .r:last-child { border-bottom: 0; }
+  .summary { width: 100%; max-width: 440px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+  .summary .top { padding: 16px 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+  .summary .big { padding: 18px; border-bottom: 1px solid var(--line); }
+  .summary .big .v { font-size: 30px; font-weight: 600; letter-spacing: -.8px; }
+  .summary .row { display: flex; justify-content: space-between; gap: 16px; padding: 11px 18px; border-bottom: 1px solid var(--line-2); font-size: 13px; }
+  .summary .row:last-child { border-bottom: 0; } .summary .row span:first-child { color: var(--muted); } .summary .row span:last-child { text-align: right; font-weight: 550; }
+  .steps { display: flex; gap: 6px; margin-top: 28px; align-items: center; color: var(--muted); font: 11px var(--mono); }
+  .steps i { width: 6px; height: 6px; background: var(--line); display: inline-block; } .steps i.on { background: var(--mint); width: 9px; height: 9px; }
+
   /* Tiles */
   .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
   @media (max-width: 1000px) { .grid3 { grid-template-columns: repeat(2, 1fr); } } @media (max-width: 640px) { .grid3 { grid-template-columns: 1fr; } }
@@ -277,6 +302,7 @@
     <div class="navlabel">Sistema</div>
     <nav>
       <a href="#/integracoes" data-r="integracoes"><svg viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M7 8h10v4a5 5 0 0 1-10 0z"/><path d="M12 17v5"/></svg>Integrações</a>
+      <a href="#/configuracao" data-r="configuracao"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>Configuração</a>
       <a href="#/auditoria" data-r="auditoria"><svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/></svg>Auditoria</a>
     </nav>
     <div class="spacer"></div>
@@ -416,6 +442,7 @@ async function route() {
     else if (r === 'ontologia') { main.innerHTML = await viewOntology(); }
     else if (r === 'integracoes') main.innerHTML = viewIntegrations();
     else if (r === 'auditoria') main.innerHTML = await viewAudit();
+    else if (r === 'configuracao') main.innerHTML = await viewConfig();
     else main.innerHTML = await viewToday();
     bind();
     if (r === 'ontologia') startOntology();
@@ -817,6 +844,49 @@ function viewIntegrations() {
     <div class="card tile"><div class="ic">${ICON.bolt}</div><h3>Claude</h3><p>Raciocínio da Wendy (claude-opus-5-5). Bloqueado: organização sem saldo de API.</p><span class="pill warn">aguardando saldo de API</span></div></div>`;
   h += `<div class="section-title"><h2>Próximos sensores</h2><span class="muted small">Só depois do Cognitive Core aprovado com o Claude real</span></div><div class="grid3">${planned.map(([n, d, ic, s]) => `<div class="card tile locked"><div class="ic">${ic}</div><h3>${n}</h3><p>${d}</p><span class="pill grey">${s}</span></div>`).join('')}</div>`;
   return h + '</div></div>';
+}
+
+
+/* ---------- CONFIGURAÇÃO ---------- */
+async function viewConfig() {
+  const c = await api('/api/config');
+  const p = c.principal;
+  const disabled = 'title="Edição chega com a API de configuração (escrita com autenticação), depois do gate"';
+  const lvl = { 1: 'interno', 2: 'interno com efeito', 3: 'externo', 4: 'alto impacto' };
+  const imp = c.important.filter((r) => r.explicit_importance != null);
+  let h = `<div class="cfg"><div class="left">
+    <div class="tags"><span class="tag mint">${esc(p?.display_name ?? '—')}</span><span>${esc(p?.primary_email ?? '')}</span></div>
+    <h2>Como a Wendy trabalha para você</h2>
+    <p class="lede">O que ela observa, quem importa, e o que pode fazer sozinha. Estes são os valores que o núcleo aplica hoje — a edição chega quando houver a API de configuração.</p>
+    <div class="field"><div class="grid2">
+      <div><span class="label">Fuso horário</span><div class="box"><span>${esc(p?.timezone ?? '—')}</span><span class="muted mono">⌄</span></div></div>
+      <div><span class="label">Idioma dos insights</span><div class="box"><span>${esc(p?.locale ?? '—')}</span><span class="muted mono">⌄</span></div></div>
+    </div></div>
+    <div class="field"><span class="label">Pessoas importantes · ${imp.length}</span>
+      <div class="chipset">${c.important.length ? c.important.map((r) => `<span class="chip"><i>${esc(REL_PT[r.kind] ?? r.kind)}</i>${esc(r.full_name)}${r.explicit_importance != null ? ` · ${Number(r.explicit_importance).toFixed(2)}` : ''}</span>`).join('') : '<span class="muted small">Nenhuma pessoa cadastrada.</span>'}</div>
+      <div class="note">A importância é definida por você — a Wendy não chuta. Pessoas sem valor entram com peso baixo.</div></div>
+    <div class="field"><span class="label">Autonomia</span><div class="ptable">
+      ${c.policy.map((x) => `<div class="r"><span>${esc(ACTION_NAME[x.type] ?? x.type)} <span class="muted small">· ${esc(lvl[x.authorizationLevel] ?? '')}</span></span><span class="mono small">nível ${x.authorizationLevel}</span><span>${x.decision.mode === 'AUTO' ? '<span class="pill mint">faz sozinha</span>' : '<span class="pill warn">pede aprovação</span>'}</span></div>`).join('')}
+    </div><div class="note">Quanto maior o impacto, mais autorização. Envio de e-mail sempre pede aprovação.</div></div>
+    <div class="field"><span class="label">Antecipação</span><div class="ptable">
+      <div class="r"><span>Datas pessoais (aniversários)</span><span class="mono small">${c.detectors.personDateHorizonDays} dias</span><span class="muted small">de antecedência</span></div>
+      <div class="r"><span>Compromissos vencendo</span><span class="mono small">${c.detectors.commitmentHorizonHours} h</span><span class="muted small">de antecedência</span></div>
+      <div class="r"><span>Limiar para interromper você</span><span class="mono small">${c.salience.threshold}</span><span class="muted small">prioridade mínima</span></div>
+    </div></div>
+    <div class="row-btns"><button class="btn primary" disabled ${disabled}>Salvar alterações</button><a class="btn ghost" href="#/integracoes">Fontes de sinais ${ICON.arrow}</a></div>
+    <div class="steps"><i class="on"></i><i></i><i></i><i></i><span style="margin-left:8px">EXECUTIVO · PESSOAS · AUTONOMIA · FONTES</span></div>
+  </div>
+  <div class="right"><div class="summary">
+    <div class="top"><b>${esc(p?.display_name ?? '—')}</b><span class="tag">${esc(c.model)}</span></div>
+    <div class="big"><div class="eyebrow">Monitoramento contínuo</div><div class="v">${c.important.length} pessoas</div><div class="muted small">${imp.length} com importância definida · ${c.policy.length} tipos de ação</div></div>
+    <div class="row"><span>Fuso</span><span>${esc(p?.timezone ?? '—')}</span></div>
+    <div class="row"><span>Idioma</span><span>${esc(p?.locale ?? '—')}</span></div>
+    <div class="row"><span>Faz sozinha</span><span>${c.policy.filter((x) => x.decision.mode === 'AUTO').map((x) => ACTION_NAME[x.type] ?? x.type).join(', ') || '—'}</span></div>
+    <div class="row"><span>Pede aprovação</span><span style="color:var(--warn)">${c.policy.filter((x) => x.decision.mode !== 'AUTO').map((x) => ACTION_NAME[x.type] ?? x.type).join(', ') || '—'}</span></div>
+    <div class="row"><span>Interrompe a partir de</span><span>prioridade ${c.salience.threshold}</span></div>
+    <div class="row"><span>Fontes reais</span><span class="muted">nenhuma ainda</span></div>
+  </div></div></div>`;
+  return h;
 }
 
 /* ---------- AUDITORIA ---------- */

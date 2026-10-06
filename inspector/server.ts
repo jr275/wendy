@@ -16,7 +16,7 @@ import { verifyLedgerIntegrity } from '../src/audit/ledger.js';
 import { loadEnv } from '../src/config.js';
 import '../src/db/db.js'; // registers pg type parsers
 import { readOnlyPool } from './readOnlyPool.js';
-import { activity, actionsList, insightDetail, modelCalls, ontology, people, principals, today } from './views.js';
+import { activity, actionsList, configuration, insightDetail, modelCalls, ontology, people, principals, today } from './views.js';
 
 loadEnv();
 const DB_URL = process.env.INSPECT_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres:///wendy';
@@ -183,6 +183,7 @@ http
       if (url.pathname === '/api/people') return send(res, 200, await people(db, principal));
       if (url.pathname === '/api/model-calls') return send(res, 200, await modelCalls(db, principal));
       if (url.pathname === '/api/ontology') return send(res, 200, await ontology(db, principal));
+      if (url.pathname === '/api/config') return send(res, 200, await configuration(db, principal));
       if (url.pathname === '/api/ledger') return send(res, 200, await ledger(db));
       if (!UUID_RE.test(id)) return send(res, 400, { error: 'invalid id' });
       if (url.pathname === '/api/event') return send(res, 200, await eventDetail(db, id));

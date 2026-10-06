@@ -1,0 +1,18 @@
+{
+  "name": "wendy-executive-intelligence",
+  "version": "1.0.0",
+  "description": "Persistent Anticipatory Executive Intelligence",
+  "type": "module",
+  "scripts": {
+    "start": "/opt/homebrew/bin/node server.js",
+    "dev": "/opt/homebrew/bin/node server.js"
+  },
+  "keywords": [
+    "executive-intelligence",
+    "anticipatory",
+    "ag-ui",
+    "antigravity"
+  ],
+  "author": "Antigravity Executive AI Team",
+  "license": "ISC"
+}

@@ -1,18 +1,33 @@
 {
-  "name": "wendy-executive-intelligence",
-  "version": "1.0.0",
-  "description": "Persistent Anticipatory Executive Intelligence",
+  "name": "wendy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Wendy — persistent anticipatory executive intelligence (Cognitive Core)",
   "type": "module",
-  "scripts": {
-    "start": "/opt/homebrew/bin/node server.js",
-    "dev": "/opt/homebrew/bin/node server.js"
+  "engines": {
+    "node": ">=22"
   },
-  "keywords": [
-    "executive-intelligence",
-    "anticipatory",
-    "ag-ui",
-    "antigravity"
-  ],
-  "author": "Antigravity Executive AI Team",
-  "license": "ISC"
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "migrate": "tsx src/db/migrateCli.ts",
+    "worker": "tsx src/runtime/workerCli.ts",
+    "demo": "tsx scripts/demo.ts",
+    "test": "vitest run tests/unit",
+    "test:live": "vitest run tests/live",
+    "test:all": "vitest run",
+    "legacy:test": "node legacy/tests/phase_2_5_reality_test.js",
+    "legacy:ui": "WENDY_DATA_DIR=legacy/data node legacy/server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "pg": "^8.23.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
 }

@@ -1,0 +1,30 @@
+import { ActionExecutor, type ExecutorHooks } from '../actions/executor.js';
+import { ActionService } from '../actions/actions.js';
+import type { ReasoningClient } from '../cognition/llm.js';
+import type { Db } from '../db/db.js';
+import type { EmailProvider } from '../providers/interfaces.js';
+import { pgRepositories, type Repositories } from '../repositories/pg.js';
+import type { Clock } from '../util/clock.js';
+
+/** Everything the Cognitive Core needs, wired explicitly (no globals). */
+export interface WendyContext {
+  db: Db;
+  repos: Repositories;
+  reasoner: ReasoningClient;
+  clock: Clock;
+  emailProvider: EmailProvider;
+  actions: ActionService;
+  executor: ActionExecutor;
+}
+
+export function createContext(opts: { db: Db; reasoner: ReasoningClient; clock: Clock; emailProvider: EmailProvider; executorHooks?: ExecutorHooks }): WendyContext {
+  return {
+    db: opts.db,
+    repos: pgRepositories(),
+    reasoner: opts.reasoner,
+    clock: opts.clock,
+    emailProvider: opts.emailProvider,
+    actions: new ActionService(opts.db),
+    executor: new ActionExecutor(opts.db, opts.emailProvider, opts.executorHooks),
+  };
+}

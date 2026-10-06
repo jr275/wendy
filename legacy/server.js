@@ -1,6 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   FileEntityRepository,
   FileRelationshipRepository,
@@ -20,7 +21,7 @@ import { AguiProtocol } from './src/agui/aguiProtocol.js';
 
 const PORT = process.env.PORT || 3456;
 const PRINCIPAL_ID = process.env.WENDY_PRINCIPAL_ID || 'person-exec-joao';
-const PUBLIC_DIR = path.resolve('public');
+const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
 
 // 1. REPOSITORIES INITIALIZATION
 const entityRepo = new FileEntityRepository();

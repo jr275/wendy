@@ -7,3 +7,6 @@ dist/
 data-archive-*/
 legacy/data/
 gate-results/
+
+# personal import settings (who/what never enters Wendy)
+config/import-exclusions.json

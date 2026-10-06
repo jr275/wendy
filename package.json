@@ -2,7 +2,7 @@
   "name": "wendy",
   "version": "0.1.0",
   "private": true,
-  "description": "Wendy \u2014 persistent anticipatory executive intelligence (Cognitive Core)",
+  "description": "Wendy — persistent anticipatory executive intelligence (Cognitive Core)",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -19,7 +19,8 @@
     "legacy:ui": "WENDY_DATA_DIR=legacy/data node legacy/server.js",
     "inspector": "tsx inspector/server.ts",
     "inspector:sample": "tsx scripts/sample-test-double.ts",
-    "gate": "tsx scripts/gate.ts"
+    "gate": "tsx scripts/gate.ts",
+    "import": "tsx scripts/import-takeout.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

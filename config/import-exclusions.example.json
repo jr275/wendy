@@ -1,0 +1,7 @@
+{
+  "addresses": ["medico@exemplo.com"],
+  "domains": ["banco-exemplo.com.br"],
+  "subjectContains": ["exame", "extrato", "senha"],
+  "labels": ["Pessoal", "Saúde"],
+  "calendarTitleContains": ["terapia", "médico"]
+}

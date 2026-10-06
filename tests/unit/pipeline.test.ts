@@ -8,7 +8,7 @@ import { verifyLedgerIntegrity } from '../../src/audit/ledger.js';
 import { runDetectors } from '../../src/cognition/detectors.js';
 import type { ReasoningRequest } from '../../src/cognition/llm.js';
 import type { Db } from '../../src/db/db.js';
-import { ingestInboundEmail } from '../../src/events/ingest.js';
+import { ingestInboundEmail, ingestPrincipalNote } from '../../src/events/ingest.js';
 import { completeCommitment, storeMessage } from '../../src/events/world.js';
 import { DevMailboxProvider } from '../../src/providers/devMailbox.js';
 import { createContext, type WendyContext } from '../../src/runtime/context.js';
@@ -205,6 +205,23 @@ describe('cognitive loop mechanics (test double)', () => {
     expect(Number((await fresh.query('SELECT count(*) n FROM insights')).rows[0].n)).toBeGreaterThan(0);
     expect(Number((await fresh.query(`SELECT count(*) n FROM actions WHERE state = 'AWAITING_APPROVAL'`)).rows[0].n)).toBeGreaterThan(0);
     expect((await verifyLedgerIntegrity(fresh)).valid).toBe(true);
+  });
+
+  it('memories deduced from an email enter as PROPOSED; memories dictated by the principal enter as ACTIVE', async () => {
+    const withMemory = (content: string) => ({
+      ...genericScripts(),
+      reason: (req: ReasoningRequest<unknown>) => ({
+        ...(genericScripts().reason(req) as object),
+        memory_proposals: [{ kind: 'PREFERENCE' as const, about_person: null, content, evidence: [handlesIn(req.user, 'E')[0]!], confidence: 0.8 }],
+      }),
+    });
+    await ingestInboundEmail(db, worldA.principalId, { ...urgentEmail(worldA, NOW), externalId: 'mem-email' }, 'DEV_FIXTURE');
+    await runCycle(ctxWith(new ScriptedReasoner(db, withMemory('deduced-from-email'))));
+    await ingestPrincipalNote(db, worldA.principalId, { text: 'I prefer short emails', externalId: 'mem-note', at: NOW });
+    await runCycle(ctxWith(new ScriptedReasoner(db, withMemory('dictated-by-principal'))));
+    const status = async (c: string) => (await db.query('SELECT status FROM memories WHERE content = $1', [c])).rows.map((r) => r.status);
+    expect(await status('deduced-from-email')).toEqual(['PROPOSED']);
+    expect(await status('dictated-by-principal')).toEqual(['ACTIVE']);
   });
 
   it('retrieval by topic finds records from other people when the model supplies search terms', async () => {

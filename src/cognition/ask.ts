@@ -12,6 +12,8 @@ import { AnswerSchema, UnderstandingSchema } from './schemas.js';
 import { validateAnswer, validateUnderstanding } from './validator.js';
 import type { WendyEvent } from '../domain/types.js';
 import { ingestEvent } from '../events/ingest.js';
+import { withTx } from '../db/db.js';
+import { MemoryService } from '../memory/memoryService.js';
 
 export interface AnswerResult {
   answer: string;
@@ -89,6 +91,10 @@ export async function answerQuestion(ctx: WendyContext, principalId: string, que
   });
 
   const v = validateAnswer(r.output, bundle.registry, now);
+  for (const c of v.conflicts) {
+    const memoryIds = c.evidence.map((h) => bundle.registry.get(h)).filter((i) => i?.ref.kind === 'memory').map((i) => i!.ref.id);
+    if (memoryIds.length >= 2) await withTx(db, (tx) => new MemoryService(db).recordConflict(tx, principalId, memoryIds, c.description, { kind: 'question', id: event.id }, now));
+  }
   return {
     answer: v.narrative.valid ? r.output.answer : v.claims.filter((c) => c.valid && c.producedBy === 'CLAUDE').map((c) => c.statement).join(' '),
     answerValid: v.narrative.valid,

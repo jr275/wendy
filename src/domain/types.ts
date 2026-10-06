@@ -102,7 +102,8 @@ export interface Memory {
   subject_person_id: string | null;
   content: string;
   confidence: number;
-  status: 'ACTIVE' | 'SUPERSEDED' | 'RETRACTED';
+  status: 'PROPOSED' | 'ACTIVE' | 'SUPERSEDED' | 'RETRACTED';
+  last_confirmed_at?: Date | null;
   evidence: EvidenceRef[];
   written_by: 'PRINCIPAL' | 'WENDY' | 'SYSTEM';
   created_at: Date;

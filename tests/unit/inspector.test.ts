@@ -66,7 +66,7 @@ describe('inspector (UI server)', () => {
   });
 
   it('labels evidence from the real records (no invented text)', async () => {
-    const id = (await t.db.query(`SELECT id FROM insights LIMIT 1`)).rows[0].id;
+    const id = (await t.db.query(`SELECT i.id FROM insights i JOIN events e ON e.id = i.event_id WHERE e.event_type = 'EMAIL_RECEIVED'`)).rows[0].id;
     const d = await insightDetail(ro, id);
     const labels = Object.values(d.labels);
     expect(labels).toContain(SCENARIO_A.counterpart.name);

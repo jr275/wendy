@@ -263,13 +263,14 @@ export class PgCommitmentRepository implements CommitmentRepository {
 export class PgMemoryRepository implements MemoryRepository {
   async write(
     q: Queryable,
-    m: { principalId: string; kind: Memory['kind']; subjectPersonId: string | null; content: string; confidence: number; evidence: Memory['evidence']; writtenBy: Memory['written_by']; createdAt: Date },
+    m: { principalId: string; kind: Memory['kind']; subjectPersonId: string | null; content: string; confidence: number; evidence: Memory['evidence']; writtenBy: Memory['written_by']; createdAt: Date; status?: 'PROPOSED' | 'ACTIVE' },
   ) {
     return (
       await q.query<Memory>(
-        `INSERT INTO memories(id, principal_id, kind, subject_person_id, content, confidence, status, evidence, written_by, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,'ACTIVE',$7,$8,$9) RETURNING *`,
-        [newId(), m.principalId, m.kind, m.subjectPersonId, m.content, m.confidence, JSON.stringify(m.evidence), m.writtenBy, m.createdAt],
+        `INSERT INTO memories(id, principal_id, kind, subject_person_id, content, confidence, status, evidence, written_by, created_at, last_confirmed_at, status_changed_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, CASE WHEN $7 = 'ACTIVE' THEN $10::timestamptz END, $10)
+         RETURNING *`,
+        [newId(), m.principalId, m.kind, m.subjectPersonId, m.content, m.confidence, m.status ?? 'ACTIVE', JSON.stringify(m.evidence), m.writtenBy, m.createdAt],
       )
     ).rows[0]!;
   }

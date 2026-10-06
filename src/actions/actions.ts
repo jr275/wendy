@@ -64,10 +64,43 @@ export interface PolicyDecision {
  * Level ≤1 (internal preparation, no external effect) runs automatically.
  * Level ≥2 requires the principal's explicit approval. (Per-principal overrides: Phase 4.)
  */
-export function decidePolicy(type: ActionType): PolicyDecision {
+export type PolicyOverride = 'AUTO' | 'REQUIRE_APPROVAL' | null;
+
+/**
+ * The principal may make an action stricter (require approval) or, for internal actions only,
+ * automatic. External actions can never be made automatic by a setting in this phase.
+ */
+export function decidePolicy(type: ActionType, override: PolicyOverride = null): PolicyDecision {
   const { authorizationLevel, external } = ACTION_CATALOG[type];
+  if (override === 'REQUIRE_APPROVAL') return { mode: 'REQUIRE_APPROVAL', rule: 'principal policy: always ask' };
+  if (override === 'AUTO' && !external) return { mode: 'AUTO', rule: 'principal policy: run automatically (internal action)' };
   if (!external && authorizationLevel <= 1) return { mode: 'AUTO', rule: 'level<=1 internal preparation runs automatically' };
   return { mode: 'REQUIRE_APPROVAL', rule: `level ${authorizationLevel}${external ? ' external' : ''} action requires explicit approval` };
+}
+
+export async function policyOverride(q: Queryable, principalId: string, type: ActionType): Promise<PolicyOverride> {
+  const r = (await q.query<{ mode: PolicyOverride }>('SELECT mode FROM approval_policies WHERE principal_id = $1 AND action_type = $2', [principalId, type])).rows[0];
+  return r?.mode ?? null;
+}
+
+export class PolicyService {
+  constructor(private readonly db: Db) {}
+  /** Sets (or clears with null) the principal's policy for an action type. External actions cannot be set to AUTO. */
+  async set(principalId: string, type: ActionType, mode: PolicyOverride, now: Date) {
+    if (!(type in ACTION_CATALOG)) throw new IllegalTransitionError(`unknown action type ${type}`);
+    if (mode === 'AUTO' && ACTION_CATALOG[type].external) throw new IllegalTransitionError(`${type} is external and cannot run without approval in this phase`);
+    return withTx(this.db, async (tx) => {
+      const before = await policyOverride(tx, principalId, type);
+      if (mode === null) await tx.query('DELETE FROM approval_policies WHERE principal_id = $1 AND action_type = $2', [principalId, type]);
+      else
+        await tx.query(
+          `INSERT INTO approval_policies(principal_id, action_type, mode, updated_at, updated_by) VALUES ($1,$2,$3,$4,'PRINCIPAL')
+           ON CONFLICT (principal_id, action_type) DO UPDATE SET mode = EXCLUDED.mode, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by`,
+          [principalId, type, mode, now],
+        );
+      await appendAudit(tx, { principalId, eventType: 'APPROVAL_POLICY_SET', actor: 'PRINCIPAL', subjectType: 'policy', subjectId: type, payload: { from: before, to: mode } });
+    });
+  }
 }
 
 export async function lockAction(tx: Tx, actionId: string, principalId: string): Promise<ActionRow> {
@@ -113,7 +146,7 @@ export async function proposeAction(
   tx: Tx,
   a: { principalId: string; insightId: string | null; type: ActionType; targetPersonId: string | null; content: Record<string, unknown>; expiresAt: Date | null },
 ): Promise<ActionRow> {
-  const policy = decidePolicy(a.type);
+  const policy = decidePolicy(a.type, await policyOverride(tx, a.principalId, a.type));
   const id = newId();
   const created = (
     await tx.query<ActionRow>(

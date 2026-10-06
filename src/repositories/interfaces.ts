@@ -81,7 +81,7 @@ export interface CommitmentRepository {
 export interface MemoryRepository {
   write(
     q: Queryable,
-    m: { principalId: string; kind: MemoryKind; subjectPersonId: string | null; content: string; confidence: number; evidence: EvidenceRef[]; writtenBy: Memory['written_by']; createdAt: Date },
+    m: { principalId: string; kind: MemoryKind; subjectPersonId: string | null; content: string; confidence: number; evidence: EvidenceRef[]; writtenBy: Memory['written_by']; createdAt: Date; status?: 'PROPOSED' | 'ACTIVE' },
   ): Promise<Memory>;
   get(q: Queryable, principalId: string, id: string): Promise<Memory | null>;
   activeForPerson(q: Queryable, principalId: string, personId: string, limit: number): Promise<Memory[]>;

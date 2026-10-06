@@ -7,6 +7,7 @@ import type { Queryable } from '../db/db.js';
 import type { Commitment, EvidenceKind, EvidenceRef, Meeting, Memory, Message, Person, Principal, Relationship, WendyEvent } from '../domain/types.js';
 import type { Repositories } from '../repositories/pg.js';
 import { DAY_MS } from '../util/clock.js';
+import { relationshipMetrics, renderMetrics } from '../people/relationshipMetrics.js';
 
 export interface EvidenceItem {
   handle: string;
@@ -173,7 +174,8 @@ export async function retrieveContext(q: Queryable, repos: Repositories, input: 
     const rel = await repos.relationships.getRelationship(q, pid, personId);
     const emails = await emailsOf(q, pid, personId);
     for (const e of emails) addressNames.set(e, person.full_name);
-    return registry.add({ kind: 'person', id: personId }, null, renderPerson(person, rel, emails), { full_name: person.full_name, emails });
+    const metrics = await relationshipMetrics(q, pid, personId, now);
+    return registry.add({ kind: 'person', id: personId }, null, `${renderPerson(person, rel, emails)}\n${renderMetrics(metrics)}`, { full_name: person.full_name, emails });
   };
 
   const focusPeople: string[] = [];

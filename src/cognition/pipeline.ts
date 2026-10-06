@@ -9,6 +9,7 @@
  * crash either leaves the event to be retried or fully processed — never half-applied.
  */
 import { appendAudit } from '../audit/ledger.js';
+import { MemoryService } from '../memory/memoryService.js';
 import { proposeAction, type ActionType } from '../actions/actions.js';
 import { withTx, type Queryable, type Tx } from '../db/db.js';
 import type { EvidenceRef, Person, Principal, WendyEvent } from '../domain/types.js';
@@ -386,9 +387,16 @@ async function persist(
         evidence: m.evidence,
         writtenBy: 'WENDY',
         createdAt: a.now,
+        // The principal's own statement is already confirmed; anything Wendy deduces from other sources waits for the principal.
+        status: event.event_type === 'PRINCIPAL_NOTE' ? 'ACTIVE' : 'PROPOSED',
       });
       await appendAudit(tx, { principalId: principal.id, eventType: 'MEMORY_WRITTEN', actor: 'WENDY', subjectType: 'memory', subjectId: mem.id, payload: { kind: m.kind, evidence: m.evidence, contentHash: hashOf(m.content), insightId } });
     }
+  }
+
+  for (const c of report.conflicts) {
+    const memoryIds = c.evidence.map((h) => bundle.registry.get(h)).filter((i) => i?.ref.kind === 'memory').map((i) => i!.ref.id);
+    await new MemoryService(a.ctx.db).recordConflict(tx, principal.id, memoryIds, c.description, { kind: 'insight', id: insightId }, a.now);
   }
 
   const rendered = await renderInsight(tx, insightId);

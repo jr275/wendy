@@ -65,16 +65,18 @@
       "relationshipType": "KEY_CLIENT",
       "closenessScore": 0.88,
       "velocity": "STABLE",
-      "lastInteractionAt": "2026-10-05T23:25:24.387Z",
+      "lastInteractionAt": "2026-10-06T00:07:01.106Z",
       "interactionCadenceDays": 45,
       "reciprocityBalance": 0,
       "historicalNotes": [
         "Sent personal birthday message last year reflecting on her European expansion.",
         "Mariana replied with high warmth, mentioning it made her day.",
         "Preferred communication: Direct personal email, warm and unhurried tone.",
-        "Sent authorized birthday greeting on 2026-10-05. Verified delivered."
+        "Sent authorized birthday greeting on 2026-10-05. Verified delivered.",
+        "Sent authorized birthday greeting on 2026-10-06. Verified delivered.",
+        "Sent authorized birthday greeting on 2026-10-06. Verified delivered."
       ],
-      "updatedAt": "2026-10-05T23:25:24.387Z"
+      "updatedAt": "2026-10-06T00:07:01.106Z"
     }
   },
   "calendarEvents": {},
@@ -95,6 +97,44 @@
     }
   },
   "episodicMemory": [
+    {
+      "id": "ep-4c75a68a-6685-4e9b-a9a6-161734478324",
+      "occurredAt": "2026-10-06T00:07:01.105Z",
+      "interactionType": "EMAIL_SENT",
+      "entityIds": [
+        "person-exec-joao",
+        "person-mariana"
+      ],
+      "summary": "Dispatched birthday greeting to test@example.com.",
+      "verbatimSnippet": "Body",
+      "provenanceHash": "3cb0a13d66409d1d5f4878969a7f7dfd0c15294f061e031259bd915756da2cc9",
+      "provenanceSource": "ACTION_ADAPTER_VERIFIED"
+    },
+    {
+      "id": "ep-c417d8a0-e01c-474f-a7e0-b4ff73faf45c",
+      "occurredAt": "2026-10-06T00:07:01.104Z",
+      "interactionType": "EMAIL_SENT",
+      "entityIds": [
+        "person-exec-joao",
+        "person-mariana"
+      ],
+      "summary": "Dispatched birthday greeting to test@example.com.",
+      "verbatimSnippet": "Body",
+      "provenanceHash": "3cb0a13d66409d1d5f4878969a7f7dfd0c15294f061e031259bd915756da2cc9",
+      "provenanceSource": "ACTION_ADAPTER_VERIFIED"
+    },
+    {
+      "id": "ep-e26b5bd6-56e4-485e-8414-1f340655a446",
+      "occurredAt": "2026-10-06T00:07:01.094Z",
+      "interactionType": "NOTE",
+      "entityIds": [
+        "person-carlos"
+      ],
+      "summary": "Carlos prefers concise communication and dislikes long emails.",
+      "verbatimSnippet": "Carlos: Keep emails under 3 sentences.",
+      "provenanceHash": "abf5f8cc20fb91b081adc32c735829cb2debcaf9e6f62f12336cad9a8b8d8856",
+      "provenanceSource": "SYSTEM"
+    },
     {
       "id": "ep-28f60eba-774c-4e41-a010-965914d0de87",
       "occurredAt": "2026-10-05T23:25:24.387Z",
@@ -185,6 +225,36 @@
     }
   ],
   "historicalOutcomes": [
+    {
+      "id": "out-03960402-3557-4a15-a7d6-4bd5a7b81ef5",
+      "recordedAt": "2026-10-06T00:07:01.106Z",
+      "actionId": "test-act-1",
+      "actionType": "SEND_EMAIL",
+      "decision": "APPROVED",
+      "executiveFeedback": null,
+      "wasSuccessful": true,
+      "verificationDetails": {
+        "messageId": "msg-19381f7f-6343-4c6d-8c23-b22635c4e9fa",
+        "smtpResponse": "250 2.0.0 OK: message queued 10429",
+        "recipientStatus": "DELIVERED_TO_GATEWAY",
+        "verifiedAt": "2026-10-06T00:07:01.105Z"
+      }
+    },
+    {
+      "id": "out-e5bddeba-601b-48a7-9464-c9f49e1e5e6e",
+      "recordedAt": "2026-10-06T00:07:01.105Z",
+      "actionId": "test-act-1",
+      "actionType": "SEND_EMAIL",
+      "decision": "APPROVED",
+      "executiveFeedback": null,
+      "wasSuccessful": true,
+      "verificationDetails": {
+        "messageId": "msg-cc2dafe2-772b-475e-a471-23a06d977b94",
+        "smtpResponse": "250 2.0.0 OK: message queued 10429",
+        "recipientStatus": "DELIVERED_TO_GATEWAY",
+        "verifiedAt": "2026-10-06T00:07:01.104Z"
+      }
+    },
     {
       "id": "out-a855407f-68ba-4f1b-81a3-00eb5d1bf6e6",
       "recordedAt": "2026-10-05T23:25:24.387Z",

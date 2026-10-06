@@ -1,0 +1,153 @@
+{
+  "act-test-1": {
+    "createdAt": "2026-10-06T00:14:34.945Z",
+    "actionId": "act-test-1",
+    "state": "AWAITING_APPROVAL",
+    "title": "Test Action",
+    "updatedAt": "2026-10-06T00:14:34.946Z"
+  },
+  "act-mariana-birthday": {
+    "createdAt": "2026-10-06T00:17:19.735Z",
+    "actionId": "act-mariana-birthday",
+    "actionType": "SEND_EMAIL",
+    "authorizationLevel": 3,
+    "state": "AWAITING_APPROVAL",
+    "targetEntityId": "person-mariana",
+    "targetEntityName": "Mariana Vance",
+    "headline": "Send Birthday Greeting to Mariana Vance (Tier 1)",
+    "justification": [
+      "Birthday is tomorrow (Fact: Verified in Contact profile)",
+      "Crucial European alliance partner (Fact: Tier 1 Closeness 0.88)",
+      "Sent personal message last year acknowledging expansion (Fact: Episodic log)",
+      "Calibrated in executive voice: Direct, personal, warm, unhurried (Rule: Preference #1)"
+    ],
+    "preview": {
+      "recipient": "mariana@apexbio.com",
+      "scheduledFor": "Tomorrow at 08:30 (BST)",
+      "subject": "Happy Birthday, Mariana",
+      "body": "Mariana,\n\nWishing you a wonderful birthday tomorrow. \n\nI was reflecting on our discussion last month regarding the European market expansion—the pace of execution at Apex continues to impress me. I hope you take time away from the pipeline to celebrate with family.\n\nWarmly,\nJoão"
+    },
+    "consequences": {
+      "reversibility": "IRREVERSIBLE ON SEND",
+      "impact": "Reinforces critical European strategic alliance; zero commercial push."
+    },
+    "epistemicState": "RECOMMENDATION",
+    "provenance": {
+      "sourceType": "DEVELOPMENT_FIXTURE"
+    },
+    "updatedAt": "2026-10-06T00:17:19.735Z"
+  },
+  "act-lifecycle-1791245839736": {
+    "createdAt": "2026-10-06T00:17:19.736Z",
+    "actionId": "act-lifecycle-1791245839736",
+    "actionType": "SEND_EMAIL",
+    "authorizationLevel": 3,
+    "state": "REJECTED",
+    "targetEntityName": "Test Partner",
+    "preview": {
+      "body": "Initial Draft"
+    },
+    "updatedAt": "2026-10-06T00:17:19.737Z",
+    "approvedAt": "2026-10-06T00:17:19.736Z",
+    "rejectionReason": "Executive cancelled"
+  },
+  "act-lifecycle-1791245854849": {
+    "createdAt": "2026-10-06T00:17:34.849Z",
+    "actionId": "act-lifecycle-1791245854849",
+    "actionType": "SEND_EMAIL",
+    "authorizationLevel": 3,
+    "state": "REJECTED",
+    "targetEntityName": "Test Partner",
+    "preview": {
+      "body": "Initial Draft"
+    },
+    "updatedAt": "2026-10-06T00:17:34.851Z",
+    "approvedAt": "2026-10-06T00:17:34.851Z",
+    "rejectionReason": "Executive cancelled"
+  },
+  "act-briefing-person-carlos": {
+    "createdAt": "2026-10-06T00:17:34.856Z",
+    "actionId": "act-briefing-person-carlos",
+    "actionType": "PREPARE_BRIEFING",
+    "authorizationLevel": 1,
+    "state": "APPROVED",
+    "targetEntityId": "person-carlos",
+    "targetEntityName": "Carlos Drummond",
+    "headline": "Pre-Meeting Pricing Sensitivity Briefing for Carlos Drummond",
+    "justification": [
+      "Observation: Carlos Drummond sent an email with subject \"Contract clause 4 review\" stating: \"Reviewing pricing concessions.\"",
+      "Recommendation: Review the 3% volume rebate concession schedule in Drive before entering the call, rather than negotiating without modeling.",
+      "Provenance Content Hash: cdc1530dce1acc991e1e7ea8dadee66c8f3830159978658805518001e9318ff6"
+    ],
+    "preview": {
+      "keyTakeaways": [
+        "Key issue: Clause 4 pricing model sensitivity before Thursday committee.",
+        "Recommended counter: 3% volume rebate tier locked for 24 months.",
+        "Documents indexed: Horizon_Partnership_Agreement_v3_draft.pdf"
+      ]
+    },
+    "consequences": {
+      "reversibility": "INTERNAL ONLY (ZERO EXTERNAL SIDE EFFECTS)",
+      "impact": "Arms executive with exact counter-proposals."
+    },
+    "epistemicState": "RECOMMENDATION",
+    "provenance": {
+      "sourceEventId": "evt-5e296d26-c574-481e-9d11-5825a34e9676",
+      "sourceType": "SENSORY_BUS",
+      "occurredAt": "2026-10-06T00:18:35.532Z",
+      "origin": "LIVE_TELEMETRY",
+      "contentHash": "cdc1530dce1acc991e1e7ea8dadee66c8f3830159978658805518001e9318ff6",
+      "verified": true
+    },
+    "updatedAt": "2026-10-06T00:18:35.532Z"
+  },
+  "act-birthday-person-mariana": {
+    "createdAt": "2026-10-06T00:17:34.857Z",
+    "actionId": "act-birthday-person-mariana",
+    "actionType": "SEND_EMAIL",
+    "authorizationLevel": 3,
+    "state": "AWAITING_APPROVAL",
+    "targetEntityId": "person-mariana",
+    "targetEntityName": "Mariana Vance",
+    "headline": "Send Birthday Greeting to Mariana Vance (Tier 1)",
+    "justification": [
+      "Observation: Mariana Vance's birthday is approaching on tomorrow.",
+      "Recommendation: Acknowledge receipt and stage the required next step in Zone C.",
+      "Provenance Content Hash: 46e9bd1bfa285ddd756a3224145c659273d630b06158de39e5ba17c7ca7808f6"
+    ],
+    "preview": {
+      "recipient": "mariana@apexbio.com",
+      "scheduledFor": "Tomorrow at 08:30 (BST)",
+      "subject": "Happy Birthday, Mariana",
+      "body": "Mariana,\n\nWishing you a wonderful birthday tomorrow.\n\nReflecting on our work together over the past year—the progress continues to impress me. I hope you get time to celebrate with family.\n\nWarmly,\nJoão"
+    },
+    "consequences": {
+      "reversibility": "IRREVERSIBLE ON SEND",
+      "impact": "Direct personal goodwill touchpoint with Mariana Vance. Zero commercial solicitation."
+    },
+    "epistemicState": "RECOMMENDATION",
+    "provenance": {
+      "sourceEventId": "evt-d57a3dd9-ae52-40f3-b8b9-19a95f73a5c9",
+      "sourceType": "CONTACTS_DIRECTORY",
+      "occurredAt": "2026-10-06T00:18:35.528Z",
+      "origin": "LIVE_TELEMETRY",
+      "contentHash": "46e9bd1bfa285ddd756a3224145c659273d630b06158de39e5ba17c7ca7808f6",
+      "verified": true
+    },
+    "updatedAt": "2026-10-06T00:18:35.529Z"
+  },
+  "act-lifecycle-1791245915447": {
+    "createdAt": "2026-10-06T00:18:35.447Z",
+    "actionId": "act-lifecycle-1791245915447",
+    "actionType": "SEND_EMAIL",
+    "authorizationLevel": 3,
+    "state": "REJECTED",
+    "targetEntityName": "Test Partner",
+    "preview": {
+      "body": "Initial Draft"
+    },
+    "updatedAt": "2026-10-06T00:18:35.450Z",
+    "approvedAt": "2026-10-06T00:18:35.450Z",
+    "rejectionReason": "Executive cancelled"
+  }
+}

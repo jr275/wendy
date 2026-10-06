@@ -1,22 +1,79 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { globalMemory } from './src/memory/memoryStore.js';
-import { seedExecutiveEnvironment } from './src/sensory/seedData.js';
+import {
+  FileEntityRepository,
+  FileRelationshipRepository,
+  FileEventRepository,
+  FileActionRepository,
+  FileIdempotencyRepository,
+  FileAuditRepository,
+  FileMemoryRepository,
+  ActionState
+} from './src/repositories/fileStorage.js';
+import { initializeDatabaseWithFixtures } from './src/sensory/fixtures.js';
 import { globalEventBus } from './src/sensory/eventBus.js';
+import { CognitivePipeline } from './src/cognition/cognitivePipeline.js';
 import { ReasoningEngine } from './src/cognition/reasoningEngine.js';
 import { ActionAdapters } from './src/governance/actionAdapters.js';
-import { globalAuditLedger } from './src/governance/auditLedger.js';
 import { AguiProtocol } from './src/agui/aguiProtocol.js';
 
 const PORT = process.env.PORT || 3456;
 const PUBLIC_DIR = path.resolve('public');
 
-// Initialize Memory & Seed realistic executive data
-seedExecutiveEnvironment(globalMemory);
+// 1. REPOSITORIES INITIALIZATION
+const entityRepo = new FileEntityRepository();
+const relationshipRepo = new FileRelationshipRepository();
+const eventRepo = new FileEventRepository();
+const actionRepo = new FileActionRepository();
+const idempotencyRepo = new FileIdempotencyRepository();
+const auditRepo = new FileAuditRepository();
+const memoryRepo = new FileMemoryRepository();
 
-const reasoningEngine = new ReasoningEngine(globalMemory, globalEventBus);
-const actionAdapters = new ActionAdapters(globalMemory);
+// 2. AUDIT INTEGRITY CHECK ON BOOT
+const ledgerCheck = await auditRepo.verifyLedgerIntegrity();
+if (!ledgerCheck.valid) {
+  console.error('\n🚨 FATAL: Cryptographic audit ledger integrity failure detected on startup!');
+  console.error(`Error: ${ledgerCheck.error}`);
+  console.error('Halting boot to prevent operating on compromised state.\n');
+  process.exit(1);
+} else {
+  console.log(`🔒 Audit ledger integrity verified: ${ledgerCheck.blockCount} blocks valid.`);
+}
+
+// 3. IDEMPOTENT FIXTURE INITIALIZATION (Only seeds if database is empty)
+await initializeDatabaseWithFixtures({
+  entityRepo,
+  relationshipRepo,
+  memoryRepo,
+  actionRepo
+});
+
+// 4. COGNITIVE PIPELINE & REASONING INITIALIZATION
+const cognitivePipeline = new CognitivePipeline({
+  eventRepo,
+  entityRepo,
+  relationshipRepo,
+  memoryRepo,
+  actionRepo,
+  eventBus: globalEventBus
+});
+
+const reasoningEngine = new ReasoningEngine({
+  entityRepo,
+  relationshipRepo,
+  eventRepo,
+  actionRepo,
+  memoryRepo,
+  cognitivePipeline
+});
+
+const actionAdapters = new ActionAdapters({
+  idempotencyRepo,
+  auditRepo,
+  memoryRepo,
+  actionRepo
+});
 
 // Active SSE client connections
 const sseClients = new Set();
@@ -24,9 +81,18 @@ const sseClients = new Set();
 function broadcastSse(eventType, data) {
   const payload = AguiProtocol.formatSse(eventType, data);
   for (const client of sseClients) {
-    client.write(payload);
+    try {
+      client.write(payload);
+    } catch (e) {
+      sseClients.delete(client);
+    }
   }
 }
+
+// Forward proactive pipeline insights to connected SSE clients
+globalEventBus.on('PROACTIVE_INSIGHT_GENERATED', (insight) => {
+  broadcastSse('PROACTIVE_INSIGHT_GENERATED', insight);
+});
 
 // MIME types dictionary
 const MIME_TYPES = {
@@ -46,12 +112,21 @@ const server = http.createServer(async (req, res) => {
 
   // 1. Full State Snapshot
   if (pathname === '/api/state' && req.method === 'GET') {
-    const dossier = reasoningEngine.generateExecutiveDossier();
+    const dossier = await reasoningEngine.generateExecutiveDossier();
+    const people = await entityRepo.getAllPeople();
+    const preferences = await memoryRepo.getAllPreferences();
+    const recentEpisodic = await memoryRepo.queryEpisodic({ limit: 10 });
+    const recentEvents = await eventRepo.listEvents({ limit: 10 });
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       dossier,
-      memory: globalMemory.getSnapshot(),
-      recentEvents: globalEventBus.getRecentEvents(10)
+      memory: {
+        people: people.reduce((acc, p) => { acc[p.id] = p; return acc; }, {}),
+        preferences,
+        recentEpisodic
+      },
+      recentEvents
     }));
     return;
   }
@@ -72,14 +147,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 3. Chat / Executive Dialogue
+  // 3. Chat / Executive Dialogue (Real Memory Retrieval)
   if (pathname === '/api/chat' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const { query } = JSON.parse(body || '{}');
-        const response = reasoningEngine.processExecutiveQuery(query);
+        const response = await reasoningEngine.processExecutiveQuery(query);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(response));
       } catch (err) {
@@ -90,16 +165,18 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 4. Two-Way Shared State Sync (Draft updates)
+  // 4. Two-Way Shared State Sync (Draft updates - PERSISTED TO DISK)
   if (pathname === '/api/action/sync' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const { actionId, modifiedBody } = JSON.parse(body || '{}');
-        if (reasoningEngine.stagedActions[actionId]) {
-          reasoningEngine.stagedActions[actionId].preview.body = modifiedBody;
-          console.log(`[SHARED STATE SYNC] Action ${actionId} draft updated in Wendy memory.`);
+        const action = await actionRepo.getAction(actionId);
+        if (action) {
+          action.preview.body = modifiedBody;
+          await actionRepo.saveAction(action);
+          console.log(`[SHARED STATE SYNC] Action ${actionId} draft persisted to disk.`);
         }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true }));
@@ -118,38 +195,36 @@ const server = http.createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const { actionId, modifiedBody, actorId = 'person-exec-joao' } = JSON.parse(body || '{}');
-        const stagedAction = reasoningEngine.stagedActions[actionId];
+        const action = await actionRepo.getAction(actionId);
         
-        if (!stagedAction) {
+        if (!action) {
           res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Action not found in staging drawer' }));
+          res.end(JSON.stringify({ error: 'Action not found in staging repository' }));
           return;
         }
 
         // 1. Record cryptographic approval entry
-        const approvalEntry = globalAuditLedger.appendAuditEntry({
+        const approvalEntry = await auditRepo.appendBlock({
           eventType: 'ACTION_APPROVED_BY_EXECUTIVE',
           actionId,
           actorId,
-          authorizationLevel: stagedAction.authorizationLevel,
+          authorizationLevel: action.authorizationLevel,
           payload: {
             approvedAt: new Date().toISOString(),
-            recipient: stagedAction.preview.recipient,
-            bodyDispatched: modifiedBody || stagedAction.preview.body
+            recipient: action.preview.recipient,
+            bodyDispatched: modifiedBody || action.preview.body
           },
           verificationStatus: 'APPROVED'
         });
 
-        // 2. Execute via idempotent Action Adapter
+        // 2. Execute via durable idempotent Action Adapter
         const dispatchResult = await actionAdapters.dispatchEmail({
           actionId,
-          recipient: stagedAction.preview.recipient,
-          subject: stagedAction.preview.subject,
-          bodyText: modifiedBody || stagedAction.preview.body,
+          recipient: action.preview.recipient,
+          subject: action.preview.subject,
+          bodyText: modifiedBody || action.preview.body,
           actorId
         });
-
-        stagedAction.status = 'EXECUTED';
 
         // 3. Broadcast verification to all connected AG-UI surfaces
         broadcastSse('ACTION_VERIFIED_BROADCAST', {
@@ -172,43 +247,69 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 6. Cryptographic Audit Ledger Query
+  // 6. Cryptographic Audit Ledger Query & Integrity Status
   if (pathname === '/api/audit' && req.method === 'GET') {
+    const blocks = await auditRepo.getBlocks(50);
+    const integrity = await auditRepo.verifyLedgerIntegrity();
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(globalAuditLedger.getEntries(50)));
+    res.end(JSON.stringify({
+      integrity,
+      blocks
+    }));
     return;
   }
 
-  // 7. Event Bus Simulator
+  // 7. Event Ingestion Pipeline (Processes Real Event via CognitivePipeline)
   if (pathname === '/api/events/simulate' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const { scenario } = JSON.parse(body || '{}');
-        let summary = '';
-        let salience = 0.8;
+        let rawEvent = null;
 
         if (scenario === 'carlos_reply') {
-          summary = 'Carlos Drummond emailed: "Agreement terms look solid. Presenting to the investment committee now." Updated relationship trajectory to POSITIVE.';
-          salience = 0.92;
-          globalEventBus.publishEvent({
+          rawEvent = {
             eventType: 'EMAIL_RECEIVED',
+            source: 'GMAIL_MOCK',
             actor: { id: 'person-carlos', type: 'EXTERNAL_CONTACT', identifier: 'carlos@horizoncap.com' },
-            primaryEntity: { entityType: 'Person', entityId: 'person-carlos' },
-            importanceScore: 0.95,
-            payload: { subject: 'Re: Partnership terms', text: 'Agreement terms look solid.' }
-          });
+            payload: {
+              from: 'carlos@horizoncap.com',
+              subject: 'Urgent: Pricing review before Thursday meeting',
+              body: 'João, we need to revisit Clause 4 pricing immediately before tomorrow. The committee will not approve without revision.'
+            }
+          };
         } else if (scenario === 'flight_delay') {
-          summary = 'Travel Telemetry: Flight 428 to London has been rescheduled. Updated calendar buffer; no conflicts detected.';
-          salience = 0.74;
+          rawEvent = {
+            eventType: 'TRAVEL_CHANGED',
+            source: 'TRAVEL_API_MOCK',
+            payload: {
+              flight: 'Flight 428 to London',
+              status: 'DELAYED_3H',
+              text: 'Flight 428 delayed by 3 hours. Transit window impacted.'
+            }
+          };
         } else {
-          summary = 'Market Signal: European competitor announced Series B expansion. Monitored for implications on Apex Bio.';
-          salience = 0.65;
+          rawEvent = {
+            eventType: 'PERSON_EVENT_APPROACHING',
+            source: 'CONTACTS_MOCK',
+            payload: {
+              person: 'Mariana Vance',
+              event: 'birthday',
+              date: 'tomorrow',
+              text: 'Mariana Vance birthday approaching tomorrow.'
+            }
+          };
         }
 
+        // Process through real cognitive loop!
+        const pipelineOutput = await cognitivePipeline.processEvent(rawEvent);
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, summary, salience }));
+        res.end(JSON.stringify({
+          success: true,
+          pipelineOutput
+        }));
       } catch (err) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err.message }));
@@ -240,9 +341,10 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`\n======================================================`);
-  console.log(`🌟 WENDY EXECUTIVE INTELLIGENCE IS RUNNING`);
+  console.log(`🌟 WENDY EXECUTIVE INTELLIGENCE RUNNING (PHASE 2.5 HARDENED)`);
   console.log(`📡 URL: http://127.0.0.1:${PORT}`);
-  console.log(`⚡ Category: Persistent Anticipatory Executive Intelligence`);
-  console.log(`🔒 Governance: Level 0-4 Gateway Active`);
+  console.log(`🔒 Audit Ledger: Cryptographically Verified`);
+  console.log(`💾 Persistence: Atomic Repositories Active`);
+  console.log(`🧠 Cognitive Loop: Autonomous Pipeline Connected`);
   console.log(`======================================================\n`);
 });

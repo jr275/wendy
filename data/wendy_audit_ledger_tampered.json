@@ -1,0 +1,36 @@
+[
+  {
+    "sequenceNumber": 1,
+    "timestamp": "2026-10-05T23:25:24.386Z",
+    "eventType": "ACTION_DISPATCHED",
+    "actionId": "act-mariana-birthday",
+    "actorId": "person-exec-joao",
+    "authorizationLevel": 3,
+    "payload": {
+      "recipient": "hacker@malicious.com",
+      "subject": "Happy Birthday, Mariana",
+      "bodyText": "Mariana, wishing you a wonderful birthday...",
+      "idempotencyKey": "email-3ebf6e0c8b362b71a379addf6ca33b93"
+    },
+    "verificationStatus": "PENDING",
+    "prevHash": "GENESIS_BLOCK_00000000000000000",
+    "entryHash": "c11449d3d4f5af8e2f4c9c480ebcff6c40587ca7e39ab5c6aba7c3ff37c1fa99"
+  },
+  {
+    "sequenceNumber": 2,
+    "timestamp": "2026-10-05T23:25:24.386Z",
+    "eventType": "ACTION_VERIFIED",
+    "actionId": "act-mariana-birthday",
+    "actorId": "system-verifier",
+    "authorizationLevel": 3,
+    "payload": {
+      "messageId": "msg-d2ff08be-596d-42ab-a730-83b324544a8f",
+      "smtpResponse": "250 2.0.0 OK: message queued 10429",
+      "recipientStatus": "DELIVERED_TO_GATEWAY",
+      "verifiedAt": "2026-10-05T23:25:24.386Z"
+    },
+    "verificationStatus": "VERIFIED_SUCCESS",
+    "prevHash": "c11449d3d4f5af8e2f4c9c480ebcff6c40587ca7e39ab5c6aba7c3ff37c1fa99",
+    "entryHash": "6e23b8a68f074db5c55ed22361492bc9e105243f0a1c0ef69ae506533f067611"
+  }
+]

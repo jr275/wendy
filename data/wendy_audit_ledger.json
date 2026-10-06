@@ -32,5 +32,73 @@
     "verificationStatus": "VERIFIED_SUCCESS",
     "prevHash": "c11449d3d4f5af8e2f4c9c480ebcff6c40587ca7e39ab5c6aba7c3ff37c1fa99",
     "entryHash": "6e23b8a68f074db5c55ed22361492bc9e105243f0a1c0ef69ae506533f067611"
+  },
+  {
+    "sequenceNumber": 3,
+    "timestamp": "2026-10-06T00:07:01.104Z",
+    "eventType": "ACTION_DISPATCHED",
+    "actionId": "test-act-1",
+    "actorId": "person-exec-joao",
+    "authorizationLevel": 3,
+    "payload": {
+      "recipient": "test@example.com",
+      "subject": "Test",
+      "bodyText": "Body",
+      "idempotencyKey": "email-bf3db0f7e2c0b181301e61a1fdcee181"
+    },
+    "verificationStatus": "PENDING",
+    "prevHash": "6e23b8a68f074db5c55ed22361492bc9e105243f0a1c0ef69ae506533f067611",
+    "entryHash": "93041aba1c4bc83edf9324c881eb1a5a9545af83fc7ef7add6f5711939d733a2"
+  },
+  {
+    "sequenceNumber": 4,
+    "timestamp": "2026-10-06T00:07:01.104Z",
+    "eventType": "ACTION_VERIFIED",
+    "actionId": "test-act-1",
+    "actorId": "system-verifier",
+    "authorizationLevel": 3,
+    "payload": {
+      "messageId": "msg-cc2dafe2-772b-475e-a471-23a06d977b94",
+      "smtpResponse": "250 2.0.0 OK: message queued 10429",
+      "recipientStatus": "DELIVERED_TO_GATEWAY",
+      "verifiedAt": "2026-10-06T00:07:01.104Z"
+    },
+    "verificationStatus": "VERIFIED_SUCCESS",
+    "prevHash": "93041aba1c4bc83edf9324c881eb1a5a9545af83fc7ef7add6f5711939d733a2",
+    "entryHash": "989cab3c20c88bdd8cee0d1f6a3a3af234dc8b6cde0a01bb1540179a5212b976"
+  },
+  {
+    "sequenceNumber": 5,
+    "timestamp": "2026-10-06T00:07:01.105Z",
+    "eventType": "ACTION_DISPATCHED",
+    "actionId": "test-act-1",
+    "actorId": "person-exec-joao",
+    "authorizationLevel": 3,
+    "payload": {
+      "recipient": "test@example.com",
+      "subject": "Test",
+      "bodyText": "Body",
+      "idempotencyKey": "email-bf3db0f7e2c0b181301e61a1fdcee181"
+    },
+    "verificationStatus": "PENDING",
+    "prevHash": "989cab3c20c88bdd8cee0d1f6a3a3af234dc8b6cde0a01bb1540179a5212b976",
+    "entryHash": "e89e8016859825396cbe0c1732d687ef39f883dc32bf246fd4c31e0057ca0536"
+  },
+  {
+    "sequenceNumber": 6,
+    "timestamp": "2026-10-06T00:07:01.105Z",
+    "eventType": "ACTION_VERIFIED",
+    "actionId": "test-act-1",
+    "actorId": "system-verifier",
+    "authorizationLevel": 3,
+    "payload": {
+      "messageId": "msg-19381f7f-6343-4c6d-8c23-b22635c4e9fa",
+      "smtpResponse": "250 2.0.0 OK: message queued 10429",
+      "recipientStatus": "DELIVERED_TO_GATEWAY",
+      "verifiedAt": "2026-10-06T00:07:01.105Z"
+    },
+    "verificationStatus": "VERIFIED_SUCCESS",
+    "prevHash": "e89e8016859825396cbe0c1732d687ef39f883dc32bf246fd4c31e0057ca0536",
+    "entryHash": "89b59a360097bbafaf8b181716d829c7173f1cd936d2fa9e79f7de0661011735"
   }
 ]

@@ -1,5 +1,6 @@
 /**
- * WENDY CLIENT APPLICATION & AG-UI INTERFACE PROTOCOL
+ * WENDY CLIENT APPLICATION & AG-UI INTERFACE PROTOCOL (PHASE 2.5)
+ * Connected directly to hardened repositories and real cognitive pipeline.
  */
 
 let appState = null;
@@ -19,6 +20,7 @@ async function fetchState() {
     const res = await fetch('/api/state');
     appState = await res.json();
     renderDossier();
+    renderStagedActions();
     renderMemoryView();
     renderAuditLedger();
   } catch (err) {
@@ -34,9 +36,9 @@ function initSseStream() {
     appendToolProgressCard(data);
   });
 
-  eventSource.addEventListener('AGUI_STREAM_TOKEN', (e) => {
-    const data = JSON.parse(e.data);
-    appendStreamToken(data.token);
+  eventSource.addEventListener('PROACTIVE_INSIGHT_GENERATED', (e) => {
+    const insight = JSON.parse(e.data);
+    onProactiveInsightReceived(insight);
   });
 
   eventSource.addEventListener('ACTION_VERIFIED_BROADCAST', (e) => {
@@ -47,8 +49,40 @@ function initSseStream() {
 
 function renderDossier() {
   if (!appState || !appState.dossier) return;
-  const d = appState.dossier;
-  document.getElementById('dossier-timestamp').innerText = `${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} Sync`;
+  document.getElementById('dossier-timestamp').innerText = `${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} Verified`;
+}
+
+function renderStagedActions() {
+  if (!appState || !appState.dossier || !appState.dossier.stagedActions) return;
+  const actions = Object.values(appState.dossier.stagedActions);
+  const pending = actions.filter(a => a.state === 'AWAITING_APPROVAL' || a.state === 'PROPOSED');
+  
+  const counter = document.getElementById('staging-counter');
+  if (pending.length > 0) {
+    counter.innerText = `${pending.length} Action${pending.length > 1 ? 's' : ''} Awaiting Approval`;
+    counter.className = 'px-2 py-0.5 rounded text-[11px] font-mono-code bg-amber-950 text-amber-300 border border-amber-800';
+  } else {
+    counter.innerText = '0 Actions Awaiting Approval';
+    counter.className = 'px-2 py-0.5 rounded text-[11px] font-mono-code bg-stone-800 text-stone-400 border border-stone-700';
+  }
+
+  // Populate draft textarea with persisted value
+  const birthdayAction = actions.find(a => a.actionId.includes('birthday') || (a.targetEntityName && a.targetEntityName.includes('Mariana')));
+  if (birthdayAction && birthdayAction.preview?.body) {
+    const textarea = document.getElementById('draft-mariana-body');
+    if (textarea) textarea.value = birthdayAction.preview.body;
+
+    if (birthdayAction.state === 'VERIFIED' || birthdayAction.state === 'EXECUTED') {
+      const btn = document.getElementById('btn-auth-mariana');
+      if (btn) btn.classList.add('hidden');
+      const banner = document.getElementById('verified-banner-mariana');
+      if (banner) {
+        banner.classList.remove('hidden');
+        document.getElementById('verified-receipt-text').innerText = 
+          `Verified in Ledger • Audit Hash: ${birthdayAction.auditHash ? birthdayAction.auditHash.slice(0, 16) : 'VERIFIED'}...`;
+      }
+    }
+  }
 }
 
 function switchView(viewName) {
@@ -69,7 +103,7 @@ function switchView(viewName) {
   if (viewName === 'memory') fetchState();
 }
 
-// --- Chat & Agentic Streaming ---
+// --- Chat & Real Memory Retrieval ---
 async function handleUserMessage(e) {
   e.preventDefault();
   const input = document.getElementById('chat-input');
@@ -80,9 +114,8 @@ async function handleUserMessage(e) {
   appendChatMessage('João', message, false);
   input.value = '';
 
-  // Show live Wendy progress
   const progressId = appendToolProgressCard({
-    userFacingMessage: 'Consulting relationship trajectory and executive commitments...'
+    userFacingMessage: 'Searching persisted episodic memories and relationship graph...'
   });
 
   try {
@@ -93,7 +126,6 @@ async function handleUserMessage(e) {
     });
     const data = await res.json();
     
-    // Remove temporary tool progress card
     const pEl = document.getElementById(progressId);
     if (pEl) pEl.remove();
 
@@ -155,13 +187,12 @@ function appendToolProgressCard(data) {
 }
 
 function formatMarkdown(text) {
-  // Simple markdown bold formatting for web preview
   return text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>');
 }
 
-// --- Action Authorization & Verification ---
+// --- Action Authorization & Durable Persistence ---
 async function syncDraftState(actionId, newBody) {
   try {
     await fetch('/api/action/sync', {
@@ -195,15 +226,16 @@ async function authorizeAction(actionId) {
       const banner = document.getElementById('verified-banner-mariana');
       banner.classList.remove('hidden');
       document.getElementById('verified-receipt-text').innerText = 
-        `Message queued • SMTP: ${result.verification.smtpResponse} • Hash: ${result.auditEntry.entryHash.slice(0, 16)}...`;
+        `Durable Idempotency Token Verified • SMTP: ${result.verification.smtpResponse} • Audit Hash: ${result.auditEntry.entryHash.slice(0, 16)}...`;
 
       document.getElementById('staging-counter').innerText = '0 Actions Awaiting Approval';
       document.getElementById('staging-counter').className = 'px-2 py-0.5 rounded text-[11px] font-mono-code bg-stone-800 text-stone-400 border border-stone-700';
 
-      // Append confirmation to chat
-      appendChatMessage('Wendy', `Action authorized: Mariana's birthday greeting has been signed, queued for tomorrow 08:30 (BST), and verified against the downstream mail server. Recorded to your episodic memory and cryptographic audit ledger.`, true, [
-        { type: 'FACT', text: `Verified dispatch via SMTP gateway. MessageId: ${result.verification.messageId}` }
+      appendChatMessage('Wendy', `Action authorized: Mariana's birthday greeting has been signed, queued with a durable idempotency key, and verified. Recorded to your persistent episodic memory and cryptographic audit ledger.`, true, [
+        { type: 'FACT', text: `Verified dispatch via SMTP gateway. MessageId: ${result.verification.messageId}` },
+        { type: 'FACT', text: `Idempotency Token: ${result.verification.idempotencyKey}` }
       ]);
+      await fetchState();
     }
   } catch (err) {
     console.error('Authorization error:', err);
@@ -224,53 +256,35 @@ function onActionVerifiedBroadcast(data) {
   console.log('Action verified via SSE:', data);
 }
 
-// --- Provenance & Modal Viewers ---
-const provenanceDatabase = {
-  urgent: {
-    title: 'Evidence Chain: Carlos Drummond Meeting (14:00)',
-    entity: 'Carlos Drummond (General Partner, Horizon Capital • Tier 1)',
-    evidence: [
-      'Calendar Event: Today at 14:00 "Strategic Partnership & Pricing Review" (Source: Google Calendar UID #83921)',
-      'Email Received: Yesterday 23:42 from carlos@horizoncap.com: "João, I have concerns on Clause 4 pricing before our Thursday committee..."',
-      'Historical Commitment: Dinner note 14 days ago stating João would revisit pricing structure',
-      'Closeness Score: 0.92 (High Trust, 2 shared portfolio boards)'
-    ],
-    hash: '8f4c2e61a90d8173429bc01837e41982b67d5e182390a427181c098234ea7193'
-  },
-  relationship: {
-    title: 'Evidence Chain: Mariana Vance Birthday',
-    entity: 'Mariana Vance (Managing Director, Apex Bio • Tier 1)',
-    evidence: [
-      'Contact Profile: Birthday verified for tomorrow in structured contact ledger',
-      'Episodic Memory: Sent personal message on birthday last year referencing European market expansion',
-      'Outcome Log: Mariana replied within 2 hours with high personal warmth',
-      'Tone Constraint: Rule #1 applied (Direct, authentic, zero corporate boilerplate)'
-    ],
-    hash: 'b194f2c790a827183e910294871928374a019283740192837401928374019283'
-  },
-  commitment: {
-    title: 'Evidence Chain: Financial Numbers Commitment',
-    entity: 'Commitment to Carlos Drummond',
-    evidence: [
-      'Episodic Memory: Tuesday email agreement: "Will send revised pricing sensitivities by end of week"',
-      'Drive Telemetry: Pricing_Sensitivity_Matrix_Q4.xlsx created yesterday at 18:20',
-      'Status: Unsent. Deadline elapsed threshold approaching (Due today 17:00)'
-    ],
-    hash: 'd827103984719283740192837401928374019283740192837401928374019283'
-  }
-};
+function onProactiveInsightReceived(insight) {
+  console.log('[PROACTIVE INSIGHT]:', insight);
+  const facts = [
+    { type: 'FACT', text: insight.epistemicQuad.observation.statement },
+    { type: 'INFERENCE', text: insight.epistemicQuad.interpretation.statement },
+    { type: 'RECOMMENDATION', text: insight.epistemicQuad.recommendation.statement }
+  ];
+  appendChatMessage('Wendy (Autonomous Insight)', `${insight.explanation}\n\n**Action**: ${insight.epistemicQuad.recommendation.statement}`, true, facts);
+  fetchState();
+}
 
-function inspectProvenance(type) {
-  const data = provenanceDatabase[type];
-  if (!data) return;
+// --- Real Provenance Inspector ---
+async function inspectProvenance(type) {
+  if (!appState || !appState.dossier) return;
+  const item = appState.dossier.quadrants[type];
+  if (!item) return;
 
-  document.getElementById('modal-prov-title').innerText = data.title;
-  document.getElementById('modal-prov-entity').innerText = data.entity;
+  document.getElementById('modal-prov-title').innerText = `Evidence Chain: ${item.title}`;
+  document.getElementById('modal-prov-entity').innerText = item.entity;
   
   const ul = document.getElementById('modal-prov-evidence');
-  ul.innerHTML = data.evidence.map(e => `<li>• ${e}</li>`).join('');
+  ul.innerHTML = (item.evidence || []).map(e => `<li>• ${e}</li>`).join('');
 
-  document.getElementById('modal-prov-hash').innerText = data.hash;
+  // Fetch real latest audit block hash or event hash
+  const auditRes = await fetch('/api/audit');
+  const auditData = await auditRes.json();
+  const latestHash = auditData.blocks.length > 0 ? auditData.blocks[0].entryHash : 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+
+  document.getElementById('modal-prov-hash').innerText = latestHash;
   document.getElementById('modal-provenance').classList.remove('hidden');
 }
 
@@ -285,11 +299,12 @@ function renderMemoryView() {
   if (!container) return;
 
   const people = Object.values(appState.memory.people || {});
-  const rels = Object.values(appState.memory.relationships || {});
+  const preferences = appState.memory.preferences || [];
+  const episodic = appState.memory.recentEpisodic || [];
 
   container.innerHTML = `
     <div class="p-5 rounded-xl border border-[#22252a] bg-[#141619] space-y-3">
-      <h3 class="text-sm font-semibold text-white font-mono-code uppercase">Entity Nodes (${people.length})</h3>
+      <h3 class="text-sm font-semibold text-white font-mono-code uppercase">Persisted Entity Nodes (${people.length})</h3>
       <div class="space-y-2 text-xs">
         ${people.map(p => `
           <div class="p-3 rounded bg-[#0d0e10] border border-[#22252a]">
@@ -305,25 +320,25 @@ function renderMemoryView() {
     </div>
 
     <div class="p-5 rounded-xl border border-[#22252a] bg-[#141619] space-y-3">
-      <h3 class="text-sm font-semibold text-white font-mono-code uppercase">Relationship Edges (${rels.length})</h3>
+      <h3 class="text-sm font-semibold text-white font-mono-code uppercase">Persisted Episodic Logs (${episodic.length})</h3>
       <div class="space-y-2 text-xs">
-        ${rels.map(r => `
-          <div class="p-3 rounded bg-[#0d0e10] border border-[#22252a] space-y-1 font-mono-code text-[11px]">
-            <div class="flex items-center justify-between text-white">
-              <span>${r.relationshipType}</span>
-              <span class="text-emerald-400">Closeness: ${r.closenessScore}</span>
+        ${episodic.map(e => `
+          <div class="p-3 rounded bg-[#0d0e10] border border-[#22252a] space-y-1">
+            <div class="flex items-center justify-between text-[11px] font-mono-code">
+              <span class="text-indigo-400 font-semibold">${e.interactionType}</span>
+              <span class="text-[#727a83]">${new Date(e.occurredAt).toLocaleDateString()}</span>
             </div>
-            <div class="text-[#8e969f]">Velocity: ${r.velocity} • Cadence: ${r.interactionCadenceDays}d</div>
-            <div class="text-[#727a83] text-[10px]">Notes: ${r.historicalNotes ? r.historicalNotes[0] : 'None'}</div>
+            <p class="text-xs text-[#ededed] font-serif-editorial">${e.summary}</p>
+            ${e.verbatimSnippet ? `<div class="text-[10px] font-mono-code text-[#727a83] italic">"${e.verbatimSnippet}"</div>` : ''}
           </div>
         `).join('')}
       </div>
     </div>
 
     <div class="p-5 rounded-xl border border-[#22252a] bg-[#141619] space-y-3">
-      <h3 class="text-sm font-semibold text-white font-mono-code uppercase">Executive Preferences (3)</h3>
+      <h3 class="text-sm font-semibold text-white font-mono-code uppercase">Executive Preferences (${preferences.length})</h3>
       <div class="space-y-2 text-xs">
-        ${(appState.memory.preferences || []).map(p => `
+        ${preferences.map(p => `
           <div class="p-3 rounded bg-[#0d0e10] border border-[#22252a] space-y-1">
             <div class="flex items-center justify-between text-[11px] font-mono-code">
               <span class="text-purple-400">${p.domain}</span>
@@ -340,16 +355,26 @@ function renderMemoryView() {
 async function fetchAuditData() {
   try {
     const res = await fetch('/api/audit');
-    const entries = await res.json();
+    const { integrity, blocks } = await res.json();
     const tbody = document.getElementById('audit-table-body');
     if (!tbody) return;
 
-    if (entries.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-[#727a83]">No external actions executed yet. Authorize Mariana's greeting in Zone C to generate the first cryptographic block.</td></tr>`;
+    // Show integrity status banner
+    const integrityBanner = document.getElementById('audit-integrity-status');
+    if (integrityBanner) {
+      if (integrity.valid) {
+        integrityBanner.innerHTML = `<span class="text-emerald-400">✓ Cryptographic Chain Verified (${integrity.blockCount} blocks valid)</span>`;
+      } else {
+        integrityBanner.innerHTML = `<span class="text-rose-400 font-bold">🚨 TAMPERING DETECTED: ${integrity.error}</span>`;
+      }
+    }
+
+    if (!blocks || blocks.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-[#727a83]">No external actions executed yet. Authorize an action in Zone C to generate the first cryptographic block.</td></tr>`;
       return;
     }
 
-    tbody.innerHTML = entries.map(e => `
+    tbody.innerHTML = blocks.map(e => `
       <tr class="hover:bg-[#181a1d] transition-colors">
         <td class="p-3 text-[#727a83] font-bold">#${e.sequenceNumber}</td>
         <td class="p-3 text-[#a3acb5]">${new Date(e.timestamp).toLocaleTimeString()}</td>
@@ -365,7 +390,7 @@ async function fetchAuditData() {
   }
 }
 
-// --- Signal Simulator ---
+// --- Signal Simulator (Real Cognitive Pipeline Trigger) ---
 function openEventSimulator() {
   document.getElementById('modal-simulator').classList.remove('hidden');
 }
@@ -379,7 +404,7 @@ async function injectSimulatedEvent() {
   closeEventSimulator();
 
   appendToolProgressCard({
-    userFacingMessage: `Ingesting external signal: ${scenario}...`
+    userFacingMessage: `Processing real event through Cognitive Pipeline: ${scenario}...`
   });
 
   try {
@@ -389,12 +414,17 @@ async function injectSimulatedEvent() {
       body: JSON.stringify({ scenario })
     });
     const result = await res.json();
+    const output = result.pipelineOutput;
 
     setTimeout(() => {
-      appendChatMessage('Wendy', result.summary, true, [
-        { type: 'FACT', text: `Inbound signal processed via Reactive Event Bus. Salience: ${result.salience}` }
-      ]);
-    }, 1000);
+      const facts = [
+        { type: 'FACT', text: output.epistemicQuad.observation.statement },
+        { type: 'INFERENCE', text: output.epistemicQuad.interpretation.statement },
+        { type: 'RECOMMENDATION', text: output.epistemicQuad.recommendation.statement }
+      ];
+      appendChatMessage('Wendy (Autonomous Ingestion)', `${output.explanation}\n\n**Recommendation**: ${output.epistemicQuad.recommendation.statement}`, true, facts);
+      fetchState();
+    }, 800);
   } catch (err) {
     console.error('Simulation error:', err);
   }

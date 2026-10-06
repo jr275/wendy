@@ -257,4 +257,45 @@ Depois de o bloqueio 1 ser resolvido e a suíte live ficar verde, a Fase 2 (Pers
 
 ---
 
+# PHASE 1 REALITY GATE — 2026-10-05
+
+## Resultado da verificação da credencial
+
+**Não há `ANTHROPIC_API_KEY` válida configurada para o projeto Wendy. O gate foi interrompido, conforme a instrução.**
+
+- A variável não está definida no ambiente do processo.
+- O `.env` do projeto continha apenas a linha copiada do projeto whitehabbit no início da sessão. A data de modificação do arquivo bate com o momento da cópia, então ele não foi alterado desde então. Pela regra deste gate, essa chave não pode ser reutilizada, e ela também está sem créditos.
+- Por isso a linha foi **removida** do `.env`. O arquivo agora contém só um placeholder comentado. O valor não foi lido nem exibido.
+- Nada foi simulado. O Claude não foi substituído por mock ou fallback. Não houve refactor, migração, UI, integração nem funcionalidade nova.
+- `npm run test:live` foi executado e recusou rodar sem a chave: o arquivo falhou e nenhum dos 11 testes foi executado. **Nenhum teste live foi aprovado.**
+- `npm run demo` **não foi executado**: sem chave, ele apenas falharia na primeira chamada ao Claude.
+- Os 81 testes determinísticos (que não dependem do Claude) foram re-executados agora: **81/81 passando**.
+
+## Resultado por teste
+
+| Teste | Status | Base |
+|---|---|---|
+| **CLAUDE REAL TEST** | **BLOCKED** | Sem chave válida. Nenhuma resposta real do modelo foi obtida. |
+| **COGNITIVE LOOP TEST** (Carlos / pricing, itens 1–14) | **BLOCKED** | Os itens 2, 6, 7, 8 e 9 exigem o Claude real. A parte mecânica do loop (resolução, recuperação, validação, salience, política, persistência) passa com um test double rotulado, o que **não** conta como prova cognitiva. |
+| **ANTI-HARDCODE TEST** | **BLOCKED** | O scan estático passa (nenhum nome, e-mail, empresa, reunião ou tópico em `src/`; nenhum keyword matching na camada de cognição). O teste comportamental com outra pessoa, assunto, reunião, contexto e idioma é live e está bloqueado. |
+| **MEMORY TEST** (persistir → reiniciar → recuperar → perguntar → enviar ao Claude) | **BLOCKED** | Depende do Claude para escrever a preferência a partir da nota e para responder. |
+| **DERIVED EVENT TEST** — derivação | **PASS** | Aniversário e compromisso são derivados do estado salvo mais o relógio, de forma idempotente. O payload contém só referências e datas calculadas (sem `birthday=tomorrow`), e nada é detectado quando o estado não justifica. |
+| **DERIVED EVENT TEST** — insight a partir do evento derivado | **BLOCKED** | Interpretação e rascunho exigem o Claude. |
+| **PERSISTENCE TEST** | **BLOCKED** | O gate exige processar o evento com o Claude real e depois reiniciar. A versão determinística passa (pool novo enxerga insight, ações, estado de aprovação, memória, evento e proveniência, com ledger válido), mas o evento foi processado pelo test double. |
+| **ADVERSARIAL TEST** — partes sem modelo | **PASS** | Evento duplicado; evidência inexistente rejeitada (validador e pipeline); contexto obsoleto vira SKIPPED sem chamar o modelo; isolamento entre principals; modelo indisponível leva a FAILED sem inventar nada; concorrência de workers. |
+| **ADVERSARIAL TEST** — partes com modelo | **BLOCKED** | Pessoa desconhecida, assunto desconhecido, contexto insuficiente, evidência conflitante. |
+| **ACTION SAFETY TEST** | **PASS** | Aprovação dupla concorrente gera 1 execução; reexecução e restart não reenviam; crash depois do aceite é reconciliado sem duplicar; ação aguardando aprovação não tem execução; a política exige aprovação para e-mail; divergência na leitura de volta vira FAILED e nunca VERIFIED; ledger adulterado deixa a ação em APPROVED sem envio. |
+| **AUDIT TEST** | **PASS** | 12 tipos de adulteração detectados com fail closed; append recusado com a ponta divergente; rollback junto com a transação; 20 escritas concorrentes resultam numa cadeia válida. |
+
+**Resumo:** PASS = 4 (derivação de eventos, adversarial sem modelo, segurança de ações, auditoria) · BLOCKED = 8 · FAIL = 0.
+Nenhum teste que depende do Claude foi executado. A pergunta central deste gate (*a Wendy entende, conecta, antecipa e persiste?*) **continua sem resposta**.
+
+## Para desbloquear
+
+1. Configure no projeto Wendy (no `.env` ou no ambiente) uma `ANTHROPIC_API_KEY` própria, de uma conta com créditos.
+2. Rode `npm run test:live`, depois `npm run demo` e `npm run demo -- b`.
+3. Este relatório será atualizado com o resultado real de cada teste. Se algum teste live falhar, o status será FAIL.
+
+---
+
 NOT READY FOR PHASE 2

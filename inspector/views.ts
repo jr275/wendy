@@ -185,7 +185,19 @@ export async function people(db: pg.Pool, principalIdParam: string | null) {
       [pid],
     )
   ).rows;
-  return { people: rows, memories };
+  const { relationshipMetrics } = await import('../src/people/relationshipMetrics.js');
+  const now = new Date();
+  for (const r of rows) r.metrics = await relationshipMetrics(db, pid!, r.id, now);
+  const conflicts = (
+    await db.query(
+      `SELECT c.id, c.description, c.detected_at, c.source,
+              (SELECT json_agg(json_build_object('id', m.id, 'content', m.content, 'status', m.status, 'kind', m.kind, 'written_by', m.written_by, 'subject_person_id', m.subject_person_id) ORDER BY m.created_at)
+                 FROM memories m WHERE m.id = ANY(c.memory_ids)) AS memories
+       FROM memory_conflicts c WHERE c.principal_id = $1 AND c.status = 'OPEN' ORDER BY c.detected_at DESC`,
+      [pid],
+    )
+  ).rows;
+  return { people: rows, memories, conflicts };
 }
 
 export async function modelCalls(db: pg.Pool, principalIdParam: string | null) {
@@ -304,6 +316,11 @@ export async function configuration(db: pg.Pool, principalIdParam: string | null
         )
       ).rows
     : [];
-  const policy = (Object.keys(ACTION_CATALOG) as (keyof typeof ACTION_CATALOG)[]).map((type) => ({ type, ...ACTION_CATALOG[type], decision: decidePolicy(type) }));
+  const { policyOverride } = await import('../src/actions/actions.js');
+  const policy = [];
+  for (const type of Object.keys(ACTION_CATALOG) as (keyof typeof ACTION_CATALOG)[]) {
+    const override = pid ? await policyOverride(db, pid, type) : null;
+    policy.push({ type, ...ACTION_CATALOG[type], override, default: decidePolicy(type), decision: decidePolicy(type, override) });
+  }
   return { principal, important, policy, detectors: DETECTOR_CONFIG, salience: { threshold: SURFACE_THRESHOLD, weights: SALIENCE_WEIGHTS }, model: MODELS.reasoning };
 }

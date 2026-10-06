@@ -1,6 +1,15 @@
 # WENDY — Plano da Fase 2 (Memória persistente + Contexto)
 
-**Status:** rascunho para aprovação. **Não começa** antes de o gate da Fase 1 dar `READY FOR PHASE 2` com o Claude real.
+**Status:** a parte **determinística** (sem Claude) foi autorizada em paralelo ao gate e está implementada: 3.1 (ciclo de vida da memória), 3.2 (métricas de relação) e 3.6 (API de escrita + interface). Os itens que dependem do Claude (3.3, 3.5 e todos os testes live) continuam **BLOCKED** até o gate da Fase 1 dar `READY FOR PHASE 2`.
+
+| Item | Estado |
+|---|---|
+| 3.1 Ciclo de vida da memória | REAL (determinístico; testes unitários). Falta a meia-vida por tipo |
+| 3.2 Métricas de relação | REAL (mensagens; reuniões ainda não entram). Ainda não são fatores do salience |
+| 3.3 Compromissos extraídos | NOT IMPLEMENTED (depende do Claude) |
+| 3.4 pgvector | NOT IMPLEMENTED (só se a medição pedir) |
+| 3.5 Calibração | NOT IMPLEMENTED |
+| 3.6 API de escrita + interface | REAL (login por link único, cookie HttpOnly, CSRF, Origin, zod, auditoria; e-mail só na caixa local) |
 **Premissas** vêm de `WENDY_PRODUCT_DECISIONS.md` e ainda não foram confirmadas. Cada uma aparece marcada como **[P#]**.
 
 ---

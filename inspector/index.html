@@ -136,6 +136,21 @@
   .btn.ghost { border-color: transparent; background: transparent; }
   .btn.on { border-color: var(--line-strong); background: var(--panel-2); }
   .btn[disabled] { opacity: .45; cursor: not-allowed; }
+  .btn.danger { color: var(--bad); }
+  .edit-form { display: grid; gap: 8px; margin-top: 10px; }
+  .edit-form input, .edit-form textarea, .inp { font: 13px var(--sans); color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r); padding: 7px 10px; width: 100%; box-sizing: border-box; }
+  .edit-form textarea { min-height: 140px; resize: vertical; line-height: 1.5; }
+  .toast { position: fixed; right: 16px; bottom: 16px; z-index: 50; max-width: min(420px, calc(100vw - 32px)); padding: 10px 14px; border-radius: var(--r); background: var(--panel); border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0,0,0,.12); font-size: 13px; }
+  .toast.ok { border-color: var(--mint); } .toast.err { border-color: var(--bad); color: var(--bad); }
+  .mem-acts { display: flex; gap: 6px; margin-top: 6px; }
+  .mem-acts .btn { padding: 4px 9px; font-size: 12px; }
+  .conflict { border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); background: var(--warn-bg); border-radius: var(--r); padding: 12px 14px; margin-bottom: 12px; }
+  .conflict .opt { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line-2); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+  .seg button { font: 600 12px var(--sans); padding: 5px 10px; background: var(--panel); color: var(--muted); border: 0; }
+  .seg button.on { background: var(--mint-bg); color: var(--mint-ink); }
+  .seg button[disabled] { cursor: not-allowed; opacity: .55; }
+  td.sel { width: 28px; }
   .btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
 
   details.more { margin-top: 18px; } details.more summary { cursor: pointer; color: var(--muted); font: 12px var(--mono); list-style: none; }
@@ -369,13 +384,39 @@ function illo(kind = 'slab', w = 180) {
   return `<svg class="illo" width="${w}" viewBox="0 -10 180 125" aria-hidden="true">${slab}${top}</svg>`;
 }
 
-const state = { schema: null, schemas: [], principal: null, principals: [] };
+const state = { schema: null, schemas: [], principal: null, principals: [], session: { authenticated: false } };
 async function api(path, params = {}) {
   const q = new URLSearchParams({ schema: state.schema ?? '', ...(state.principal ? { principal: state.principal } : {}), ...params });
   const r = await fetch(`${path}?${q}`);
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || r.status);
   return j;
+}
+async function write(path, body) {
+  const r = await fetch(`${path}?${new URLSearchParams({ schema: state.schema ?? '' })}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.session.csrf ?? '' },
+    body: JSON.stringify({ principalId: state.principal, ...body }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) { state.session = { authenticated: false }; paintMe(); }
+  if (!r.ok) throw new Error(j.error || `erro ${r.status}`);
+  return j.result;
+}
+const canWrite = () => state.session.authenticated;
+const LOCKED = 'title="Para aprovar e editar, abra o link de acesso impresso no terminal do servidor"';
+function toast(msg, kind = 'ok') {
+  document.querySelectorAll('.toast').forEach((t) => t.remove());
+  const t = document.createElement('div');
+  t.className = `toast ${kind}`;
+  t.setAttribute('role', 'status');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 4500);
+}
+async function doWrite(path, body, okMsg) {
+  try { await write(path, body); toast(okMsg); await route(true); }
+  catch (e) { toast(e.message, 'err'); }
 }
 const schemaInfo = () => state.schemas.find((s) => s.schema === state.schema);
 function sampleNotice() {
@@ -401,6 +442,7 @@ function applyTheme(t) {
 })();
 
 async function boot() {
+  try { state.session = await (await fetch('/api/session')).json(); } catch {}
   const { schemas } = await api('/api/schemas');
   state.schemas = schemas;
   const sel = $('#schema');
@@ -427,10 +469,11 @@ function paintMe() {
   $('#wsAvatar').textContent = initials(p?.display_name);
   $('#meAvatar').textContent = initials(p?.display_name);
   $('#meName').textContent = p?.display_name ?? '—';
-  $('#meSub').textContent = p ? `${p.timezone} · somente leitura` : 'somente leitura';
+  const mode = canWrite() ? 'edição habilitada' : 'somente leitura';
+  $('#meSub').textContent = p ? `${p.timezone} · ${mode}` : mode;
 }
 
-async function route() {
+async function route(keepScroll = false) {
   const [, r = 'hoje', id] = location.hash.split('/');
   document.querySelectorAll('nav a').forEach((a) => a.classList.toggle('on', a.dataset.r === (r === 'insight' ? 'hoje' : r)));
   const main = $('#main');
@@ -450,7 +493,7 @@ async function route() {
   } catch (e) {
     main.innerHTML = head('Erro', '') + `<div class="canvas"><div class="card empty"><h3>Não foi possível carregar</h3>${esc(e.message)}</div></div>`;
   }
-  window.scrollTo(0, 0);
+  if (keepScroll !== true) window.scrollTo(0, 0);
 }
 
 /* ---------- HOJE ---------- */
@@ -521,10 +564,11 @@ let evidenceIndex = {};
 let factLabels = {};
 const factLabel = (f) => { const e = f.evidence[0]; return (e && factLabels[`${e.kind}:${e.id}`]) || f.statement.split('\n')[0]; };
 let insightView = 'summary';
+let editingAction = null;
 let logicData = null;
 let lastInsight = null;
 async function viewInsight(id) {
-  if (lastInsight !== id) { insightView = 'summary'; lastInsight = id; }
+  if (lastInsight !== id) { insightView = 'summary'; lastInsight = id; editingAction = null; }
   const d = await api('/api/insight', { id });
   const { insight: ins, claims, actions, calls, event, memoriesWritten } = d;
   factLabels = d.labels ?? {};
@@ -543,8 +587,9 @@ async function viewInsight(id) {
   const pending = actions.find((a) => a.state === 'AWAITING_APPROVAL');
   h += `<div class="card review"><div class="l"><span class="spark">${ICON.spark}</span><div><div class="eyebrow">Revisar proposta</div><div style="font-weight:600">${pending ? `${esc(ACTION_NAME[pending.action_type])} aguardando sua decisão` : actions.length ? 'Nada pendente — ações já resolvidas pela política' : 'Nenhuma ação proposta'}</div></div></div>
     <div class="acts">
-      <button class="btn primary" disabled title="Disponível depois do gate: API de aprovação com autenticação">${ICON.check} Aceitar</button>
-      <button class="btn" disabled title="Disponível depois do gate">${ICON.pen} Modificar</button>
+      ${pending ? `<button class="btn primary" data-approve="${esc(pending.id)}" ${canWrite() ? '' : `disabled ${LOCKED}`}>${ICON.check} Aceitar</button>
+      <button class="btn" data-edit="${esc(pending.id)}" ${canWrite() && pending.action_type === 'SEND_EMAIL' ? '' : `disabled ${LOCKED}`}>${ICON.pen} Modificar</button>
+      <button class="btn" data-reject="${esc(pending.id)}" ${canWrite() ? '' : `disabled ${LOCKED}`}>Rejeitar</button>` : ''}
       <button class="btn ${insightView === 'explain' ? 'on' : ''}" data-iview="explain">${ICON.info} Explicar</button>
       <button class="btn ${insightView === 'logic' ? 'on' : ''}" data-iview="logic">${ICON.logic} Mostrar lógica</button>
     </div></div>`;
@@ -635,8 +680,14 @@ function actionCard(a) {
   let body = '';
   if (a.action_type === 'SEND_EMAIL') {
     body = `<div class="small muted" style="margin-top:6px">Para ${esc((c.to || []).join(', '))}</div><div class="small"><b>${esc(c.subject)}</b></div><div class="mail">${esc(c.body)}</div>`;
-    if (a.state === 'AWAITING_APPROVAL')
-      body += `<div class="row-btns"><button class="btn primary" disabled title="Disponível depois do gate: API de aprovação com autenticação">Aprovar e enviar</button><button class="btn" disabled>Editar</button><button class="btn" disabled>Rejeitar</button></div><div class="note">Aprovar pela interface chega depois do gate (API com autenticação). Política: ${esc(a.policy_decision?.rule ?? '')}.</div>`;
+    if (a.state === 'AWAITING_APPROVAL') {
+      body += editingAction === a.id
+        ? `<form class="edit-form" data-editform="${esc(a.id)}"><label class="label" for="es-${esc(a.id)}">Assunto</label><input id="es-${esc(a.id)}" name="subject" value="${esc(c.subject)}" maxlength="500" required>
+            <label class="label" for="eb-${esc(a.id)}">Mensagem</label><textarea id="eb-${esc(a.id)}" name="body" maxlength="20000" required>${esc(c.body)}</textarea>
+            <div class="row-btns"><button class="btn primary" type="submit">Aprovar com alterações</button><button class="btn" type="button" data-edit="">Cancelar</button></div></form>`
+        : `<div class="row-btns"><button class="btn primary" data-approve="${esc(a.id)}" ${canWrite() ? '' : `disabled ${LOCKED}`}>Aprovar e enviar</button><button class="btn" data-edit="${esc(a.id)}" ${canWrite() ? '' : `disabled ${LOCKED}`}>Editar</button><button class="btn" data-reject="${esc(a.id)}" ${canWrite() ? '' : `disabled ${LOCKED}`}>Rejeitar</button></div>`;
+      body += `<div class="note">${canWrite() ? 'O envio vai para a caixa de saída local: nada é entregue a ninguém nesta fase.' : 'Para aprovar, abra o link de acesso impresso no terminal do servidor.'} Política: ${esc(a.policy_decision?.rule ?? '')}.</div>`;
+    }
   } else if (a.action_type === 'PREPARE_BRIEFING') {
     body = `<div class="brief-art">${(c.sections || []).map((s) => `<h5>${esc(s.heading)}</h5><ul>${(s.points || []).map((p) => `<li>${esc(p.text)}</li>`).join('')}</ul>`).join('')}</div>`;
   }
@@ -654,11 +705,12 @@ async function viewApprovals() {
   const names = { all: 'Todas', AWAITING_APPROVAL: 'Aguardando você', VERIFIED: 'Verificadas', REJECTED: 'Rejeitadas', EXPIRED: 'Expiradas', FAILED: 'Falhas' };
   const list = groups[approvalsFilter] ?? rows;
   let h = head('Aprovações', 'Tudo o que a Wendy preparou, e o que ainda depende de você');
-  h += `<div class="canvas"><div class="wrap">${sampleNotice()}<div class="card"><div class="toolbar"><div class="tabs">${Object.entries(names).map(([k, n]) => `<button data-filter="${k}" class="${approvalsFilter === k ? 'on' : ''}">${n}<span class="c">${groups[k].length}</span></button>`).join('')}</div><span class="muted small">${list.length} ações</span></div>`;
+  const bulk = canWrite() && list.some((a) => a.state === 'AWAITING_APPROVAL');
+  h += `<div class="canvas"><div class="wrap">${sampleNotice()}<div class="card"><div class="toolbar"><div class="tabs">${Object.entries(names).map(([k, n]) => `<button data-filter="${k}" class="${approvalsFilter === k ? 'on' : ''}">${n}<span class="c">${groups[k].length}</span></button>`).join('')}</div>${bulk ? `<div class="row-btns" style="margin:0"><button class="btn primary" data-bulk="approve" disabled>Aprovar selecionadas</button><button class="btn" data-bulk="reject" disabled>Rejeitar selecionadas</button></div>` : `<span class="muted small">${list.length} ações</span>`}</div>`;
   h += list.length
-    ? `<table><thead><tr><th style="width:150px">Estado</th><th>Ação</th><th>Para</th><th class="num">Criada</th></tr></thead><tbody>${list.map((a) => {
+    ? `<table><thead><tr>${bulk ? '<th class="sel"><input type="checkbox" data-selall aria-label="Selecionar todas aguardando"></th>' : ''}<th style="width:150px">Estado</th><th>Ação</th><th>Para</th><th class="num">Criada</th></tr></thead><tbody>${list.map((a) => {
         const [sl, sc] = ACTION_STATE[a.state] ?? [a.state, 'grey'];
-        return `<tr class="click ${a.state === 'AWAITING_APPROVAL' ? 'row-accent' : a.state === 'FAILED' ? 'row-accent bad' : ''}" data-href="#/insight/${esc(a.insight_id)}"><td><span class="pill ${sc}">${sl}</span></td>
+        return `<tr class="click ${a.state === 'AWAITING_APPROVAL' ? 'row-accent' : a.state === 'FAILED' ? 'row-accent bad' : ''}" data-href="#/insight/${esc(a.insight_id)}">${bulk ? `<td class="sel">${a.state === 'AWAITING_APPROVAL' ? `<input type="checkbox" data-sel="${esc(a.id)}" aria-label="Selecionar">` : ''}</td>` : ''}<td><span class="pill ${sc}">${sl}</span></td>
           <td><div class="ttl">${esc(ACTION_NAME[a.action_type] ?? a.action_type)}: ${esc(a.subject || a.title || '')}</div><div class="sub">${esc(a.insight_headline ?? '')}</div></td>
           <td>${esc(a.recipients ? a.recipients.join(', ') : a.target ?? '—')}</td><td class="num muted">${fmtDay(a.created_at)}</td></tr>`;
       }).join('')}</tbody></table>`
@@ -804,7 +856,7 @@ function startOntology() {
 
 /* ---------- PESSOAS ---------- */
 async function viewPeople(selectedId) {
-  const { people, memories } = await api('/api/people');
+  const { people, memories, conflicts } = await api('/api/people');
   const sel = people.find((p) => p.id === selectedId) ?? people[0];
   let h = head('Pessoas e memória', 'Quem importa, como está a relação e o que a Wendy lembra — com a fonte de cada memória');
   h += `<div class="canvas"><div class="wrap">${sampleNotice()}`;
@@ -815,14 +867,43 @@ async function viewPeople(selectedId) {
   const mine = memories.filter((m) => m.subject_person_id === sel.id);
   h += `<div class="eyebrow">${esc(sel.relationship ? (REL_PT[sel.relationship] ?? sel.relationship) : 'sem relação registrada')}</div><h2 style="margin:4px 0 2px;font-size:20px">${esc(sel.full_name)}</h2><div class="muted">${esc([sel.title, sel.organization, sel.emails].filter(Boolean).join(' · '))}</div>
     <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin:16px 0"><div class="kpi"><div class="v" style="font-size:22px">${sel.explicit_importance != null ? Number(sel.explicit_importance).toFixed(2) : '—'}</div><div class="s">importância (sua)</div></div><div class="kpi"><div class="v" style="font-size:22px">${sel.interactions_90d}</div><div class="s">interações · 90 dias</div></div><div class="kpi"><div class="v" style="font-size:22px">${sel.last_interaction ? fmtDay(sel.last_interaction) : '—'}</div><div class="s">última interação</div></div><div class="kpi"><div class="v" style="font-size:22px">${sel.birthdate ? fmtDay(sel.birthdate + 'T12:00:00') : '—'}</div><div class="s">aniversário</div></div></div>`;
+  const mx = sel.metrics;
+  if (mx) {
+    const hrs = (x) => (x == null ? '—' : x < 24 ? `${x} h` : `${(x / 24).toFixed(1)} dias`);
+    const TREND = { UP: 'aumentando', DOWN: 'diminuindo', STABLE: 'estável', NEW: 'contato recente', NONE: 'sem contato' };
+    h += `<div class="eyebrow">Relação, calculada das mensagens</div><div class="ptable" style="margin:6px 0 16px">
+      <div class="r"><span>Mensagens</span><span class="mono small">${mx.messages30d} em 30 dias · ${mx.messages90d} em 90</span><span class="muted small">${mx.inbound90d} recebidas · ${mx.outbound90d} enviadas</span></div>
+      <div class="r"><span>Tempo de resposta (mediana)</span><span class="mono small">você ${hrs(mx.principalReplyHoursMedian)} · ${esc(sel.full_name.split(' ')[0])} ${hrs(mx.theirReplyHoursMedian)}</span><span class="muted small">pares em até 7 dias</span></div>
+      <div class="r"><span>Tendência de contato</span><span class="mono small">${TREND[mx.trend] ?? mx.trend}</span><span class="muted small">30 dias vs. 60 anteriores</span></div>
+      <div class="r"><span>Último contato</span><span class="mono small">${mx.daysSinceContact == null ? 'nunca' : mx.daysSinceContact === 0 ? 'hoje' : `há ${mx.daysSinceContact} dias`}</span><span class="muted small">entrada ou saída</span></div></div>`;
+  }
+  h += `<form class="field" data-impform="${esc(sel.id)}" style="margin-bottom:16px"><label class="label" for="imp">Importância para você (0 a 1)</label><div style="display:flex;gap:8px;align-items:center;max-width:360px">
+    <input class="inp" id="imp" name="importance" type="number" min="0" max="1" step="0.05" value="${sel.explicit_importance ?? ''}" placeholder="não definida" ${canWrite() ? '' : 'disabled'}>
+    <button class="btn primary" type="submit" ${canWrite() ? '' : `disabled ${LOCKED}`}>Salvar</button></div><div class="note">Só você define. A Wendy não deduz importância.</div></form>`;
+  const myConflicts = (conflicts ?? []).filter((c) => (c.memories ?? []).some((m) => m.subject_person_id === sel.id || m.subject_person_id == null));
+  if (myConflicts.length) h += `<div class="eyebrow" style="margin-top:6px">Memórias em conflito · escolha qual vale</div>${myConflicts.map(conflictBox).join('')}`;
   h += `<div class="eyebrow" style="margin-top:6px">O que a Wendy lembra</div>`;
+  const proposed = mine.filter((m) => m.status === 'PROPOSED');
+  if (proposed.length) h += `<div class="note" style="margin:4px 0 6px">${proposed.length} ${proposed.length === 1 ? 'memória deduzida aguarda' : 'memórias deduzidas aguardam'} sua confirmação. Só memórias confirmadas entram no raciocínio.</div>`;
   h += mine.length ? mine.map(memRow).join('') : '<div class="empty-line">Nenhuma memória sobre esta pessoa ainda.</div>';
   if (principalMem.length) h += `<div class="eyebrow" style="margin-top:20px">Suas preferências gerais</div>${principalMem.map(memRow).join('')}`;
   return h + `<div class="note" style="margin-top:14px">Fonte do registro: ${esc(sel.source)}</div></div></div></div></div>`;
 }
+const MEM_STATUS = { PROPOSED: ['proposta · aguarda você', 'warn'], ACTIVE: ['confirmada', 'mint'], SUPERSEDED: ['substituída', 'grey'], RETRACTED: ['descartada', 'grey'] };
 function memRow(m) {
   const who = m.written_by === 'WENDY' ? 'aprendida pela Wendy' : m.written_by === 'PRINCIPAL' ? 'dita por você' : 'registro do sistema';
-  return `<div class="claim" style="padding:10px 0;border-bottom:1px solid var(--line-2)"><div class="s">${esc(m.content)}</div><div class="m">${esc(m.kind.toLowerCase())} · ${who} · confiança ${Number(m.confidence).toFixed(2)} · ${fmtDay(m.created_at)}${m.status !== 'ACTIVE' ? ` · ${esc(m.status)}` : ''}${(m.evidence || []).length ? ` · ${m.evidence.length} fonte(s)` : ' · sem fonte registrada'}</div></div>`;
+  const [sl, sc] = MEM_STATUS[m.status] ?? [m.status, 'grey'];
+  const dis = canWrite() ? '' : `disabled ${LOCKED}`;
+  const acts = m.status === 'PROPOSED'
+    ? `<div class="mem-acts"><button class="btn primary" data-memconfirm="${esc(m.id)}" ${dis}>Confirmar</button><button class="btn" data-memretract="${esc(m.id)}" ${dis}>Descartar</button></div>`
+    : m.status === 'ACTIVE' && m.written_by !== 'SYSTEM'
+    ? `<div class="mem-acts"><button class="btn" data-memretract="${esc(m.id)}" ${dis}>Descartar</button></div>`
+    : '';
+  return `<div class="claim" style="padding:10px 0;border-bottom:1px solid var(--line-2);${m.status === 'SUPERSEDED' || m.status === 'RETRACTED' ? 'opacity:.6' : ''}"><div class="s">${esc(m.content)}</div><div class="m"><span class="pill ${sc}">${sl}</span> ${esc(m.kind.toLowerCase())} · ${who} · confiança ${Number(m.confidence).toFixed(2)} · ${fmtDay(m.created_at)}${(m.evidence || []).length ? ` · ${m.evidence.length} fonte(s)` : ' · sem fonte registrada'}</div>${acts}</div>`;
+}
+function conflictBox(c) {
+  const dis = canWrite() ? '' : `disabled ${LOCKED}`;
+  return `<div class="conflict"><div class="small"><b>${esc(c.description)}</b> <span class="muted">· detectado ${fmtDate(c.detected_at)}</span></div>${(c.memories ?? []).map((m) => `<div class="opt"><span>${esc(m.content)} <span class="muted small">· ${esc((MEM_STATUS[m.status] ?? [m.status])[0])}</span></span><button class="btn" data-keep="${esc(c.id)}:${esc(m.id)}" ${dis}>Vale esta</button></div>`).join('')}<div class="note">A escolhida fica valendo; a outra é substituída, com o vínculo registrado.</div></div>`;
 }
 
 /* ---------- INTEGRAÇÕES ---------- */
@@ -848,32 +929,37 @@ function viewIntegrations() {
 
 
 /* ---------- CONFIGURAÇÃO ---------- */
+let policyDraft = {};
+let policyCurrent = {};
 async function viewConfig() {
   const c = await api('/api/config');
+  policyCurrent = Object.fromEntries(c.policy.map((x) => [x.type, x]));
   const p = c.principal;
-  const disabled = 'title="Edição chega com a API de configuração (escrita com autenticação), depois do gate"';
+  const dis = canWrite() ? '' : `disabled ${LOCKED}`;
   const lvl = { 1: 'interno', 2: 'interno com efeito', 3: 'externo', 4: 'alto impacto' };
   const imp = c.important.filter((r) => r.explicit_importance != null);
   let h = `<div class="cfg"><div class="left">
     <div class="tags"><span class="tag mint">${esc(p?.display_name ?? '—')}</span><span>${esc(p?.primary_email ?? '')}</span></div>
     <h2>Como a Wendy trabalha para você</h2>
-    <p class="lede">O que ela observa, quem importa, e o que pode fazer sozinha. Estes são os valores que o núcleo aplica hoje — a edição chega quando houver a API de configuração.</p>
+    <p class="lede">O que ela observa, quem importa, e o que pode fazer sozinha. Estes são os valores que o núcleo aplica agora.${canWrite() ? '' : ' Para editar, abra o link de acesso impresso no terminal do servidor.'}</p>
     <div class="field"><div class="grid2">
       <div><span class="label">Fuso horário</span><div class="box"><span>${esc(p?.timezone ?? '—')}</span><span class="muted mono">⌄</span></div></div>
       <div><span class="label">Idioma dos insights</span><div class="box"><span>${esc(p?.locale ?? '—')}</span><span class="muted mono">⌄</span></div></div>
     </div></div>
     <div class="field"><span class="label">Pessoas importantes · ${imp.length}</span>
       <div class="chipset">${c.important.length ? c.important.map((r) => `<span class="chip"><i>${esc(REL_PT[r.kind] ?? r.kind)}</i>${esc(r.full_name)}${r.explicit_importance != null ? ` · ${Number(r.explicit_importance).toFixed(2)}` : ''}</span>`).join('') : '<span class="muted small">Nenhuma pessoa cadastrada.</span>'}</div>
-      <div class="note">A importância é definida por você — a Wendy não chuta. Pessoas sem valor entram com peso baixo.</div></div>
+      <div class="note">A importância é definida por você — a Wendy não chuta. Edite em <a href="#/pessoas"><u>Pessoas e memória</u></a>.</div></div>
     <div class="field"><span class="label">Autonomia</span><div class="ptable">
-      ${c.policy.map((x) => `<div class="r"><span>${esc(ACTION_NAME[x.type] ?? x.type)} <span class="muted small">· ${esc(lvl[x.authorizationLevel] ?? '')}</span></span><span class="mono small">nível ${x.authorizationLevel}</span><span>${x.decision.mode === 'AUTO' ? '<span class="pill mint">faz sozinha</span>' : '<span class="pill warn">pede aprovação</span>'}</span></div>`).join('')}
-    </div><div class="note">Quanto maior o impacto, mais autorização. Envio de e-mail sempre pede aprovação.</div></div>
+      ${c.policy.map((x) => `<div class="r"><span>${esc(ACTION_NAME[x.type] ?? x.type)} <span class="muted small">· ${esc(lvl[x.authorizationLevel] ?? '')}</span></span><span class="mono small">nível ${x.authorizationLevel}</span><span class="seg" role="group" aria-label="Autonomia: ${esc(ACTION_NAME[x.type] ?? x.type)}">
+        <button type="button" data-pol="${esc(x.type)}" data-mode="AUTO" class="${(policyDraft[x.type] ?? x.decision.mode) === 'AUTO' ? 'on' : ''}" ${x.external ? 'disabled title="Ações externas sempre pedem aprovação nesta fase"' : dis}>faz sozinha</button>
+        <button type="button" data-pol="${esc(x.type)}" data-mode="REQUIRE_APPROVAL" class="${(policyDraft[x.type] ?? x.decision.mode) === 'REQUIRE_APPROVAL' ? 'on' : ''}" ${x.external ? 'disabled' : dis}>pede aprovação</button></span></div>`).join('')}
+    </div><div class="note">Quanto maior o impacto, mais autorização. Ações externas (como enviar e-mail) sempre pedem aprovação.</div></div>
     <div class="field"><span class="label">Antecipação</span><div class="ptable">
       <div class="r"><span>Datas pessoais (aniversários)</span><span class="mono small">${c.detectors.personDateHorizonDays} dias</span><span class="muted small">de antecedência</span></div>
       <div class="r"><span>Compromissos vencendo</span><span class="mono small">${c.detectors.commitmentHorizonHours} h</span><span class="muted small">de antecedência</span></div>
       <div class="r"><span>Limiar para interromper você</span><span class="mono small">${c.salience.threshold}</span><span class="muted small">prioridade mínima</span></div>
     </div></div>
-    <div class="row-btns"><button class="btn primary" disabled ${disabled}>Salvar alterações</button><a class="btn ghost" href="#/integracoes">Fontes de sinais ${ICON.arrow}</a></div>
+    <div class="row-btns"><button class="btn primary" data-savecfg ${canWrite() && Object.keys(policyDraft).length ? '' : 'disabled'} ${canWrite() ? '' : LOCKED}>Salvar alterações</button><a class="btn ghost" href="#/integracoes">Fontes de sinais ${ICON.arrow}</a></div>
     <div class="steps"><i class="on"></i><i></i><i></i><i></i><span style="margin-left:8px">EXECUTIVO · PESSOAS · AUTONOMIA · FONTES</span></div>
   </div>
   <div class="right"><div class="summary">
@@ -908,7 +994,76 @@ function bind() {
   document.querySelectorAll('[data-iview]').forEach((b) => (b.onclick = () => { insightView = insightView === b.dataset.iview ? 'summary' : b.dataset.iview; route(); }));
   document.querySelectorAll('[data-filter]').forEach((b) => (b.onclick = () => { approvalsFilter = b.dataset.filter; route(); }));
   document.querySelectorAll('[data-afilter]').forEach((b) => (b.onclick = () => { activityFilter = b.dataset.afilter; route(); }));
-  document.querySelectorAll('tr[data-href]').forEach((tr) => (tr.onclick = () => (location.hash = tr.dataset.href)));
+  document.querySelectorAll('tr[data-href]').forEach((tr) => (tr.onclick = (e) => { if (!e.target.closest('td.sel')) location.hash = tr.dataset.href; }));
+  // actions
+  document.querySelectorAll('[data-approve]').forEach((b) => (b.onclick = () => doWrite('/api/write/action/approve', { actionId: b.dataset.approve }, 'Aprovada e executada. O e-mail foi para a caixa de saída local.')));
+  document.querySelectorAll('[data-reject]').forEach((b) => (b.onclick = () => {
+    const reason = prompt('Motivo da rejeição (opcional) — vira memória para a Wendy aprender:');
+    if (reason === null) return;
+    doWrite('/api/write/action/reject', { actionId: b.dataset.reject, reason: reason.trim() || null }, 'Rejeitada.');
+  }));
+  document.querySelectorAll('[data-edit]').forEach((b) => (b.onclick = () => { editingAction = b.dataset.edit || null; if (editingAction) insightView = 'summary'; route(true); }));
+  document.querySelectorAll('[data-editform]').forEach((f) => (f.onsubmit = (e) => {
+    e.preventDefault();
+    const fd = new FormData(f);
+    const id = f.dataset.editform;
+    editingAction = null;
+    doWrite('/api/write/action/approve', { actionId: id, edits: { subject: String(fd.get('subject')), body: String(fd.get('body')) } }, 'Aprovada com suas alterações.');
+  }));
+  // bulk approvals
+  const sels = () => [...document.querySelectorAll('[data-sel]:checked')].map((x) => x.dataset.sel);
+  const syncBulk = () => document.querySelectorAll('[data-bulk]').forEach((b) => (b.disabled = sels().length === 0));
+  document.querySelectorAll('[data-sel]').forEach((x) => (x.onchange = syncBulk));
+  const all = document.querySelector('[data-selall]');
+  if (all) all.onchange = () => { document.querySelectorAll('[data-sel]').forEach((x) => (x.checked = all.checked)); syncBulk(); };
+  document.querySelectorAll('[data-bulk]').forEach((b) => (b.onclick = async () => {
+    const ids = sels();
+    if (!ids.length) return;
+    const approve = b.dataset.bulk === 'approve';
+    if (!confirm(`${approve ? 'Aprovar' : 'Rejeitar'} ${ids.length} ${ids.length === 1 ? 'ação' : 'ações'}?`)) return;
+    let ok = 0; const errs = [];
+    for (const id of ids) {
+      try { await write(approve ? '/api/write/action/approve' : '/api/write/action/reject', { actionId: id }); ok++; } catch (e) { errs.push(e.message); }
+    }
+    toast(`${ok} ${approve ? 'aprovada(s)' : 'rejeitada(s)'}${errs.length ? ` · ${errs.length} com erro: ${errs[0]}` : ''}`, errs.length ? 'err' : 'ok');
+    route(true);
+  }));
+  // memory
+  document.querySelectorAll('[data-memconfirm]').forEach((b) => (b.onclick = () => doWrite('/api/write/memory/confirm', { memoryId: b.dataset.memconfirm }, 'Memória confirmada. Agora ela entra no raciocínio.')));
+  document.querySelectorAll('[data-memretract]').forEach((b) => (b.onclick = () => {
+    if (!confirm('Descartar esta memória? Ela deixa de ser usada (o histórico fica no registro).')) return;
+    doWrite('/api/write/memory/retract', { memoryId: b.dataset.memretract, reason: 'descartada pelo executivo' }, 'Memória descartada.');
+  }));
+  document.querySelectorAll('[data-keep]').forEach((b) => (b.onclick = () => {
+    const [conflictId, keep] = b.dataset.keep.split(':');
+    doWrite('/api/write/memory/resolve-conflict', { conflictId, keepIds: [keep] }, 'Conflito resolvido.');
+  }));
+  // people
+  document.querySelectorAll('[data-impform]').forEach((f) => (f.onsubmit = (e) => {
+    e.preventDefault();
+    const v = String(new FormData(f).get('importance') ?? '').trim();
+    const importance = v === '' ? null : Number(v);
+    if (importance !== null && !(importance >= 0 && importance <= 1)) return toast('Use um valor entre 0 e 1, ou deixe vazio.', 'err');
+    doWrite('/api/write/person/importance', { personId: f.dataset.impform, importance }, 'Importância salva.');
+  }));
+  // configuration
+  document.querySelectorAll('[data-pol]').forEach((b) => (b.onclick = () => {
+    const cur = policyCurrent[b.dataset.pol];
+    if (cur && cur.decision.mode === b.dataset.mode) delete policyDraft[b.dataset.pol]; else policyDraft[b.dataset.pol] = b.dataset.mode;
+    route(true);
+  }));
+  const save = document.querySelector('[data-savecfg]');
+  if (save) save.onclick = async () => {
+    try {
+      for (const [type, mode] of Object.entries(policyDraft)) {
+        const cur = policyCurrent[type];
+        await write('/api/write/policy', { actionType: type, mode: cur && cur.default.mode === mode ? null : mode });
+      }
+      policyDraft = {};
+      toast('Configuração salva.');
+      route(true);
+    } catch (e) { toast(e.message, 'err'); }
+  };
   const box = $('#evbox');
   document.querySelectorAll('[data-ev]').forEach((b) => (b.onclick = () => {
     const f = evidenceIndex[b.dataset.ev];

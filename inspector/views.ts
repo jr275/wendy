@@ -102,7 +102,15 @@ export async function today(db: pg.Pool, principalIdParam: string | null) {
       [pid],
     )
   ).rows;
-  return { principal, kpis, insights, prepared, needsYou };
+  const pendingMemories = (
+    await db.query(
+      `SELECT m.id, m.content, m.subject_person_id, p.full_name FROM memories m LEFT JOIN people p ON p.id = m.subject_person_id
+       WHERE m.principal_id = $1 AND m.status = 'PROPOSED' ORDER BY m.created_at DESC LIMIT 6`,
+      [pid],
+    )
+  ).rows;
+  const openConflicts = Number((await db.query(`SELECT count(*) n FROM memory_conflicts WHERE principal_id = $1 AND status = 'OPEN'`, [pid])).rows[0].n);
+  return { principal, kpis, insights, prepared, needsYou, pendingMemories, openConflicts };
 }
 
 export async function insightDetail(db: pg.Pool, id: string) {
@@ -323,4 +331,14 @@ export async function configuration(db: pg.Pool, principalIdParam: string | null
     policy.push({ type, ...ACTION_CATALOG[type], override, default: decidePolicy(type), decision: decidePolicy(type, override) });
   }
   return { principal, important, policy, detectors: DETECTOR_CONFIG, salience: { threshold: SURFACE_THRESHOLD, weights: SALIENCE_WEIGHTS }, model: MODELS.reasoning };
+}
+
+/** Where the data came from: counts per provider and the latest import summary (no content). */
+export async function sources(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { messages: [], meetings: [], lastImport: null };
+  const messages = (await db.query(`SELECT provider, count(*)::int AS n, max(sent_at) AS latest FROM messages WHERE principal_id = $1 GROUP BY provider ORDER BY n DESC`, [pid])).rows;
+  const meetings = (await db.query(`SELECT provider, count(*)::int AS n FROM meetings WHERE principal_id = $1 GROUP BY provider ORDER BY n DESC`, [pid])).rows;
+  const lastImport = (await db.query(`SELECT at, payload FROM audit_blocks WHERE principal_id = $1 AND event_type = 'IMPORT_COMPLETED' ORDER BY seq DESC LIMIT 1`, [pid])).rows[0] ?? null;
+  return { messages, meetings, lastImport };
 }

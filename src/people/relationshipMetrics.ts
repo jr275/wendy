@@ -6,6 +6,7 @@
  * - reply latency: for each message, the time until the other side's next message (≤ 7 days)
  * - trend: rate in the last 30 days vs the rate in the 60 days before
  * - last inbound / last outbound / days since last contact
+ * - meetings: held in the last 90 days (not cancelled) and the next scheduled one
  */
 import type { Queryable } from '../db/db.js';
 import { DAY_MS, HOUR_MS } from '../util/clock.js';
@@ -22,6 +23,8 @@ export interface RelationshipMetrics {
   lastInboundAt: Date | null;
   lastOutboundAt: Date | null;
   daysSinceContact: number | null;
+  meetings90d: number;
+  nextMeetingAt: Date | null;
 }
 
 const REPLY_WINDOW_MS = 7 * DAY_MS;
@@ -51,6 +54,16 @@ export async function relationshipMetrics(q: Queryable, principalId: string, per
        FROM messages m JOIN message_participants mp ON mp.message_id = m.id
        WHERE m.principal_id = $1 AND mp.person_id = $2 AND m.sent_at <= $3`,
       [principalId, personId, now],
+    )
+  ).rows[0]!;
+
+  const mt = (
+    await q.query<{ held: number; next: Date | null }>(
+      `SELECT count(DISTINCT mt.id) FILTER (WHERE mt.starts_at >= $3 AND mt.starts_at <= $4)::int AS held,
+              min(mt.starts_at) FILTER (WHERE mt.starts_at > $4) AS next
+       FROM meetings mt JOIN meeting_attendees a ON a.meeting_id = mt.id
+       WHERE mt.principal_id = $1 AND a.person_id = $2 AND mt.status <> 'CANCELLED'`,
+      [principalId, personId, since, now],
     )
   ).rows[0]!;
 
@@ -90,6 +103,8 @@ export async function relationshipMetrics(q: Queryable, principalId: string, per
     lastInboundAt: last.last_in,
     lastOutboundAt: last.last_out,
     daysSinceContact: lastContact ? Math.floor((now.getTime() - lastContact.getTime()) / DAY_MS) : null,
+    meetings90d: mt.held,
+    nextMeetingAt: mt.next,
   };
 }
 
@@ -101,5 +116,6 @@ export function renderMetrics(m: RelationshipMetrics): string {
     `median reply time: principal ${h(m.principalReplyHoursMedian)}, them ${h(m.theirReplyHoursMedian)}`,
     `contact trend (30d vs prior 60d): ${m.trend}`,
     `days since last contact: ${m.daysSinceContact ?? 'never'}`,
+    `meetings: ${m.meetings90d} in the last 90 days; next scheduled: ${m.nextMeetingAt ? m.nextMeetingAt.toISOString() : 'none'}`,
   ].join('\n');
 }

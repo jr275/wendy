@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { decidePolicy, PolicyService, proposeAction } from '../../src/actions/actions.js';
 import { verifyLedgerIntegrity } from '../../src/audit/ledger.js';
 import { withTx, type Db } from '../../src/db/db.js';
-import { createPerson, createPrincipal, storeMessage } from '../../src/events/world.js';
+import { createPerson, createPrincipal, storeMessage, upsertMeeting } from '../../src/events/world.js';
 import { MemoryService, MemoryTransitionError } from '../../src/memory/memoryService.js';
 import { PeopleService } from '../../src/people/peopleService.js';
 import { relationshipMetrics, renderMetrics } from '../../src/people/relationshipMetrics.js';
@@ -151,6 +151,22 @@ describe('relationship metrics (derived from interactions)', () => {
     expect(m.daysSinceContact).toBe(4);
     expect(m.lastInboundAt!.getTime()).toBe(ago(5, -4).getTime());
     expect(renderMetrics(m)).toContain('12 in 90 days');
+    expect(m.meetings90d).toBe(0);
+    expect(m.nextMeetingAt).toBeNull();
+  });
+
+  it('counts meetings held in 90 days (not cancelled) and the next scheduled one', async () => {
+    const mk = (id: string, days: number, status: 'CONFIRMED' | 'CANCELLED' = 'CONFIRMED') =>
+      withTx(db, (tx) => upsertMeeting(tx, principalId, { provider: 'test', externalId: id, title: 't', startsAt: ago(days), endsAt: ago(days, -1), status, attendees: ['m@example.test', 'p@example.test'] }));
+    await mk('mt-past', 10);
+    await mk('mt-cancelled', 12, 'CANCELLED');
+    await mk('mt-old', 200);
+    await mk('mt-next', -3);
+    await mk('mt-later', -9);
+    const m = await relationshipMetrics(db, principalId, personId, now);
+    expect(m.meetings90d).toBe(1);
+    expect(m.nextMeetingAt!.getTime()).toBe(ago(-3).getTime());
+    expect(renderMetrics(m)).toContain('meetings: 1 in the last 90 days');
   });
 
   it('is scoped to the principal', async () => {

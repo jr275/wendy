@@ -27,7 +27,10 @@ credit balance). See `WENDY_PHASE_1_COMPLETION_REPORT.md`.
 | `npm run gate` | Preflight (one real call) → live tests → both demos; raw results in `gate-results/` |
 | `npm run demo` / `npm run demo -- b` | "First wow": one new email → one cognitive cycle with real Claude |
 | `npm run worker` | Continuous loop: detectors, event processing, execution (real Claude) |
-| `npm run inspector` | Read-only UI at http://127.0.0.1:3457 (Hoje, Aprovações, Atividade, Ontologia, Pessoas e memória, Integrações, Auditoria) |
+| `npm run inspector` | UI at http://127.0.0.1:3457. Reads are read-only at the DB level; approvals/edits need the one-time login link printed in the terminal |
+| `npm run import -- --principal-email … --mbox … --ics …` | Import a Google Takeout export (read-only, exclusions in `config/import-exclusions.json`, `--dry-run` first; nothing goes to Claude) |
+| `npm run eval:retrieval` (`-- --claude`) | Recall@10 of the current search on the synthetic set → `WENDY_RETRIEVAL_EVAL.md` (Claude column needs credit) |
+| `npm run test:live:phase2` | Phase 2 live tests (real Claude; separate from the Phase 1 gate) |
 | `npm run inspector:sample` | Builds a `sample_test_double` schema for the UI using the **test double, not Claude** (clearly labeled in the UI) |
 | `npm run typecheck` | TypeScript check |
 | `npm run legacy:ui` / `npm run legacy:test` | Frozen legacy prototype (not connected to the core) |

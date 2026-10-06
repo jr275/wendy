@@ -20,7 +20,8 @@
     "inspector": "tsx inspector/server.ts",
     "inspector:sample": "tsx scripts/sample-test-double.ts",
     "gate": "tsx scripts/gate.ts",
-    "import": "tsx scripts/import-takeout.ts"
+    "import": "tsx scripts/import-takeout.ts",
+    "eval:retrieval": "tsx scripts/eval-retrieval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

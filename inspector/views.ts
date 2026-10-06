@@ -1,0 +1,277 @@
+/**
+ * Read-only view models for the Wendy UI. Every number shown in the UI comes from one of these
+ * queries over persisted state — nothing is computed for display that the core did not record.
+ */
+import type pg from 'pg';
+
+const HOUR = 3_600_000;
+
+export async function principals(db: pg.Pool) {
+  return (await db.query('SELECT id, display_name, primary_email, timezone, locale FROM principals ORDER BY created_at')).rows;
+}
+
+async function resolvePrincipal(db: pg.Pool, principalId: string | null): Promise<string | null> {
+  if (principalId) return principalId;
+  return (await db.query<{ id: string }>('SELECT id FROM principals ORDER BY created_at LIMIT 1')).rows[0]?.id ?? null;
+}
+
+/** One insight as a card: headline, narrative, score, tags, top evidence, action counts. */
+const INSIGHT_CARD_SQL = `
+  SELECT i.id, i.event_id, i.status, i.headline, i.narrative, i.created_at,
+         (i.salience->>'score')::float AS score, i.salience->'explanation' AS explanation,
+         e.event_type, e.provenance->>'origin' AS origin,
+         EXISTS (SELECT 1 FROM model_calls mc WHERE mc.id = ANY(i.model_call_ids) AND mc.model = 'TEST_DOUBLE') AS test_double,
+         (SELECT json_agg(json_build_object('kind', c.kind, 'label', c.label, 'statement', c.statement, 'confidence', c.confidence) ORDER BY c.ordinal)
+            FROM claims c WHERE c.insight_id = i.id AND c.validation_status = 'VALID' AND c.produced_by = 'CLAUDE') AS claims,
+         (SELECT json_agg(json_build_object('handle', h.key, 'kind', h.value->>'kind', 'id', h.value->>'id'))
+            FROM jsonb_each(i.evidence_map) h
+            WHERE EXISTS (SELECT 1 FROM claims c, jsonb_array_elements(c.evidence) ev
+                          WHERE c.insight_id = i.id AND c.validation_status = 'VALID' AND ev->>'handle' = h.key)) AS cited,
+         (SELECT json_agg(json_build_object('id', a.id, 'type', a.action_type, 'state', a.state)) FROM actions a WHERE a.insight_id = i.id) AS actions,
+         (SELECT count(*) FROM claims c WHERE c.insight_id = i.id AND c.validation_status = 'REJECTED')::int AS rejected_claims
+  FROM insights i JOIN events e ON e.id = i.event_id`;
+
+const LABEL_SQL: Record<string, string> = {
+  person: `SELECT id, full_name AS label FROM people WHERE id = ANY($1::uuid[])`,
+  message: `SELECT id, subject AS label FROM messages WHERE id = ANY($1::uuid[])`,
+  meeting: `SELECT id, title AS label FROM meetings WHERE id = ANY($1::uuid[])`,
+  commitment: `SELECT id, description AS label FROM commitments WHERE id = ANY($1::uuid[])`,
+  memory: `SELECT id, content AS label FROM memories WHERE id = ANY($1::uuid[])`,
+  event: `SELECT id, event_type AS label FROM events WHERE id = ANY($1::uuid[])`,
+  insight: `SELECT id, coalesce(headline, 'insight anterior') AS label FROM insights WHERE id = ANY($1::uuid[])`,
+};
+
+/** Attaches a human label to each cited evidence reference. */
+async function labelEvidence(db: pg.Pool, rows: { cited: { handle: string; kind: string; id: string }[] | null }[]) {
+  const byKind = new Map<string, Set<string>>();
+  for (const r of rows) for (const c of r.cited ?? []) byKind.set(c.kind, (byKind.get(c.kind) ?? new Set()).add(c.id));
+  const labels = new Map<string, string>();
+  for (const [kind, ids] of byKind) {
+    const sql = LABEL_SQL[kind];
+    if (!sql) continue;
+    for (const row of (await db.query<{ id: string; label: string }>(sql, [[...ids]])).rows) labels.set(`${kind}:${row.id}`, row.label);
+  }
+  for (const r of rows) for (const c of r.cited ?? []) (c as Record<string, unknown>).label = labels.get(`${c.kind}:${c.id}`) ?? null;
+}
+
+export async function today(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { principal: null };
+  const principal = (await db.query('SELECT id, display_name, timezone, locale FROM principals WHERE id = $1', [pid])).rows[0];
+  const since = new Date(Date.now() - 24 * HOUR);
+  const in48h = new Date(Date.now() + 48 * HOUR);
+  const kpis = (
+    await db.query(
+      `SELECT
+        (SELECT count(*) FROM insights WHERE principal_id = $1 AND status = 'SURFACED' AND created_at >= $2)::int AS surfaced_24h,
+        (SELECT count(*) FROM actions WHERE principal_id = $1 AND state = 'AWAITING_APPROVAL')::int AS awaiting,
+        (SELECT count(*) FROM commitments WHERE principal_id = $1 AND status = 'OPEN' AND due_at <= $3)::int AS commitments_48h,
+        (SELECT count(*) FROM events WHERE principal_id = $1 AND processing_status IN ('PROCESSED','SKIPPED') AND received_at >= $2)::int AS events_24h,
+        (SELECT count(*) FROM events WHERE principal_id = $1 AND processing_status = 'FAILED')::int AS events_failed,
+        (SELECT count(*) FROM insights WHERE principal_id = $1)::int AS insights_total,
+        (SELECT count(*) FROM actions WHERE principal_id = $1 AND policy_decision->>'mode' = 'AUTO' AND state IN ('EXECUTED','VERIFIED'))::int AS auto_actioned`,
+      [pid, since, in48h],
+    )
+  ).rows[0];
+  const insights = (await db.query(`${INSIGHT_CARD_SQL} WHERE i.principal_id = $1 ORDER BY (i.salience->>'score')::float DESC, i.created_at DESC LIMIT 100`, [pid])).rows;
+  await labelEvidence(db, insights);
+  const prepared = (
+    await db.query(
+      `SELECT a.id, a.action_type, a.state, a.insight_id, v.content->>'title' AS title, v.content->>'subject' AS subject
+       FROM actions a JOIN action_versions v ON v.action_id = a.id AND v.version = a.current_version
+       WHERE a.principal_id = $1 AND a.state IN ('VERIFIED','EXECUTED') ORDER BY a.updated_at DESC LIMIT 6`,
+      [pid],
+    )
+  ).rows;
+  const needsYou = (
+    await db.query(
+      `SELECT a.id, a.action_type, a.state, a.insight_id, a.expires_at, v.content->>'subject' AS subject, v.content->'to' AS recipients
+       FROM actions a JOIN action_versions v ON v.action_id = a.id AND v.version = a.current_version
+       WHERE a.principal_id = $1 AND a.state = 'AWAITING_APPROVAL' ORDER BY a.expires_at NULLS LAST LIMIT 6`,
+      [pid],
+    )
+  ).rows;
+  return { principal, kpis, insights, prepared, needsYou };
+}
+
+export async function insightDetail(db: pg.Pool, id: string) {
+  const insight = (await db.query('SELECT * FROM insights WHERE id = $1', [id])).rows[0];
+  if (!insight) throw Object.assign(new Error('insight not found'), { status: 404 });
+  const event = (await db.query('SELECT id, event_type, source, occurred_at, received_at, payload, provenance FROM events WHERE id = $1', [insight.event_id])).rows[0];
+  const claims = (
+    await db.query('SELECT ordinal, label, kind, statement, confidence, evidence, derived_from, produced_by, validation_status, validation_errors FROM claims WHERE insight_id = $1 ORDER BY ordinal', [id])
+  ).rows;
+  const actions = (
+    await db.query(
+      `SELECT a.id, a.action_type, a.state, a.authorization_level, a.policy_decision, a.expires_at, a.rejection_reason, a.failure, a.created_at, a.current_version,
+              v.content, v.author,
+              (SELECT row_to_json(x) FROM (SELECT provider, status, attempts, verification FROM action_executions WHERE action_id = a.id) x) AS execution,
+              (SELECT json_agg(json_build_object('to', t.to_state, 'actor', t.actor, 'reason', t.reason, 'at', t.at) ORDER BY t.id) FROM action_transitions t WHERE t.action_id = a.id) AS transitions
+       FROM actions a JOIN action_versions v ON v.action_id = a.id AND v.version = a.current_version
+       WHERE a.insight_id = $1 ORDER BY a.created_at`,
+      [id],
+    )
+  ).rows;
+  const calls = (
+    await db.query(`SELECT id, purpose, model, served_by_model, api_message_id, usage, error FROM model_calls WHERE id = ANY($1::uuid[]) ORDER BY started_at`, [insight.model_call_ids])
+  ).rows;
+  const memoriesWritten = (
+    await db.query(`SELECT id, kind, content, confidence FROM memories WHERE evidence @> $1::jsonb AND written_by = 'WENDY'`, [JSON.stringify([{ kind: 'event', id: insight.event_id }])])
+  ).rows;
+  return { insight, event, claims, actions, calls, memoriesWritten };
+}
+
+export async function actionsList(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  return (
+    await db.query(
+      `SELECT a.id, a.action_type, a.state, a.insight_id, a.authorization_level, a.created_at, a.updated_at, a.expires_at,
+              v.content->>'title' AS title, v.content->>'subject' AS subject, v.content->'to' AS recipients, v.author,
+              p.full_name AS target, i.headline AS insight_headline,
+              (SELECT verification FROM action_executions WHERE action_id = a.id) AS verification
+       FROM actions a JOIN action_versions v ON v.action_id = a.id AND v.version = a.current_version
+       LEFT JOIN people p ON p.id = a.target_person_id LEFT JOIN insights i ON i.id = a.insight_id
+       WHERE a.principal_id = $1 ORDER BY a.created_at DESC LIMIT 300`,
+      [pid],
+    )
+  ).rows;
+}
+
+export async function activity(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  return (
+    await db.query(
+      `SELECT e.id, e.event_type, e.source, e.occurred_at, e.received_at, e.processing_status, e.processing_attempts, e.last_error,
+              e.provenance->>'origin' AS origin, i.id AS insight_id, i.status AS insight_status, i.headline, (i.salience->>'score')::float AS score
+       FROM events e LEFT JOIN insights i ON i.event_id = e.id
+       WHERE e.principal_id = $1 ORDER BY e.received_at DESC LIMIT 300`,
+      [pid],
+    )
+  ).rows;
+}
+
+export async function people(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  const rows = (
+    await db.query(
+      `SELECT p.id, p.full_name, p.title, p.birthdate, p.source, o.name AS organization,
+              r.kind AS relationship, r.explicit_importance,
+              (SELECT string_agg(value, ', ') FROM person_identifiers WHERE person_id = p.id AND kind = 'email') AS emails,
+              (SELECT count(DISTINCT mp.message_id) FROM message_participants mp JOIN messages m ON m.id = mp.message_id
+                 WHERE mp.person_id = p.id AND m.sent_at >= now() - interval '90 days')::int AS interactions_90d,
+              (SELECT max(m.sent_at) FROM message_participants mp JOIN messages m ON m.id = mp.message_id WHERE mp.person_id = p.id) AS last_interaction,
+              (SELECT count(*) FROM commitments c WHERE c.counterparty_person_id = p.id AND c.status = 'OPEN')::int AS open_commitments
+       FROM people p LEFT JOIN organizations o ON o.id = p.organization_id LEFT JOIN relationships r ON r.person_id = p.id AND r.principal_id = p.principal_id
+       WHERE p.principal_id = $1 ORDER BY r.explicit_importance DESC NULLS LAST, p.full_name`,
+      [pid],
+    )
+  ).rows;
+  const memories = (
+    await db.query(
+      `SELECT m.id, m.kind, m.subject_person_id, m.content, m.confidence, m.status, m.written_by, m.created_at, m.evidence
+       FROM memories m WHERE m.principal_id = $1 ORDER BY m.created_at DESC LIMIT 500`,
+      [pid],
+    )
+  ).rows;
+  return { people: rows, memories };
+}
+
+export async function modelCalls(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  return (
+    await db.query(
+      `SELECT id, purpose, model, served_by_model, api_message_id, stop_reason, usage, error, started_at, finished_at, jsonb_array_length(input_evidence_refs) AS evidence_sent
+       FROM model_calls WHERE principal_id = $1 ORDER BY started_at DESC LIMIT 200`,
+      [pid],
+    )
+  ).rows;
+}
+
+/**
+ * The executive's world as a graph, straight from persisted records: objects (people, organizations,
+ * meetings, commitments, memories, insights) and typed links between them. Messages are aggregated
+ * into weighted links instead of being drawn one by one.
+ */
+const REL_PT: Record<string, string> = { INVESTOR: 'investidor', CLIENT: 'cliente', KEY_CLIENT: 'cliente-chave', COLLEAGUE: 'colega', PARTNER: 'parceiro', FRIEND: 'amigo', FAMILY: 'família' };
+
+export async function ontology(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { nodes: [], edges: [] };
+  type Node = { id: string; type: string; label: string; props: Record<string, unknown> };
+  type Edge = { source: string; target: string; label: string; weight?: number };
+  const nodes: Node[] = [];
+  const edges: Edge[] = [];
+  const principal = (await db.query('SELECT id, display_name, primary_email, timezone, locale FROM principals WHERE id = $1', [pid])).rows[0];
+  nodes.push({ id: `principal:${pid}`, type: 'principal', label: principal.display_name, props: { 'e-mail': principal.primary_email, fuso: principal.timezone, idioma: principal.locale } });
+
+  const orgs = (await db.query('SELECT id, name, domain, source FROM organizations WHERE principal_id = $1', [pid])).rows;
+  for (const o of orgs) nodes.push({ id: `organization:${o.id}`, type: 'organization', label: o.name, props: { domínio: o.domain, fonte: o.source } });
+
+  const ppl = await people(db, pid);
+  for (const p of ppl.people) {
+    nodes.push({
+      id: `person:${p.id}`,
+      type: 'person',
+      label: p.full_name,
+      props: {
+        cargo: p.title,
+        relação: p.relationship ? (REL_PT[p.relationship] ?? p.relationship) : null,
+        importância: p.explicit_importance,
+        'interações 90d': p.interactions_90d,
+        'última interação': p.last_interaction,
+        aniversário: p.birthdate,
+        'compromissos abertos': p.open_commitments,
+        fonte: p.source,
+      },
+    });
+    if (p.relationship) edges.push({ source: `principal:${pid}`, target: `person:${p.id}`, label: REL_PT[p.relationship] ?? String(p.relationship).toLowerCase().replace(/_/g, ' ') });
+    const org = orgs.find((o) => o.name === p.organization);
+    if (org) edges.push({ source: `person:${p.id}`, target: `organization:${org.id}`, label: 'trabalha em' });
+    if (p.interactions_90d > 0) edges.push({ source: `person:${p.id}`, target: `principal:${pid}`, label: `${p.interactions_90d} ${p.interactions_90d === 1 ? 'e-mail' : 'e-mails'}`, weight: p.interactions_90d });
+  }
+
+  const meetings = (
+    await db.query(
+      `SELECT m.id, m.title, m.starts_at, m.status,
+              (SELECT json_agg(a.person_id) FROM meeting_attendees a WHERE a.meeting_id = m.id AND a.person_id IS NOT NULL) AS people
+       FROM meetings m WHERE m.principal_id = $1 AND m.starts_at >= now() - interval '30 days' ORDER BY m.starts_at LIMIT 60`,
+      [pid],
+    )
+  ).rows;
+  for (const m of meetings) {
+    nodes.push({ id: `meeting:${m.id}`, type: 'meeting', label: m.title, props: { início: m.starts_at, status: m.status } });
+    edges.push({ source: `principal:${pid}`, target: `meeting:${m.id}`, label: 'participa de' });
+    for (const person of m.people ?? []) edges.push({ source: `person:${person}`, target: `meeting:${m.id}`, label: 'participa de' });
+  }
+
+  const commitments = (
+    await db.query(`SELECT id, owner, counterparty_person_id, description, due_at, status FROM commitments WHERE principal_id = $1 AND (status = 'OPEN' OR due_at >= now() - interval '14 days')`, [pid])
+  ).rows;
+  for (const c of commitments) {
+    nodes.push({ id: `commitment:${c.id}`, type: 'commitment', label: c.description, props: { vence: c.due_at, status: c.status, devedor: c.owner === 'PRINCIPAL' ? principal.display_name : 'contraparte' } });
+    edges.push({ source: c.owner === 'PRINCIPAL' ? `principal:${pid}` : `person:${c.counterparty_person_id}`, target: `commitment:${c.id}`, label: 'deve' });
+    edges.push({ source: `commitment:${c.id}`, target: c.owner === 'PRINCIPAL' ? `person:${c.counterparty_person_id}` : `principal:${pid}`, label: 'a' });
+  }
+
+  for (const m of ppl.memories.filter((x: { status: string; kind: string }) => x.status === 'ACTIVE' && x.kind !== 'OUTCOME').slice(0, 60)) {
+    nodes.push({ id: `memory:${m.id}`, type: 'memory', label: m.content, props: { tipo: m.kind, 'escrita por': m.written_by, confiança: m.confidence, criada: m.created_at } });
+    edges.push({ source: `memory:${m.id}`, target: m.subject_person_id ? `person:${m.subject_person_id}` : `principal:${pid}`, label: 'lembra' });
+  }
+
+  const insights = (
+    await db.query(
+      `SELECT i.id, i.headline, i.status, (i.salience->>'score')::float AS score, i.created_at,
+              (SELECT json_agg(DISTINCT ev->>'id') FROM claims c, jsonb_array_elements(c.evidence) ev
+                WHERE c.insight_id = i.id AND c.validation_status = 'VALID' AND ev->>'kind' = 'person') AS people
+       FROM insights i WHERE i.principal_id = $1 AND i.status = 'SURFACED' ORDER BY i.created_at DESC LIMIT 20`,
+      [pid],
+    )
+  ).rows;
+  for (const i of insights) {
+    nodes.push({ id: `insight:${i.id}`, type: 'insight', label: i.headline ?? 'insight', props: { prioridade: i.score, criado: i.created_at } });
+    for (const person of i.people ?? []) edges.push({ source: `insight:${i.id}`, target: `person:${person}`, label: 'sobre' });
+  }
+
+  const ids = new Set(nodes.map((n) => n.id));
+  return { nodes, edges: edges.filter((e) => ids.has(e.source) && ids.has(e.target)) };
+}

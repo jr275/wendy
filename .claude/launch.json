@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "wendy-inspector", "runtimeExecutable": "npm", "runtimeArgs": ["run", "inspector"], "port": 3457 },
+    { "name": "wendy-legacy-ui", "runtimeExecutable": "npm", "runtimeArgs": ["run", "legacy:ui"], "port": 3456 }
+  ]
+}

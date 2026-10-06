@@ -3,301 +3,852 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Wendy · Inspetor</title>
+<title>Menlo / Remax AI Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
+  /* ---------- Design tokens: light (grid paper + mint) / dark (control tower) ---------- */
   :root {
-    --bg: #f6f6f4; --panel: #ffffff; --ink: #1c1d1f; --muted: #6b6e74; --line: #e3e3df;
-    --accent: #3b5bdb; --ok: #2b8a3e; --warn: #b7791f; --bad: #c92a2a; --chip: #f0f0ec;
-    --fact: #495057; --inference: #3b5bdb; --hypothesis: #862e9c; --anticipation: #0b7285; --recommendation: #2b8a3e;
-    --banner-bg: #fff4e5; --banner-ink: #8a4b00; --banner-line: #f0c36d;
+    --bg: #efefec; --grid: rgba(20, 20, 20, .045); --panel: #ffffff; --panel-2: #f7f7f5;
+    --ink: #141414; --ink-2: #3d3d3a; --muted: #6e6e69; --faint: #9a9a94;
+    --line: #d8d8d3; --line-2: #ebebe7; --line-strong: #141414;
+    --mint: #1b9e72; --mint-ink: #0b6b4b; --mint-bg: #cdf3e2; --mint-bg-2: #e6f8ef;
+    --warn: #a35b00; --warn-bg: #fbeed6; --bad: #b42318; --bad-bg: #fbe4e1; --info: #2f5bd3; --info-bg: #e3e9fb;
+    --btn: #141414; --btn-ink: #ffffff; --chip: #f1f1ee;
+    --sans: "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --r: 4px;
+    color-scheme: light;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #121315; --panel: #1a1b1e; --ink: #e8e8e6; --muted: #9a9ca2; --line: #2b2d31;
-      --accent: #748ffc; --ok: #51cf66; --warn: #fcc419; --bad: #ff6b6b; --chip: #25272b;
-      --fact: #adb5bd; --inference: #748ffc; --hypothesis: #da77f2; --anticipation: #3bc9db; --recommendation: #69db7c;
-      --banner-bg: #2b2010; --banner-ink: #ffd8a8; --banner-line: #7a5214;
-    }
-  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #1b1d20; --grid: rgba(255,255,255,.035); --panel: #23262a; --panel-2: #1f2125; --ink: #ecece8; --ink-2: #c9c9c4; --muted: #9b9c98; --faint: #707270; --line: #363a3f; --line-2: #2c2f34; --line-strong: #ecece8; --mint: #5fd3a6; --mint-ink: #7fe3bb; --mint-bg: rgba(95,211,166,.16); --mint-bg-2: rgba(95,211,166,.08); --warn: #f0b45a; --warn-bg: rgba(240,180,90,.13); --bad: #ff7b6e; --bad-bg: rgba(255,123,110,.13); --info: #8aa8ff; --info-bg: rgba(138,168,255,.13); --btn: #5fd3a6; --btn-ink: #0f1a15; --chip: #2b2e33; color-scheme: dark; } }
+  :root[data-theme="dark"] { --bg: #1b1d20; --grid: rgba(255,255,255,.035); --panel: #23262a; --panel-2: #1f2125; --ink: #ecece8; --ink-2: #c9c9c4; --muted: #9b9c98; --faint: #707270; --line: #363a3f; --line-2: #2c2f34; --line-strong: #ecece8; --mint: #5fd3a6; --mint-ink: #7fe3bb; --mint-bg: rgba(95,211,166,.16); --mint-bg-2: rgba(95,211,166,.08); --warn: #f0b45a; --warn-bg: rgba(240,180,90,.13); --bad: #ff7b6e; --bad-bg: rgba(255,123,110,.13); --info: #8aa8ff; --info-bg: rgba(138,168,255,.13); --btn: #5fd3a6; --btn-ink: #0f1a15; --chip: #2b2e33; color-scheme: dark; }
+
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  header { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
-  header h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: .2px; }
-  header .ro { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
-  header .spacer { flex: 1; }
-  select, button { font: inherit; color: var(--ink); background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; cursor: pointer; }
-  button:hover { border-color: var(--accent); }
-  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
-  .badge.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
-  .badge.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
-  .badge.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
-  .banner { margin: 14px 20px 0; padding: 10px 14px; border-radius: 8px; background: var(--banner-bg); color: var(--banner-ink); border: 1px solid var(--banner-line); font-weight: 550; }
-  main { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 16px; padding: 16px 20px 40px; }
-  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
-  .list { padding: 6px; max-height: calc(100vh - 140px); overflow: auto; position: sticky; top: 64px; }
-  @media (max-width: 860px) { .list { position: static; max-height: 40vh; } }
-  .ev { padding: 9px 10px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
-  .ev:hover { background: var(--chip); }
-  .ev.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
-  .ev .t { font-weight: 600; font-size: 13px; }
-  .ev .m { font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
-  .ev .h { font-size: 12.5px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  section.card { padding: 14px 16px; margin-bottom: 14px; }
-  section.card > h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 10px; font-weight: 650; }
-  .kv { display: grid; grid-template-columns: 140px 1fr; gap: 4px 12px; font-size: 13px; }
-  .kv dt { color: var(--muted); } .kv dd { margin: 0; word-break: break-word; }
-  pre { white-space: pre-wrap; word-break: break-word; background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 6px 0 0; max-height: 420px; overflow: auto; }
-  .claim { border-left: 3px solid var(--line); padding: 6px 10px; margin: 8px 0; }
-  .claim .k { font-size: 11px; font-weight: 700; letter-spacing: .5px; }
-  .claim.rej { opacity: .6; } .claim.rej .s { text-decoration: line-through; }
-  .claim .err { color: var(--bad); font-size: 12px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
-  .chip { font-size: 11.5px; background: var(--chip); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; cursor: pointer; font-family: ui-monospace, Menlo, monospace; }
-  .chip:hover { border-color: var(--accent); }
-  .evi { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; margin: 6px 0; }
-  .evi.flash { outline: 2px solid var(--accent); }
-  .evi .hd { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
-  .evi .hd b { font-family: ui-monospace, Menlo, monospace; }
-  .evi.uncited { opacity: .55; }
-  .muted { color: var(--muted); } .small { font-size: 12px; }
-  table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { color: var(--muted); font-weight: 600; font-size: 12px; }
-  .bar { height: 7px; border-radius: 4px; background: var(--chip); overflow: hidden; min-width: 80px; }
-  .bar > span { display: block; height: 100%; background: var(--accent); }
-  .rendered { white-space: pre-wrap; line-height: 1.55; }
-  .tl { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; margin-top: 6px; }
-  .empty { padding: 40px; text-align: center; color: var(--muted); }
-  details summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; cursor: pointer; color: inherit; }
+  .mono, .eyebrow, th, .tag, .pill, .kpi .l, .kpi .s, .label { font-family: var(--mono); }
+
+  .app { display: grid; grid-template-columns: 236px 1fr; min-height: 100vh; }
+  @media (max-width: 860px) { .app { grid-template-columns: 1fr; } .side { position: static !important; height: auto !important; } }
+
+  /* Sidebar */
+  .side { position: sticky; top: 0; height: 100vh; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 12px; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 2px 6px 6px; }
+  .brand .mark { width: 26px; height: 26px; border-radius: 3px; background: var(--ink); color: var(--panel); display: grid; place-items: center; font: 600 13px var(--mono); }
+  .brand .b1 { font-weight: 650; font-size: 14px; letter-spacing: -.1px; display: block; }
+  .brand .b2 { font: 500 10.5px var(--mono); color: var(--muted); letter-spacing: .6px; text-transform: uppercase; display: block; }
+  .ws { border: 1px solid var(--line); border-radius: var(--r); padding: 7px 9px; display: flex; align-items: center; gap: 8px; background: var(--panel-2); }
+  .ws .avatar { width: 20px; height: 20px; border-radius: 2px; background: var(--mint-bg); color: var(--mint-ink); display: grid; place-items: center; font: 600 10px var(--mono); flex: none; }
+  .ws select { border: 0; background: transparent; font: 600 13px var(--sans); color: var(--ink); width: 100%; outline: none; cursor: pointer; }
+  .navlabel { font: 500 10px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--faint); padding: 8px 10px 2px; }
+  nav { display: flex; flex-direction: column; gap: 1px; }
+  nav a { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--r); color: var(--ink-2); font-size: 13.5px; }
+  nav a:hover { background: var(--panel-2); }
+  nav a.on { background: var(--mint-bg); color: var(--mint-ink); font-weight: 600; }
+  nav a .count { margin-left: auto; font: 500 11px var(--mono); color: var(--muted); }
+  nav a.on .count { color: var(--mint-ink); }
+  nav svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .side .spacer { flex: 1; }
+  .side .foot { border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .side .src { font: 500 10px var(--mono); letter-spacing: .8px; text-transform: uppercase; color: var(--faint); padding: 0 6px; }
+  .side .src select { font: 12px var(--mono); color: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r); padding: 3px 4px; background: var(--panel-2); max-width: 100%; margin-top: 4px; }
+  .theme { display: flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; margin: 0 6px; }
+  .theme button { flex: 1; border: 0; background: transparent; padding: 5px 0; font: 500 10.5px var(--mono); letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+  .theme button.on { background: var(--ink); color: var(--panel); }
+  .me { display: flex; align-items: center; gap: 8px; padding: 2px 6px; }
+  .me .avatar { width: 28px; height: 28px; border-radius: 3px; background: var(--ink); color: var(--panel); display: grid; place-items: center; font: 600 11px var(--mono); }
+  .me .n { font-weight: 600; font-size: 13px; } .me .s { font: 10.5px var(--mono); color: var(--muted); }
+
+  /* Main + grid-paper canvas */
+  main { min-width: 0; display: flex; flex-direction: column; }
+  .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 20px 32px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .page-head h1 { font-size: 22px; margin: 0; font-weight: 600; letter-spacing: -.4px; }
+  .page-head p { margin: 3px 0 0; color: var(--muted); }
+  .page-head .back { width: 30px; height: 30px; border: 1px solid var(--line); border-radius: var(--r); display: grid; place-items: center; margin-right: 12px; color: var(--muted); background: var(--panel); }
+  .canvas { flex: 1; padding: 26px 32px 64px; background-color: var(--bg); background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  .narrow { max-width: 900px; }
+
+  .notice { display: flex; gap: 10px; align-items: flex-start; padding: 9px 14px; border-radius: var(--r); background: var(--warn-bg); color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); font-size: 13px; margin-bottom: 20px; }
+  .notice b { font-weight: 650; }
+
+  .eyebrow { font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  .brief { font-size: 27px; line-height: 1.28; font-weight: 500; letter-spacing: -.6px; margin: 8px 0 6px; max-width: 920px; }
+  .brief u { text-decoration-color: var(--mint); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  .brief-meta { color: var(--faint); font: 11.5px var(--mono); }
+
+  /* Control-tower KPI strip */
+  .tower { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); background: var(--panel); border-radius: var(--r); margin: 22px 0 26px; }
+  @media (max-width: 900px) { .tower { grid-template-columns: repeat(2, 1fr); } }
+  .tower .t { display: flex; gap: 14px; align-items: center; padding: 16px 18px; border-right: 1px solid var(--line); }
+  .tower .t:last-child { border-right: 0; }
+  .tower .ic { width: 36px; height: 36px; border-radius: 3px; background: var(--mint-bg-2); border: 1px solid var(--line); color: var(--mint-ink); display: grid; place-items: center; flex: none; }
+  .tower .ic svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+  .tower .v { font-size: 26px; font-weight: 600; letter-spacing: -.6px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .tower .l { font: 500 10.5px var(--mono); letter-spacing: .8px; text-transform: uppercase; color: var(--muted); }
+  .tower .t.hot .ic { background: var(--warn-bg); color: var(--warn); }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); margin: 22px 0 26px; }
+  @media (max-width: 860px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { padding: 14px 18px; border-right: 1px solid var(--line); }
+  .kpi:last-child { border-right: 0; }
+  .kpi .v { font-size: 26px; font-weight: 600; letter-spacing: -.6px; font-variant-numeric: tabular-nums; }
+  .kpi .l { font-size: 10.5px; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); } .kpi .s { font-size: 11px; color: var(--faint); }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; padding: 4px 0 24px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
+  @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+  .bul { list-style: none; padding: 0; margin: 10px 0 0; }
+  .bul li { position: relative; padding: 3px 0 9px 18px; }
+  .bul li::before { content: ""; position: absolute; left: 0; top: 10px; width: 8px; height: 8px; border: 1.5px solid var(--ink); background: var(--panel); }
+  .bul.ok li::before { background: var(--mint); border-color: var(--mint); } .bul.warn li::before { background: var(--warn); border-color: var(--warn); }
+  .bul .t { font-weight: 550; } .bul .d { color: var(--muted); font: 11.5px var(--mono); }
+  .empty-line { color: var(--faint); font-size: 13px; padding-top: 10px; }
+
+  .section-title { display: flex; align-items: baseline; justify-content: space-between; margin: 0 0 12px; }
+  .section-title h2 { font-size: 15px; margin: 0; font-weight: 600; } .section-title h2 span { color: var(--muted); font-weight: 400; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+  .play { padding: 18px 22px; margin-bottom: 12px; display: grid; grid-template-columns: 36px 1fr; gap: 14px; transition: border-color .15s; }
+  .play:hover { border-color: var(--line-strong); }
+  .rank { width: 30px; height: 30px; border: 1px solid var(--line-strong); color: var(--ink); display: grid; place-items: center; font: 600 13px var(--mono); border-radius: 2px; }
+  .rank.first { background: var(--ink); color: var(--panel); }
+  .tags { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 11px var(--mono); color: var(--muted); }
+  .tag { font-size: 10px; font-weight: 500; letter-spacing: .8px; text-transform: uppercase; padding: 2px 7px; border-radius: 2px; background: var(--chip); color: var(--ink-2); border: 1px solid var(--line); }
+  .tag.mint { background: var(--mint-bg); color: var(--mint-ink); border-color: transparent; }
+  .tag.warn { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+  .tag.bad { background: var(--bad-bg); color: var(--bad); border-color: transparent; }
+  .tag.info { background: var(--info-bg); color: var(--info); border-color: transparent; }
+  .dots { letter-spacing: 1px; color: var(--mint); }
+  .play h3 { font-size: 17.5px; margin: 7px 0 6px; font-weight: 600; letter-spacing: -.3px; }
+  .lead { color: var(--mint-ink); display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; }
+  .lead svg { flex: none; margin-top: 3px; width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .body { color: var(--ink-2); font-size: 13.5px; margin-top: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .chip { font-size: 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 2px; padding: 3px 8px; color: var(--ink-2); max-width: 440px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip i { font: normal 500 10px var(--mono); letter-spacing: .6px; text-transform: uppercase; color: var(--faint); margin-right: 6px; }
+  .play-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); font: 11.5px var(--mono); color: var(--muted); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--r); padding: 7px 12px; font: 600 13px var(--sans); border: 1px solid var(--line); background: var(--panel); color: var(--ink); white-space: nowrap; }
+  .btn:hover { border-color: var(--line-strong); }
+  .btn.primary { background: var(--btn); border-color: var(--btn); color: var(--btn-ink); }
+  .btn.mint { background: var(--mint-bg); border-color: transparent; color: var(--mint-ink); }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn.on { border-color: var(--line-strong); background: var(--panel-2); }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
+  .btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  details.more { margin-top: 18px; } details.more summary { cursor: pointer; color: var(--muted); font: 12px var(--mono); list-style: none; }
+  details.more summary::before { content: "+ "; } details.more[open] summary::before { content: "− "; }
+  .mini { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line-2); }
+  .mini:last-child { border-bottom: 0; } .mini:hover { background: var(--panel-2); }
+
+  /* Tables */
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .tabs { display: flex; gap: 2px; flex-wrap: wrap; }
+  .tabs button { border: 1px solid transparent; background: transparent; padding: 5px 10px; border-radius: var(--r); font-size: 13px; color: var(--ink-2); }
+  .tabs button .c { font: 11px var(--mono); color: var(--faint); margin-left: 5px; }
+  .tabs button.on { background: var(--mint-bg); color: var(--mint-ink); font-weight: 600; }
+  .tabs button.on .c { color: var(--mint-ink); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); font-weight: 500; padding: 9px 14px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--line-2); vertical-align: middle; }
+  tr.click { cursor: pointer; } tr.click:hover td { background: var(--panel-2); }
+  tr:last-child td { border-bottom: 0; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; font-family: var(--mono); font-size: 12.5px; } th.num { text-align: right; }
+  .pill { font-size: 10px; font-weight: 500; letter-spacing: .8px; text-transform: uppercase; padding: 2px 7px; border-radius: 2px; white-space: nowrap; }
+  .pill.mint { background: var(--mint-bg); color: var(--mint-ink); } .pill.info { background: var(--info-bg); color: var(--info); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn); } .pill.bad { background: var(--bad-bg); color: var(--bad); }
+  .pill.grey { background: var(--chip); color: var(--muted); }
+  .ttl { font-weight: 550; } .sub { color: var(--muted); font-size: 12.5px; }
+  .row-accent { box-shadow: inset 2px 0 0 var(--warn); } .row-accent.bad { box-shadow: inset 2px 0 0 var(--bad); }
+  .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+  .empty h3 { color: var(--ink); margin: 8px 0 4px; font-size: 15px; font-weight: 600; }
+  .illo { display: block; margin: 0 auto; color: var(--ink); }
+  .illo .m { fill: var(--mint-bg); }
+
+  /* Insight / review proposal */
+  .review { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; margin-bottom: 18px; }
+  .review .l { display: flex; align-items: center; gap: 10px; }
+  .review .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .spark { width: 30px; height: 30px; border-radius: 3px; background: var(--ink); color: var(--panel); display: grid; place-items: center; }
+  .spark svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+  .detail { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+  @media (max-width: 1080px) { .detail { grid-template-columns: 1fr; } }
+  .narr { font-size: 19px; line-height: 1.5; font-weight: 450; letter-spacing: -.3px; margin: 6px 0 20px; }
+  .kv { display: grid; grid-template-columns: 170px 1fr; gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); }
+  @media (max-width: 700px) { .kv { grid-template-columns: 1fr; gap: 4px; } }
+  .kv .k { font: 500 10.5px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--muted); padding-top: 3px; }
+  .claim { margin-bottom: 10px; } .claim:last-child { margin-bottom: 0; }
+  .claim .m { font: 11px var(--mono); color: var(--faint); }
+  .ev { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .ev button { font-size: 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 2px; padding: 3px 8px; color: var(--ink-2); text-align: left; max-width: 100%; }
+  .ev button:hover { border-color: var(--line-strong); }
+  .evbox { display: none; margin-top: 8px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r); font: 12px/1.55 var(--mono); color: var(--ink-2); white-space: pre-wrap; }
+  .evbox.show { display: block; }
+  .rail { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .rail .card { padding: 14px 16px; }
+  .rail h4 { margin: 0 0 10px; font: 500 10.5px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .rail h4 svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .rail.flash .card.explain { outline: 2px solid var(--mint); }
+  .line { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line-2); font-size: 13px; }
+  .line:last-child { border-bottom: 0; } .line .l { color: var(--muted); } .line .v { font: 600 12.5px var(--mono); text-align: right; }
+  .bar { height: 4px; background: var(--line-2); overflow: hidden; margin-top: 5px; }
+  .bar span { display: block; height: 100%; background: var(--mint); }
+  .action { border: 1px solid var(--line); border-radius: var(--r); padding: 12px; margin-bottom: 10px; }
+  .action:last-child { margin-bottom: 0; }
+  .action .h { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .action .h b { font-size: 13px; }
+  .mail { margin-top: 8px; font-size: 12.5px; color: var(--ink-2); background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 2px; padding: 8px 10px; white-space: pre-wrap; max-height: 220px; overflow: auto; }
+  .row-btns { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .note { font: 11px/1.5 var(--mono); color: var(--faint); margin-top: 6px; }
+  .brief-art h5 { margin: 10px 0 4px; font: 500 10.5px var(--mono); letter-spacing: .8px; text-transform: uppercase; } .brief-art ul { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-2); }
+
+  /* Logic graph (claims chain) */
+  .logic { position: relative; padding: 18px; }
+  .logic svg.links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .logic svg.links path { fill: none; stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 3; opacity: .55; }
+  .lcols { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); gap: 34px; }
+  @media (max-width: 1000px) { .lcols { grid-template-columns: 1fr 1fr; } }
+  .lcol h5 { margin: 0 0 10px; font: 500 10px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+  .node { border: 1px solid var(--line-strong); background: var(--panel); padding: 8px 10px; margin-bottom: 10px; font-size: 12.5px; border-radius: 2px; position: relative; }
+  .node .k { font: 500 9.5px var(--mono); letter-spacing: .8px; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; }
+  .node.fact { border-color: var(--line); background: var(--panel-2); }
+  .node.rec { background: var(--mint-bg); border-color: var(--mint); }
+
+  /* Ontology */
+  .onto { position: relative; height: calc(100vh - 150px); min-height: 520px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r); background-color: var(--bg); background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; }
+  .onto svg { width: 100%; height: 100%; cursor: grab; user-select: none; }
+  .onto svg:active { cursor: grabbing; }
+  .onto .edge { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 3; opacity: .35; }
+  .onto .edge.hi { opacity: .9; stroke: var(--mint); stroke-dasharray: none; stroke-width: 1.5; }
+  .onto .elabel rect { fill: var(--mint-bg); } .onto .elabel text { fill: var(--mint-ink); font: 500 10px var(--mono); }
+  .onto .elabel { opacity: 0; transition: opacity .15s; } .onto .elabel.show { opacity: 1; }
+  .onto .n circle.o { fill: var(--panel); stroke: var(--ink); stroke-width: 1; }
+  .onto .n.sel circle.o { stroke: var(--mint); stroke-width: 2.5; }
+  .onto .n.dim { opacity: .25; }
+  .onto .n text { font: 500 11px var(--sans); fill: var(--ink); }
+  .onto .n .glyph { stroke: var(--ink); fill: none; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+  .onto .n.principal circle.o { fill: var(--ink); } .onto .n.principal .glyph { stroke: var(--panel); }
+  .onto .n.insight circle.o { fill: var(--mint-bg); stroke: var(--mint); }
+  .ocard { position: absolute; top: 14px; left: 14px; width: 290px; background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--r); padding: 12px 14px; font-size: 12.5px; }
+  .ocard .h { font: 600 11px var(--mono); letter-spacing: 1px; text-transform: uppercase; display: flex; justify-content: space-between; gap: 8px; }
+  .ocard .t { font-weight: 600; font-size: 14px; margin: 6px 0 8px; }
+  .ocard .row { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-top: 1px solid var(--line-2); }
+  .ocard .row span:first-child { color: var(--muted); font: 11px var(--mono); }
+  .ocard .row span:last-child { font: 500 11.5px var(--mono); text-align: right; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+  .ofilters { position: absolute; top: 14px; right: 14px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 60%; }
+  .ofilters button { font: 500 10.5px var(--mono); letter-spacing: .6px; text-transform: uppercase; border: 1px solid var(--line); background: var(--panel); padding: 4px 8px; border-radius: 2px; color: var(--ink-2); }
+  .ofilters button.off { opacity: .45; text-decoration: line-through; }
+  .ohint { position: absolute; bottom: 12px; left: 14px; font: 11px var(--mono); color: var(--faint); }
+
+  /* Tiles */
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 1000px) { .grid3 { grid-template-columns: repeat(2, 1fr); } } @media (max-width: 640px) { .grid3 { grid-template-columns: 1fr; } }
+  .tile { padding: 18px; }
+  .tile .ic { width: 36px; height: 36px; border-radius: 3px; border: 1px solid var(--line); background: var(--panel-2); display: grid; place-items: center; margin-bottom: 14px; }
+  .tile .ic svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+  .tile h3 { margin: 0; font-size: 14.5px; font-weight: 600; } .tile p { margin: 4px 0 12px; color: var(--muted); font-size: 12.5px; }
+  .tile.locked { position: relative; }
+  .tile.locked::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(135deg, transparent 0 6px, var(--grid) 6px 7px); pointer-events: none; }
+  .muted { color: var(--muted); } .small { font-size: 12.5px; }
+  .split { display: grid; grid-template-columns: 300px 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+  .plist { overflow: hidden; }
+  .plist .p { display: block; padding: 11px 14px; border-bottom: 1px solid var(--line-2); }
+  .plist .p:last-child { border-bottom: 0; }
+  .plist .p:hover { background: var(--panel-2); } .plist .p.on { box-shadow: inset 2px 0 0 var(--mint); background: var(--mint-bg-2); }
 </style>
+
 </head>
 <body>
-<header>
-  <h1>Wendy · Inspetor do cérebro</h1>
-  <span class="ro">somente leitura</span>
-  <span class="spacer"></span>
-  <label class="small muted" for="schema">Schema</label>
-  <select id="schema"></select>
-  <span id="ledger" class="badge">ledger…</span>
-  <button id="viewLedger">Ver ledger</button>
-</header>
-<div id="banner"></div>
-<main>
-  <div class="panel list" id="events"><div class="empty">Carregando…</div></div>
-  <div id="detail"><div class="panel empty">Selecione um evento.</div></div>
-</main>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><span class="mark">M</span><span><span class="b1">Menlo / Remax</span><span class="b2">AI Platform · Wendy</span></span></div>
+    <div class="ws"><span class="avatar" id="wsAvatar">·</span><select id="principal" aria-label="Executivo"></select></div>
+    <div class="navlabel">Operação</div>
+    <nav id="nav">
+      <a href="#/hoje" data-r="hoje"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Hoje</a>
+      <a href="#/aprovacoes" data-r="aprovacoes"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Aprovações<span class="count" id="cAwait"></span></a>
+      <a href="#/atividade" data-r="atividade"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Atividade</a>
+      <a href="#/ontologia" data-r="ontologia"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><circle cx="4.5" cy="6" r="2"/><circle cx="19.5" cy="6" r="2"/><circle cx="4.5" cy="18" r="2"/><circle cx="19.5" cy="18" r="2"/><path d="M6.3 7l3.6 3.4M17.7 7l-3.6 3.4M6.3 17l3.6-3.4M17.7 17l-3.6-3.4"/></svg>Ontologia</a>
+      <a href="#/pessoas" data-r="pessoas"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg>Pessoas e memória</a>
+    </nav>
+    <div class="navlabel">Sistema</div>
+    <nav>
+      <a href="#/integracoes" data-r="integracoes"><svg viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M7 8h10v4a5 5 0 0 1-10 0z"/><path d="M12 17v5"/></svg>Integrações</a>
+      <a href="#/auditoria" data-r="auditoria"><svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/></svg>Auditoria</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="foot">
+      <div class="theme" id="theme"><button data-t="light">Claro</button><button data-t="dark">Escuro</button></div>
+      <div class="src">Fonte de dados<br /><select id="schema" aria-label="Schema"></select></div>
+      <div class="me"><span class="avatar" id="meAvatar">·</span><div><div class="n" id="meName">—</div><div class="s" id="meSub">somente leitura</div></div></div>
+    </div>
+  </aside>
+  <main id="main"></main>
+</div>
 <script>
 const $ = (s) => document.querySelector(s);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const fmt = (d) => (d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
-const KIND = { FACT: ['FATO', 'fact'], INFERENCE: ['INFERÊNCIA', 'inference'], HYPOTHESIS: ['HIPÓTESE', 'hypothesis'], ANTICIPATION: ['ANTECIPAÇÃO', 'anticipation'], RECOMMENDATION: ['RECOMENDAÇÃO', 'recommendation'] };
-const FACTOR = { importance: 'Importância', urgency: 'Urgência', relationship_relevance: 'Relevância da relação', business_impact: 'Impacto no negócio', novelty: 'Novidade', confidence: 'Confiança', time_sensitivity: 'Sensibilidade ao tempo', actionability: 'Acionabilidade', executive_preference: 'Preferência do executivo' };
-const STATUS = { SURFACED: ['apresentado', 'ok'], SUPPRESSED: ['suprimido', ''], REJECTED_BY_VALIDATION: ['rejeitado pela validação', 'bad'] };
-let state = { schema: null, schemas: [], selected: null };
+const fmtDate = (d) => (d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
+const fmtDay = (d) => (d ? new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '—');
+const initials = (n) => (n || '?').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+const stripRefs = (t) => String(t ?? '').replace(/\s*\[(C\d+)(\]\s*\[C\d+)*\]/g, '').replace(/\s+([.,;:])/g, '$1').trim();
+const ICON = {
+  logic: '<svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="12" r="2"/><path d="M7 6c5 0 5 6 10 6M7 18c5 0 5-6 10-6"/></svg>',
+  info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>',
+  pen: '<svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/></svg>',
+  x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  auto: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>',
+  list: '<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+  signal: '<svg viewBox="0 0 24 24"><path d="M4 18a14 14 0 0 1 14-14M4 12a8 8 0 0 1 8-8M4 6h.01"/></svg>',
+  trend: '<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
+  arrow: '<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  back: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>',
+  spark: '<svg viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"/></svg>',
+  mail: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
+  cal: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  user: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+  doc: '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
+  chat: '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
+  bolt: '<svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>',
+  box: '<svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/></svg>',
+  inbox: '<svg viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/></svg>',
+  shield: '<svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/></svg>',
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+};
+const EVENT_TAG = { EMAIL_RECEIVED: ['e-mail', 'info'], COMMITMENT_DUE: ['compromisso', 'warn'], PERSON_DATE_APPROACHING: ['data pessoal', 'mint'], PRINCIPAL_NOTE: ['nota sua', ''], PRINCIPAL_QUESTION: ['pergunta', ''] };
+const ACTION_STATE = {
+  PROPOSED: ['proposta', 'grey'], STAGED: ['preparada', 'grey'], AWAITING_APPROVAL: ['aguardando você', 'warn'], APPROVED: ['aprovada', 'info'],
+  EXECUTING: ['executando', 'info'], EXECUTED: ['executada', 'info'], VERIFIED: ['verificada', 'mint'], REJECTED: ['rejeitada', 'grey'],
+  FAILED: ['falhou', 'bad'], CANCELLED: ['cancelada', 'grey'], EXPIRED: ['expirada', 'grey'],
+};
+const ACTION_NAME = { PREPARE_BRIEFING: 'Briefing', SEND_EMAIL: 'E-mail' };
+const KIND_PT = { INFERENCE: 'Por que importa', HYPOTHESIS: 'Hipóteses', ANTICIPATION: 'O que espero', RECOMMENDATION: 'O que recomendo' };
+const FACTOR = { importance: 'Importância da pessoa', urgency: 'Urgência expressa', relationship_relevance: 'Relevância da relação', business_impact: 'Impacto', novelty: 'Novidade', confidence: 'Confiança', time_sensitivity: 'Prazo', actionability: 'Acionável', executive_preference: 'Suas preferências' };
+const REL_PT = { INVESTOR: 'investidor', CLIENT: 'cliente', KEY_CLIENT: 'cliente-chave', COLLEAGUE: 'colega', PARTNER: 'parceiro', FRIEND: 'amigo', FAMILY: 'família' };
+const conf = (c) => (c >= 0.75 ? 'confiança alta' : c >= 0.5 ? 'confiança média' : 'confiança baixa');
+const confDots = (c) => (c >= 0.75 ? '●●●' : c >= 0.5 ? '●●○' : '●○○');
 
+function illo(kind = 'slab', w = 180) {
+  const slab = `<path d="M90 30 L160 65 L90 100 L20 65 Z" fill="none" stroke="currentColor" stroke-width="1"/><path d="M20 65 L20 75 L90 110 L160 75 L160 65" fill="none" stroke="currentColor" stroke-width="1"/>
+    ${[1,2,3].map((i) => `<path d="M${20+i*17.5} ${65-i*8.75} L${90+i*17.5} ${100-i*8.75}" stroke="currentColor" stroke-width=".5" opacity=".35"/><path d="M${90-i*17.5} ${30+i*8.75} L${160-i*17.5} ${65+i*8.75}" stroke="currentColor" stroke-width=".5" opacity=".35"/>`).join('')}`;
+  const top = kind === 'lock'
+    ? `<rect x="76" y="34" width="28" height="22" rx="2" class="m" stroke="currentColor"/><path d="M82 34v-6a8 8 0 0 1 16 0v6" fill="none" stroke="currentColor"/>`
+    : kind === 'nodes'
+    ? `<circle cx="70" cy="52" r="7" class="m" stroke="currentColor"/><circle cx="110" cy="48" r="7" fill="none" stroke="currentColor"/><circle cx="92" cy="72" r="7" fill="none" stroke="currentColor"/><path d="M76 54l10 13M104 52l-8 14M77 51l26-2" stroke="currentColor" stroke-dasharray="2 2"/>`
+    : `<path d="M75 30 L105 45 L105 15 L75 0 Z" class="m" stroke="currentColor"/><path d="M75 30 L75 50 M105 45 L105 62" stroke="currentColor" stroke-dasharray="2 2"/>`;
+  return `<svg class="illo" width="${w}" viewBox="0 -10 180 125" aria-hidden="true">${slab}${top}</svg>`;
+}
+
+const state = { schema: null, schemas: [], principal: null, principals: [] };
 async function api(path, params = {}) {
-  const q = new URLSearchParams({ schema: state.schema ?? '', ...params });
+  const q = new URLSearchParams({ schema: state.schema ?? '', ...(state.principal ? { principal: state.principal } : {}), ...params });
   const r = await fetch(`${path}?${q}`);
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || r.status);
   return j;
 }
+const schemaInfo = () => state.schemas.find((s) => s.schema === state.schema);
+function sampleNotice() {
+  const s = schemaInfo();
+  if (s && s.test_double_calls > 0 && s.real_calls === 0)
+    return `<div class="notice">⚠ <div><b>Dados de exemplo.</b> Tudo nesta fonte foi raciocinado pelo <b>substituto de teste</b>, não pelo Claude. Serve para ver o fluxo e a mecânica (evidências, validação, prioridade, ações) — não a inteligência da Wendy.</div></div>`;
+  if (s && s.test_double_calls > 0) return `<div class="notice">⚠ <div>Esta fonte mistura raciocínio real do Claude e do substituto de teste. Cada item indica qual foi usado.</div></div>`;
+  return '';
+}
+function head(title, sub, right = '', backHref = '') {
+  return `<div class="page-head"><div style="display:flex;align-items:flex-start">${backHref ? `<a class="back" href="${backHref}">${ICON.back}</a>` : ''}<div><h1>${title}</h1>${sub ? `<p>${sub}</p>` : ''}</div></div><div>${right}</div></div>`;
+}
 
-async function init() {
+function applyTheme(t) {
+  if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+  const eff = t || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.querySelectorAll('#theme button').forEach((b) => b.classList.toggle('on', b.dataset.t === eff));
+}
+(() => {
+  let saved = null; try { saved = localStorage.getItem('wendy.theme'); } catch {}
+  applyTheme(saved);
+  document.querySelectorAll('#theme button').forEach((b) => (b.onclick = () => { try { localStorage.setItem('wendy.theme', b.dataset.t); } catch {} applyTheme(b.dataset.t); if (location.hash.startsWith('#/ontologia') || location.hash.startsWith('#/insight')) route(); }));
+})();
+
+async function boot() {
   const { schemas } = await api('/api/schemas');
   state.schemas = schemas;
   const sel = $('#schema');
-  if (!schemas.length) {
-    $('#events').innerHTML = '<div class="empty">Nenhum schema com dados da Wendy neste banco.</div>';
-    return;
-  }
-  sel.innerHTML = schemas.map((s) => `<option value="${esc(s.schema)}">${esc(s.schema)} · ${s.events} eventos</option>`).join('');
-  const fromHash = new URLSearchParams(location.hash.slice(1));
-  state.schema = schemas.some((s) => s.schema === fromHash.get('schema')) ? fromHash.get('schema') : schemas[0].schema;
+  if (!schemas.length) { $('#main').innerHTML = head('Menlo / Remax AI Platform', '') + '<div class="canvas"><div class="card empty"><h3>Nenhum dado ainda</h3>Rode a Wendy para gerar eventos.</div></div>'; return; }
+  sel.innerHTML = schemas.map((s) => `<option value="${esc(s.schema)}">${esc(s.schema)}</option>`).join('');
+  state.schema = localStorage.getItem('wendy.schema') && schemas.some((s) => s.schema === localStorage.getItem('wendy.schema')) ? localStorage.getItem('wendy.schema') : schemas[0].schema;
   sel.value = state.schema;
-  sel.onchange = () => { state.schema = sel.value; state.selected = null; location.hash = `schema=${state.schema}`; load(); };
-  $('#viewLedger').onclick = showLedger;
-  await load(fromHash.get('event'));
+  sel.onchange = async () => { state.schema = sel.value; try { localStorage.setItem('wendy.schema', sel.value); } catch {} await loadPrincipals(); route(); };
+  await loadPrincipals();
+  window.addEventListener('hashchange', route);
+  route();
+}
+async function loadPrincipals() {
+  state.principals = await api('/api/principals');
+  const sel = $('#principal');
+  sel.innerHTML = state.principals.map((p) => `<option value="${esc(p.id)}">${esc(p.display_name)}</option>`).join('');
+  state.principal = state.principals[0]?.id ?? null;
+  sel.value = state.principal ?? '';
+  sel.onchange = () => { state.principal = sel.value; paintMe(); route(); };
+  paintMe();
+}
+function paintMe() {
+  const p = state.principals.find((x) => x.id === state.principal);
+  $('#wsAvatar').textContent = initials(p?.display_name);
+  $('#meAvatar').textContent = initials(p?.display_name);
+  $('#meName').textContent = p?.display_name ?? '—';
+  $('#meSub').textContent = p ? `${p.timezone} · somente leitura` : 'somente leitura';
 }
 
-function banner() {
-  const s = state.schemas.find((x) => x.schema === state.schema);
-  const b = $('#banner');
-  if (s && s.test_double_calls > 0 && s.real_calls === 0) {
-    b.innerHTML = `<div class="banner">⚠ Este schema contém apenas raciocínio do SUBSTITUTO DE TESTE (TEST_DOUBLE) — não é o Claude. Ele demonstra a mecânica (evidências, validação, salience, ações, ledger), não a inteligência da Wendy.</div>`;
-  } else if (s && s.test_double_calls > 0) {
-    b.innerHTML = `<div class="banner">⚠ Este schema mistura chamadas reais ao Claude e do substituto de teste. Cada evento indica qual foi usado.</div>`;
-  } else b.innerHTML = '';
+async function route() {
+  const [, r = 'hoje', id] = location.hash.split('/');
+  document.querySelectorAll('nav a').forEach((a) => a.classList.toggle('on', a.dataset.r === (r === 'insight' ? 'hoje' : r)));
+  const main = $('#main');
+  try {
+    if (r === 'insight' && id) main.innerHTML = await viewInsight(id);
+    else if (r === 'aprovacoes') main.innerHTML = await viewApprovals();
+    else if (r === 'atividade') main.innerHTML = await viewActivity();
+    else if (r === 'pessoas') main.innerHTML = await viewPeople(id);
+    else if (r === 'ontologia') { main.innerHTML = await viewOntology(); }
+    else if (r === 'integracoes') main.innerHTML = viewIntegrations();
+    else if (r === 'auditoria') main.innerHTML = await viewAudit();
+    else main.innerHTML = await viewToday();
+    bind();
+    if (r === 'ontologia') startOntology();
+    if (r === 'insight') drawLogic();
+  } catch (e) {
+    main.innerHTML = head('Erro', '') + `<div class="canvas"><div class="card empty"><h3>Não foi possível carregar</h3>${esc(e.message)}</div></div>`;
+  }
+  window.scrollTo(0, 0);
 }
 
-async function load(eventId) {
-  banner();
-  const [{ events, principals }, led] = await Promise.all([api('/api/overview'), api('/api/ledger')]);
-  const L = $('#ledger');
-  L.className = `badge ${led.integrity.valid ? 'ok' : 'bad'}`;
-  L.textContent = led.integrity.valid ? `ledger íntegro · ${led.integrity.blockCount} blocos` : `LEDGER COMPROMETIDO`;
-  L.title = led.integrity.valid ? '' : led.integrity.error;
-  const pname = Object.fromEntries(principals.map((p) => [p.id, p.display_name]));
-  const box = $('#events');
-  if (!events.length) { box.innerHTML = '<div class="empty">Nenhum evento.</div>'; return; }
-  box.innerHTML = events.map((e) => {
-    const st = STATUS[e.insight_status];
-    return `<div class="ev" data-id="${esc(e.id)}">
-      <div class="t">${esc(e.event_type)}</div>
-      <div class="m"><span>${esc(fmt(e.received_at))}</span><span>· ${esc(pname[e.principal_id] ?? '')}</span>
-        <span class="badge ${e.processing_status === 'FAILED' ? 'bad' : e.processing_status === 'SKIPPED' ? 'warn' : ''}">${esc(e.processing_status)}</span>
-        ${st ? `<span class="badge ${st[1]}">${esc(st[0])}${e.score != null ? ` · ${Number(e.score).toFixed(2)}` : ''}</span>` : ''}
-        ${e.test_double ? '<span class="badge warn">substituto de teste</span>' : ''}</div>
-      ${e.headline ? `<div class="h">${esc(e.headline)}</div>` : e.last_error ? `<div class="h muted">${esc(e.last_error)}</div>` : ''}
-    </div>`;
-  }).join('');
-  box.querySelectorAll('.ev').forEach((el) => (el.onclick = () => select(el.dataset.id)));
-  await select(eventId && events.some((e) => e.id === eventId) ? eventId : events[0].id);
+/* ---------- HOJE ---------- */
+async function viewToday() {
+  const d = await api('/api/today');
+  $('#cAwait').textContent = d.kpis?.awaiting || '';
+  if (!d.principal) return head('Hoje', '') + '<div class="canvas"><div class="card empty"><h3>Sem executivo</h3></div></div>';
+  const surfaced = d.insights.filter((i) => i.status === 'SURFACED');
+  const suppressed = d.insights.filter((i) => i.status === 'SUPPRESSED');
+  const rejected = d.insights.filter((i) => i.status === 'REJECTED_BY_VALIDATION');
+  const top = surfaced[0];
+  const hello = new Date().getHours() < 12 ? 'Bom dia' : new Date().getHours() < 18 ? 'Boa tarde' : 'Boa noite';
+  const right = `<span class="tag ${surfaced.length ? 'mint' : ''}">${surfaced.length} para sua atenção</span>`;
+  let h = head('Hoje', `${hello}, ${esc(d.principal.display_name.split(' ')[0])}. O que a Wendy encontrou, em ordem de importância.`, right);
+  h += `<div class="canvas"><div class="wrap">${sampleNotice()}`;
+  h += `<div class="eyebrow">O brief</div>`;
+  h += top
+    ? `<div class="brief">Comece por <u><a href="#/insight/${esc(top.id)}">${esc(top.headline)}</a></u>${surfaced.length > 1 ? ` — e mais ${surfaced.length - 1} ${surfaced.length - 1 === 1 ? 'item' : 'itens'} para sua atenção.` : '.'}</div><div class="brief-meta">PRIORIDADE ${top.score.toFixed(2)} · ${fmtDate(top.created_at).toUpperCase()} · ${k0(d.kpis.events_24h)} SINAIS NAS ÚLTIMAS 24H</div>`
+    : `<div class="brief" style="color:var(--muted)">Nada exige sua atenção agora.</div><div class="brief-meta">A WENDY CONTINUA OBSERVANDO OS SINAIS</div>`;
+  const k = d.kpis;
+  h += `<div class="tower">
+    <div class="t"><div class="ic">${ICON.signal}</div><div><div class="v">${k.insights_total}</div><div class="l">insights gerados</div></div></div>
+    <div class="t"><div class="ic">${ICON.auto}</div><div><div class="v">${k.auto_actioned}</div><div class="l">executados automaticamente</div></div></div>
+    <div class="t ${k.awaiting ? 'hot' : ''}"><div class="ic">${ICON.list}</div><div><div class="v">${k.awaiting}</div><div class="l">aprovação necessária</div></div></div>
+    <div class="t"><div class="ic">${ICON.clock}</div><div><div class="v">${k.commitments_48h}</div><div class="l">compromissos · 48h</div></div></div>
+  </div>`;
+  h += `<div class="two"><div><div class="eyebrow">Já preparei</div><ul class="bul ok">${
+    d.prepared.length ? d.prepared.map((a) => `<li><a href="#/insight/${esc(a.insight_id)}"><div class="t">${esc(ACTION_NAME[a.action_type] ?? a.action_type)}: ${esc(stripRefs(a.title || a.subject || ''))}</div><div class="d">${esc(ACTION_STATE[a.state]?.[0] ?? a.state)}</div></a></li>`).join('') : ''
+  }</ul>${d.prepared.length ? '' : '<div class="empty-line">Nada preparado ainda.</div>'}</div>
+  <div><div class="eyebrow">Precisa de você</div><ul class="bul warn">${
+    d.needsYou.length ? d.needsYou.map((a) => `<li><a href="#/insight/${esc(a.insight_id)}"><div class="t">${esc(ACTION_NAME[a.action_type] ?? a.action_type)}${a.subject ? `: ${esc(a.subject)}` : ''}</div><div class="d">${a.recipients ? `para ${esc(a.recipients.join(', '))} · ` : ''}${a.expires_at ? `expira ${fmtDate(a.expires_at)}` : 'sem prazo'}</div></a></li>`).join('') : ''
+  }</ul>${d.needsYou.length ? '' : '<div class="empty-line">Nenhuma aprovação pendente.</div>'}</div></div>`;
+  h += `<div class="section-title"><h2>${surfaced.length} ${surfaced.length === 1 ? 'insight' : 'insights'}<span>, mais importante primeiro</span></h2></div>`;
+  h += surfaced.length ? surfaced.map((i, n) => playCard(i, n + 1)).join('') : `<div class="card empty">${illo('slab')}<h3>Nenhum insight apresentado</h3>Quando algo merecer sua atenção, aparece aqui.</div>`;
+  if (suppressed.length)
+    h += `<details class="more"><summary>${suppressed.length} registrado(s) sem interromper — abaixo do limiar de atenção</summary><div class="card" style="margin-top:10px">${suppressed.map(miniRow).join('')}</div></details>`;
+  if (rejected.length)
+    h += `<details class="more"><summary>${rejected.length} descartado(s) pela validação de evidências</summary><div class="card" style="margin-top:10px">${rejected.map(miniRow).join('')}</div></details>`;
+  return h + '</div></div>';
+}
+const k0 = (n) => String(n ?? 0);
+function playCard(i, n) {
+  const [tag, tcls] = EVENT_TAG[i.event_type] ?? [i.event_type, ''];
+  const claims = i.claims ?? [];
+  const lead = claims.find((c) => c.kind === 'ANTICIPATION') ?? claims.find((c) => c.kind === 'INFERENCE');
+  const avgConf = claims.length ? claims.reduce((s, c) => s + c.confidence, 0) / claims.length : 0;
+  const acts = i.actions ?? [];
+  const waiting = acts.filter((a) => a.state === 'AWAITING_APPROVAL').length;
+  const done = acts.filter((a) => a.state === 'VERIFIED').length;
+  return `<a class="card play" href="#/insight/${esc(i.id)}">
+    <div class="rank ${n === 1 ? 'first' : ''}">${String(n).padStart(2, '0')}</div>
+    <div>
+      <div class="tags"><span class="tag ${tcls}">${esc(tag)}</span><span class="dots">${confDots(avgConf)}</span><span>${conf(avgConf)}</span><span>· prioridade ${i.score.toFixed(2)}</span>${i.test_double ? '<span class="tag warn">substituto de teste</span>' : ''}</div>
+      <h3>${esc(i.headline)}</h3>
+      ${lead ? `<div class="lead">${ICON.trend}<span>${esc(lead.statement)}</span></div>` : ''}
+      ${i.narrative ? `<div class="body">${esc(stripRefs(i.narrative))}</div>` : ''}
+      ${(i.cited ?? []).length ? `<div class="chips">${i.cited.filter((c) => c.kind !== 'event').slice(0, 5).map((c) => `<span class="chip"><i>${esc(c.kind === 'message' ? 'e-mail' : c.kind === 'meeting' ? 'reunião' : c.kind === 'commitment' ? 'compromisso' : c.kind === 'person' ? 'pessoa' : c.kind === 'memory' ? 'memória' : c.kind)}</i>${esc(c.label ?? c.handle)}</span>`).join('')}</div>` : ''}
+      <div class="play-foot"><span>${done ? `${done} preparado(s)` : ''}${done && waiting ? ' · ' : ''}${waiting ? `${waiting} aguardando você` : ''}${!done && !waiting ? 'nenhuma ação proposta' : ''}</span><span class="btn ${waiting ? 'primary' : ''}">${waiting ? 'Revisar' : 'Abrir'} ${ICON.arrow}</span></div>
+    </div></a>`;
+}
+function miniRow(i) {
+  const [tag] = EVENT_TAG[i.event_type] ?? [i.event_type];
+  return `<a class="mini" href="#/insight/${esc(i.id)}"><span><span class="tag">${esc(tag)}</span> ${esc(i.headline ?? '(sem título)')}</span><span class="muted small">${i.score.toFixed(2)} · ${fmtDate(i.created_at)}</span></a>`;
 }
 
-async function select(id) {
-  state.selected = id;
-  location.hash = `schema=${state.schema}&event=${id}`;
-  document.querySelectorAll('.ev').forEach((el) => el.classList.toggle('sel', el.dataset.id === id));
-  const d = await api('/api/event', { id });
-  $('#detail').innerHTML = renderDetail(d);
-  bindDetail(d);
-}
-
-function evidenceChip(e) { return `<span class="chip" data-ev="${esc(e.handle)}" title="${esc(e.kind)}">${esc(e.handle)}</span>`; }
-
-function renderDetail({ event, insight, claims, actions, calls, records, memoriesWritten }) {
-  const out = [];
-  const isDouble = calls.some((c) => c.model === 'TEST_DOUBLE');
-  if (isDouble) out.push(`<div class="banner" style="margin:0 0 14px">⚠ Raciocínio deste evento produzido pelo SUBSTITUTO DE TESTE, não pelo Claude.</div>`);
-
-  out.push(`<section class="panel card"><h2>Evento</h2><dl class="kv">
-    <dt>Tipo</dt><dd>${esc(event.event_type)}</dd>
-    <dt>Origem</dt><dd>${esc(event.source)} · ${esc(event.provenance?.origin)}${event.provenance?.detector ? ` · ${esc(event.provenance.detector)}` : ''}</dd>
-    <dt>Ocorreu / recebido</dt><dd>${esc(fmt(event.occurred_at))} / ${esc(fmt(event.received_at))}</dd>
-    <dt>Processamento</dt><dd>${esc(event.processing_status)} · ${esc(event.processing_attempts)} tentativa(s)${event.last_error ? ` · <span class="muted">${esc(event.last_error)}</span>` : ''}</dd>
-    <dt>Chave idempotente</dt><dd class="small">${esc(event.source_event_key)}</dd>
-    <dt>Payload</dt><dd><pre>${esc(JSON.stringify(event.payload, null, 2))}</pre></dd>
-  </dl></section>`);
-
-  if (!insight) { out.push(`<div class="panel empty">Sem insight para este evento${event.processing_status === 'SKIPPED' ? ' (evento obsoleto / ignorado)' : ''}.</div>`); return out.join(''); }
-
-  const st = STATUS[insight.status] ?? [insight.status, ''];
-  out.push(`<section class="panel card"><h2>Insight <span class="badge ${st[1]}">${esc(st[0])}</span></h2>
-    <div class="rendered">${esc(insight.rendered)}</div></section>`);
-
-  const factors = insight.salience.factors ?? [];
-  out.push(`<section class="panel card"><h2>Por que isso apareceu · salience ${Number(insight.salience.score).toFixed(3)} (limiar ${insight.salience.threshold})</h2>
-    <table><thead><tr><th>Fator</th><th>Valor</th><th style="width:22%"></th><th>Peso</th><th>Contribuição</th><th>Base</th></tr></thead><tbody>
-    ${factors.map((f) => `<tr><td>${esc(FACTOR[f.name] ?? f.name)}</td>
-      <td>${f.value == null ? '<span class="muted">n/a</span>' : Number(f.value).toFixed(2)}</td>
-      <td>${f.value == null ? '' : `<div class="bar"><span style="width:${Math.round(f.value * 100)}%"></span></div>`}</td>
-      <td>${(f.weight * 100).toFixed(0)}%</td><td>${Number(f.contribution).toFixed(3)}</td><td class="small">${esc(f.basis)}</td></tr>`).join('')}
-    </tbody></table></section>`);
-
-  const byOrd = Object.fromEntries(claims.map((c) => [c.ordinal, c]));
-  const claimHtml = (c) => {
-    const [label, cls] = KIND[c.kind] ?? [c.kind, 'fact'];
-    const rej = c.validation_status !== 'VALID';
-    return `<div class="claim ${rej ? 'rej' : ''}" style="border-left-color:var(--${cls})">
-      <div><span class="k" style="color:var(--${cls})">${label}</span> <span class="small muted">${esc(c.label)} · ${c.produced_by === 'CODE' ? 'gerado por código' : 'Claude'}${c.kind !== 'FACT' ? ` · confiança ${Number(c.confidence).toFixed(2)}` : ''}</span></div>
-      <div class="s">${esc(c.kind === 'FACT' ? c.statement.split('\n')[0] : c.statement)}</div>
-      <div class="chips">${c.evidence.map(evidenceChip).join('')}${c.derived_from.filter((o) => byOrd[o] && byOrd[o].kind !== 'FACT').map((o) => `<span class="chip">← ${esc(byOrd[o].label)}</span>`).join('')}</div>
-      ${rej ? `<div class="err">Rejeitado: ${esc(c.validation_errors.join('; '))}</div>` : ''}
-    </div>`;
-  };
+/* ---------- INSIGHT ---------- */
+let evidenceIndex = {};
+let insightView = 'summary';
+let logicData = null;
+let lastInsight = null;
+async function viewInsight(id) {
+  if (lastInsight !== id) { insightView = 'summary'; lastInsight = id; }
+  const d = await api('/api/insight', { id });
+  const { insight: ins, claims, actions, calls, event, memoriesWritten } = d;
   const valid = claims.filter((c) => c.validation_status === 'VALID');
   const rejected = claims.filter((c) => c.validation_status !== 'VALID');
-  out.push(`<section class="panel card"><h2>Raciocínio · ${valid.length} válidas, ${rejected.length} rejeitadas</h2>
-    ${['INFERENCE', 'HYPOTHESIS', 'ANTICIPATION', 'RECOMMENDATION', 'FACT'].map((k) => valid.filter((c) => c.kind === k).map(claimHtml).join('')).join('')}
-    ${rejected.length ? `<details><summary>Afirmações rejeitadas pela validação (${rejected.length})</summary>${rejected.map(claimHtml).join('')}</details>` : ''}
-  </section>`);
+  const facts = valid.filter((c) => c.kind === 'FACT');
+  const byOrd = Object.fromEntries(claims.map((c) => [c.ordinal, c]));
+  evidenceIndex = Object.fromEntries(facts.map((f) => [f.label, f]));
+  const isDouble = calls.some((c) => c.model === 'TEST_DOUBLE');
+  const [tag, tcls] = EVENT_TAG[event.event_type] ?? [event.event_type, ''];
+  const st = ins.status === 'SURFACED' ? ['apresentado', 'mint'] : ins.status === 'SUPPRESSED' ? ['registrado sem interromper', ''] : ['descartado pela validação', 'bad'];
+  const right = `<span class="tag ${tcls}">${esc(tag)}</span> <span class="tag ${st[1]}">${st[0]}</span>`;
+  let h = head(esc(ins.headline ?? 'Insight'), `${fmtDate(ins.created_at)} · prioridade ${Number(ins.salience.score).toFixed(2)} · ${valid.filter((c) => c.produced_by === 'CLAUDE').length} afirmações validadas`, right, '#/hoje');
+  h += `<div class="canvas"><div class="wrap">`;
+  if (isDouble) h += `<div class="notice">⚠ <div>Raciocínio deste insight produzido pelo <b>substituto de teste</b>, não pelo Claude.</div></div>`;
+  const pending = actions.find((a) => a.state === 'AWAITING_APPROVAL');
+  h += `<div class="card review"><div class="l"><span class="spark">${ICON.spark}</span><div><div class="eyebrow">Revisar proposta</div><div style="font-weight:600">${pending ? `${esc(ACTION_NAME[pending.action_type])} aguardando sua decisão` : actions.length ? 'Nada pendente — ações já resolvidas pela política' : 'Nenhuma ação proposta'}</div></div></div>
+    <div class="acts">
+      <button class="btn primary" disabled title="Disponível depois do gate: API de aprovação com autenticação">${ICON.check} Aceitar</button>
+      <button class="btn" disabled title="Disponível depois do gate">${ICON.pen} Modificar</button>
+      <button class="btn ${insightView === 'explain' ? 'on' : ''}" data-iview="explain">${ICON.info} Explicar</button>
+      <button class="btn ${insightView === 'logic' ? 'on' : ''}" data-iview="logic">${ICON.logic} Mostrar lógica</button>
+    </div></div>`;
+  logicData = { claims, byOrd };
+  h += `<div class="detail"><div>`;
+  if (insightView === 'logic') {
+    h += logicHtml(claims);
+  } else {
+  h += `<div class="eyebrow">Encontrei algo que acho que você deveria saber</div>`;
+  h += ins.narrative ? `<div class="narr">${esc(stripRefs(ins.narrative))}</div>` : `<div class="narr" style="color:var(--muted)">A narrativa do modelo não passou na validação; abaixo, só o que foi comprovado.</div>`;
 
-  const cited = new Set(claims.filter((c) => c.validation_status === 'VALID').flatMap((c) => c.evidence.map((e) => e.handle)));
-  const map = insight.evidence_map ?? {};
-  const handles = Object.keys(map).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
-  out.push(`<section class="panel card"><h2>Evidências recuperadas e enviadas ao modelo · ${handles.length} (${cited.size} citadas)</h2>
-    ${handles.map((h) => {
-      const ref = map[h]; const r = records[`${ref.kind}:${ref.id}`];
-      return `<div class="evi ${cited.has(h) ? '' : 'uncited'}" id="ev-${esc(h)}"><div class="hd"><b>${esc(h)}</b><span class="badge">${esc(ref.kind)}</span>${cited.has(h) ? '<span class="badge ok">citada</span>' : '<span class="small muted">não citada</span>'}</div>
-        ${r ? `<div>${esc(r.title)}</div><div class="small muted">${esc(r.detail ?? '')}</div>${r.body ? `<details><summary>conteúdo</summary><pre>${esc(r.body)}</pre></details>` : ''}` : `<div class="err small">registro não encontrado</div>`}
-        <div class="small muted">${esc(ref.id)}</div></div>`;
-    }).join('')}</section>`);
+  const eventFact = facts.find((f) => f.evidence.some((e) => e.kind === 'event'));
+  h += `<div class="kv"><div class="k">O que aconteceu</div><div>${eventFact ? `<div class="claim"><div class="s">${esc(eventFact.statement.split('\n').slice(0, 3).join(' · '))}</div></div>` : '—'}</div></div>`;
+  for (const kind of ['INFERENCE', 'ANTICIPATION', 'HYPOTHESIS', 'RECOMMENDATION']) {
+    const group = valid.filter((c) => c.kind === kind);
+    if (!group.length) continue;
+    h += `<div class="kv"><div class="k">${KIND_PT[kind]}</div><div>${group.map((c) => claimHtml(c, byOrd)).join('')}</div></div>`;
+  }
+  h += `<div class="kv"><div class="k">A evidência</div><div><div class="ev">${facts.map((f) => `<button data-ev="${esc(f.label)}">${esc(f.statement.split('\n')[0].slice(0, 90))}</button>`).join('')}</div><div class="evbox" id="evbox"></div></div></div>`;
+  const v = ins.validation ?? {};
+  if ((v.gaps ?? []).length) h += `<div class="kv"><div class="k">O que eu não sei</div><div>${v.gaps.map((g) => `<div class="claim"><div class="s">${esc(g)}</div></div>`).join('')}</div></div>`;
+  if ((v.conflicts ?? []).length) h += `<div class="kv"><div class="k">Evidências em conflito</div><div>${v.conflicts.map((c) => `<div class="claim"><div class="s">${esc(c.description)}</div></div>`).join('')}</div></div>`;
+  if (memoriesWritten.length) h += `<div class="kv"><div class="k">O que aprendi</div><div>${memoriesWritten.map((m) => `<div class="claim"><div class="s">${esc(m.content)}</div><div class="m">${esc(m.kind)} · confiança ${Number(m.confidence).toFixed(2)}</div></div>`).join('')}</div></div>`;
+  if (rejected.length) h += `<div class="kv"><div class="k">Descartado</div><div><details class="more" style="margin:0"><summary>${rejected.length} afirmação(ões) sem evidência válida</summary>${rejected.map((c) => `<div class="claim" style="margin-top:8px"><div class="s" style="text-decoration:line-through;color:var(--muted)">${esc(c.statement.split('\n')[0])}</div><div class="m" style="color:var(--bad)">${esc((c.validation_errors || []).join('; '))}</div></div>`).join('')}</details></div></div>`;
+  }
+  h += `</div>`;
 
-  const v = insight.validation ?? {};
-  const issues = [
-    ...(v.understandingErrors ?? []).map((x) => `Entendimento: ${x}`),
-    ...(v.urgencyErrors ?? []).map((x) => `Urgência: ${x}`),
-    ...(v.businessImpact?.errors ?? []).map((x) => `Impacto: ${x}`),
-    ...(v.narrative && !v.narrative.valid ? v.narrative.errors.map((x) => `Narrativa: ${x}`) : []),
-    ...(v.rejectedActions ?? []).map((a) => `Ação ${a.type} rejeitada: ${a.errors.join('; ')}`),
-    ...(v.rejectedMemoryProposals ?? []).map((m) => `Memória rejeitada "${m.content}": ${m.errors.join('; ')}`),
+  // Right rail
+  h += `<div class="rail ${insightView === 'explain' ? 'flash' : ''}">`;
+  h += `<div class="card"><h4>${ICON.box} Ações preparadas</h4>${actions.length ? actions.map(actionCard).join('') : '<div class="muted small">Nenhuma ação proposta para este insight.</div>'}</div>`;
+  const factors = (ins.salience.factors ?? []).filter((f) => f.value != null).sort((a, b) => b.contribution - a.contribution);
+  h += `<div class="card explain"><h4>${ICON.trend} Por que apareceu</h4>${factors.map((f) => `<div class="line" title="${esc(f.basis)}"><span class="l">${esc(FACTOR[f.name] ?? f.name)}<div class="bar" style="width:130px"><span style="width:${Math.round(f.value * 100)}%"></span></div>${insightView === 'explain' ? `<div class="note" style="max-width:220px">${esc(f.basis)}</div>` : ''}</span><span class="v">${Number(f.value).toFixed(2)}</span></div>`).join('')}
+    <div class="note">Prioridade ${Number(ins.salience.score).toFixed(2)} · limiar ${ins.salience.threshold}. Passe o mouse para ver a origem de cada fator.</div></div>`;
+  h += `<div class="card"><h4>${ICON.shield} Rastreabilidade</h4>
+    <div class="line"><span class="l">Modelo</span><span class="v">${esc([...new Set(calls.map((c) => c.served_by_model || c.model))].join(', ') || '—')}</span></div>
+    <div class="line"><span class="l">Chamadas</span><span class="v">${calls.length}</span></div>
+    <div class="line"><span class="l">Fatos citados</span><span class="v">${facts.length}</span></div>
+    <div class="line"><span class="l">Rejeitadas</span><span class="v">${rejected.length}</span></div>
+    <div class="row-btns"><a class="btn" href="/tecnico#schema=${esc(state.schema)}&event=${esc(ins.event_id)}">Ver raciocínio técnico ${ICON.arrow}</a></div></div>`;
+  h += `</div></div></div></div>`;
+  return h;
+}
+function logicHtml(claims) {
+  const valid = claims.filter((c) => c.validation_status === 'VALID');
+  const cols = [
+    ['Fatos · fontes', valid.filter((c) => c.kind === 'FACT')],
+    ['Inferências', valid.filter((c) => c.kind === 'INFERENCE')],
+    ['Antecipações e hipóteses', valid.filter((c) => c.kind === 'ANTICIPATION' || c.kind === 'HYPOTHESIS')],
+    ['Recomendações', valid.filter((c) => c.kind === 'RECOMMENDATION')],
   ];
-  const res = v.resolution ?? {};
-  out.push(`<section class="panel card"><h2>Validação e entendimento</h2><dl class="kv">
-    <dt>Entidades resolvidas</dt><dd>${(res.resolved ?? []).map((r) => `${esc(r.mention.name ?? r.mention.email)} <span class="small muted">(${esc(r.method)})</span>`).join(', ') || '—'}</dd>
-    <dt>Ambíguas / não resolvidas</dt><dd>${[...(res.ambiguous ?? []).map((a) => `${esc(a.mention.name)} (${a.candidateIds.length} candidatos)`), ...(res.unresolved ?? []).map((m) => esc(m.name ?? m.email))].join(', ') || '—'}</dd>
-    <dt>Urgência</dt><dd>${v.urgency ? `${Number(v.urgency.value).toFixed(2)} ${v.urgency.quotes.map((q) => `“${esc(q)}”`).join(' ')}` : '<span class="muted">não aplicável</span>'}</dd>
-    <dt>Conflitos</dt><dd>${(v.conflicts ?? []).map((c) => esc(c.description)).join('<br>') || '—'}</dd>
-    <dt>Lacunas</dt><dd>${(v.gaps ?? []).map(esc).join('<br>') || '—'}</dd>
-    <dt>Conclusão de compromisso</dt><dd>${esc(v.completion?.status ?? '—')}</dd>
-    <dt>Problemas detectados</dt><dd>${issues.map(esc).join('<br>') || '<span class="muted">nenhum</span>'}</dd>
-  </dl>${insight.understanding ? `<details><summary>Entendimento validado (JSON)</summary><pre>${esc(JSON.stringify(insight.understanding, null, 2))}</pre></details>` : ''}</section>`);
+  return `<div class="card logic" id="logic"><svg class="links" id="logicLinks"></svg><div class="lcols">${cols
+    .map(([title, list]) => `<div class="lcol"><h5>${title} · ${list.length}</h5>${list
+      .map((c) => `<div class="node ${c.kind === 'FACT' ? 'fact' : c.kind === 'RECOMMENDATION' ? 'rec' : ''}" data-ord="${c.ordinal}"><div class="k"><span>${esc(c.kind === 'FACT' ? c.evidence.map((e) => e.handle).join(' ') : c.label)}</span><span>${c.kind === 'FACT' ? 'fonte' : Number(c.confidence).toFixed(2)}</span></div>${esc((c.kind === 'FACT' ? c.statement.split('\n')[0] : c.statement).slice(0, 160))}</div>`)
+      .join('') || '<div class="note">—</div>'}</div>`)
+    .join('')}</div></div>
+    <div class="note" style="margin-top:8px">Cada linha liga uma afirmação ao que a sustenta. Fatos são gerados pelo código a partir dos registros; o resto vem do raciocínio e passou pela validação.</div>`;
+}
+function drawLogic() {
+  const box = document.getElementById('logic'), svg = document.getElementById('logicLinks');
+  if (!box || !svg || !logicData) return;
+  const b = box.getBoundingClientRect();
+  const pos = {};
+  box.querySelectorAll('.node').forEach((n) => { const r = n.getBoundingClientRect(); pos[n.dataset.ord] = { l: r.left - b.left, r: r.right - b.left, y: r.top - b.top + r.height / 2 }; });
+  let paths = '';
+  for (const c of logicData.claims) {
+    const to = pos[c.ordinal];
+    if (!to) continue;
+    for (const o of c.derived_from) {
+      const from = pos[o];
+      if (!from) continue;
+      const x1 = from.r, x2 = to.l, mx = (x1 + x2) / 2;
+      if (x2 <= x1) continue;
+      paths += `<path d="M${x1} ${from.y} C${mx} ${from.y}, ${mx} ${to.y}, ${x2} ${to.y}"/>`;
+    }
+  }
+  svg.innerHTML = paths;
+}
+window.addEventListener('resize', () => drawLogic());
 
-  out.push(`<section class="panel card"><h2>Ações · ${actions.length}</h2>${actions.length ? actions.map((a) => {
-    const last = a.versions?.[a.versions.length - 1];
-    return `<div class="evi"><div class="hd"><b>${esc(a.action_type)}</b><span class="badge ${a.state === 'VERIFIED' ? 'ok' : a.state === 'AWAITING_APPROVAL' ? 'warn' : ['FAILED', 'REJECTED', 'EXPIRED', 'CANCELLED'].includes(a.state) ? 'bad' : ''}">${esc(a.state)}</span>
-      <span class="small muted">nível ${esc(a.authorization_level)} · política ${esc(a.policy_decision?.mode)}${a.expires_at ? ` · expira ${esc(fmt(a.expires_at))}` : ''}</span></div>
-      <div class="tl">${(a.transitions ?? []).map((t) => `<span class="badge" title="${esc(t.reason ?? '')} · ${esc(fmt(t.at))}">${esc(t.to)} <span class="muted">· ${esc(t.actor)}</span></span>`).join('→')}</div>
-      ${a.execution ? `<div class="small" style="margin-top:6px">Execução: ${esc(a.execution.status)} via ${esc(a.execution.provider)} · ${esc(a.execution.attempts)} tentativa(s) · chave <code>${esc(a.execution.idempotency_key)}</code>
-        ${a.execution.verification ? `· verificação: ${a.execution.verification.contentMatches ? 'conteúdo confere' : 'NÃO confere'}${a.execution.verification.deliversExternally === false ? ' · <b>não entregue externamente (provider local)</b>' : ''}` : ''}</div>` : '<div class="small muted" style="margin-top:6px">Sem execução (não aprovada).</div>'}
-      ${last ? `<details><summary>conteúdo v${esc(last.version)} (${esc(last.author)})</summary><pre>${esc(JSON.stringify(last.content, null, 2))}</pre></details>` : ''}
-    </div>`;
-  }).join('') : '<div class="muted">Nenhuma ação proposta.</div>'}
-  ${memoriesWritten.length ? `<h2 style="margin-top:14px">Memórias escritas</h2>${memoriesWritten.map((m) => `<div class="evi"><span class="badge">${esc(m.kind)}</span> ${esc(m.content)} <span class="small muted">conf ${esc(m.confidence)}</span></div>`).join('')}` : ''}
-  </section>`);
-
-  out.push(`<section class="panel card"><h2>Chamadas ao modelo · ${calls.length}</h2>
-    <table><thead><tr><th>Etapa</th><th>Modelo</th><th>Respondido por</th><th>ID da API</th><th>Evidências enviadas</th><th>Tokens (in/out)</th><th></th></tr></thead><tbody>
-    ${calls.map((c) => `<tr><td>${esc(c.purpose)}</td><td>${c.model === 'TEST_DOUBLE' ? '<span class="badge warn">TEST_DOUBLE</span>' : esc(c.model)}</td><td>${esc(c.served_by_model ?? '—')}</td>
-      <td class="small">${esc(c.api_message_id ?? '—')}</td><td>${esc(c.evidence_sent)}</td>
-      <td>${c.usage ? `${esc(c.usage.input_tokens ?? '?')} / ${esc(c.usage.output_tokens ?? '?')}` : '—'}</td>
-      <td><button data-call="${esc(c.id)}">prompt e resposta</button></td></tr>
-      <tr class="callrow" id="call-${esc(c.id)}" hidden><td colspan="7"></td></tr>`).join('')}
-    </tbody></table></section>`);
-  return out.join('');
+function claimHtml(c, byOrd) {
+  const basis = c.derived_from.map((o) => byOrd[o]).filter((x) => x && x.kind === 'FACT');
+  return `<div class="claim"><div class="s">${esc(c.statement)}</div><div class="m">${conf(c.confidence)} (${Number(c.confidence).toFixed(2)})${basis.length ? ` · baseado em ${basis.length} fato(s)` : ''}</div>
+    ${basis.length ? `<div class="ev">${basis.map((b) => `<button data-ev="${esc(b.label)}">${esc(b.statement.split('\n')[0].slice(0, 70))}</button>`).join('')}</div>` : ''}</div>`;
+}
+function actionCard(a) {
+  const [sl, sc] = ACTION_STATE[a.state] ?? [a.state, 'grey'];
+  const c = a.content || {};
+  let body = '';
+  if (a.action_type === 'SEND_EMAIL') {
+    body = `<div class="small muted" style="margin-top:6px">Para ${esc((c.to || []).join(', '))}</div><div class="small"><b>${esc(c.subject)}</b></div><div class="mail">${esc(c.body)}</div>`;
+    if (a.state === 'AWAITING_APPROVAL')
+      body += `<div class="row-btns"><button class="btn primary" disabled title="Disponível depois do gate: API de aprovação com autenticação">Aprovar e enviar</button><button class="btn" disabled>Editar</button><button class="btn" disabled>Rejeitar</button></div><div class="note">Aprovar pela interface chega depois do gate (API com autenticação). Política: ${esc(a.policy_decision?.rule ?? '')}.</div>`;
+  } else if (a.action_type === 'PREPARE_BRIEFING') {
+    body = `<div class="brief-art">${(c.sections || []).map((s) => `<h5>${esc(s.heading)}</h5><ul>${(s.points || []).map((p) => `<li>${esc(p.text)}</li>`).join('')}</ul>`).join('')}</div>`;
+  }
+  const v = a.execution?.verification;
+  const verif = v ? `<div class="note">${v.contentMatches ? 'Verificado por leitura de volta' : 'Verificação falhou'} · ${esc(v.provider)}${v.deliversExternally === false ? ' (local — não entregue externamente)' : ''}</div>` : '';
+  return `<div class="action"><div class="h"><b>${esc(ACTION_NAME[a.action_type] ?? a.action_type)}${a.action_type === 'PREPARE_BRIEFING' && c.title ? ` · ${esc(c.title)}` : ''}</b><span class="pill ${sc}">${sl}</span></div>${body}${verif}</div>`;
 }
 
-function bindDetail() {
-  document.querySelectorAll('#detail .chip[data-ev]').forEach((ch) => (ch.onclick = () => {
-    const el = document.getElementById(`ev-${ch.dataset.ev}`);
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400);
+/* ---------- APROVAÇÕES ---------- */
+let approvalsFilter = 'all';
+async function viewApprovals() {
+  const rows = await api('/api/actions');
+  const groups = { all: rows, AWAITING_APPROVAL: rows.filter((r) => r.state === 'AWAITING_APPROVAL'), VERIFIED: rows.filter((r) => r.state === 'VERIFIED'), REJECTED: rows.filter((r) => r.state === 'REJECTED'), EXPIRED: rows.filter((r) => r.state === 'EXPIRED'), FAILED: rows.filter((r) => r.state === 'FAILED') };
+  $('#cAwait').textContent = groups.AWAITING_APPROVAL.length || '';
+  const names = { all: 'Todas', AWAITING_APPROVAL: 'Aguardando você', VERIFIED: 'Verificadas', REJECTED: 'Rejeitadas', EXPIRED: 'Expiradas', FAILED: 'Falhas' };
+  const list = groups[approvalsFilter] ?? rows;
+  let h = head('Aprovações', 'Tudo o que a Wendy preparou, e o que ainda depende de você');
+  h += `<div class="canvas"><div class="wrap">${sampleNotice()}<div class="card"><div class="toolbar"><div class="tabs">${Object.entries(names).map(([k, n]) => `<button data-filter="${k}" class="${approvalsFilter === k ? 'on' : ''}">${n}<span class="c">${groups[k].length}</span></button>`).join('')}</div><span class="muted small">${list.length} ações</span></div>`;
+  h += list.length
+    ? `<table><thead><tr><th style="width:150px">Estado</th><th>Ação</th><th>Para</th><th class="num">Criada</th></tr></thead><tbody>${list.map((a) => {
+        const [sl, sc] = ACTION_STATE[a.state] ?? [a.state, 'grey'];
+        return `<tr class="click ${a.state === 'AWAITING_APPROVAL' ? 'row-accent' : a.state === 'FAILED' ? 'row-accent bad' : ''}" data-href="#/insight/${esc(a.insight_id)}"><td><span class="pill ${sc}">${sl}</span></td>
+          <td><div class="ttl">${esc(ACTION_NAME[a.action_type] ?? a.action_type)}: ${esc(a.subject || a.title || '')}</div><div class="sub">${esc(a.insight_headline ?? '')}</div></td>
+          <td>${esc(a.recipients ? a.recipients.join(', ') : a.target ?? '—')}</td><td class="num muted">${fmtDay(a.created_at)}</td></tr>`;
+      }).join('')}</tbody></table>`
+    : `<div class="empty">${illo('slab', 150)}<h3>Nada aqui</h3>Nenhuma ação neste filtro.</div>`;
+  return h + '</div></div></div>';
+}
+
+/* ---------- ATIVIDADE ---------- */
+let activityFilter = 'all';
+async function viewActivity() {
+  const rows = await api('/api/activity');
+  const groups = { all: rows, SURFACED: rows.filter((r) => r.insight_status === 'SURFACED'), SUPPRESSED: rows.filter((r) => r.insight_status === 'SUPPRESSED'), REJECTED: rows.filter((r) => r.insight_status === 'REJECTED_BY_VALIDATION'), SKIPPED: rows.filter((r) => r.processing_status === 'SKIPPED'), FAILED: rows.filter((r) => r.processing_status === 'FAILED' || (r.processing_status === 'PENDING' && r.last_error)) };
+  const names = { all: 'Todos', SURFACED: 'Apresentados', SUPPRESSED: 'Sem interromper', REJECTED: 'Descartados', SKIPPED: 'Obsoletos', FAILED: 'Falhas' };
+  const list = groups[activityFilter] ?? rows;
+  let h = head('Atividade', 'Cada sinal que chegou e o que a Wendy fez com ele');
+  h += `<div class="canvas"><div class="wrap">${sampleNotice()}<div class="card"><div class="toolbar"><div class="tabs">${Object.entries(names).map(([k, n]) => `<button data-afilter="${k}" class="${activityFilter === k ? 'on' : ''}">${n}<span class="c">${groups[k].length}</span></button>`).join('')}</div></div>`;
+  h += list.length
+    ? `<table><thead><tr><th>Sinal</th><th>Resultado</th><th>Origem</th><th class="num">Prioridade</th><th class="num">Quando</th></tr></thead><tbody>${list.map((e) => {
+        const [tag, tcls] = EVENT_TAG[e.event_type] ?? [e.event_type, ''];
+        const res = e.insight_status === 'SURFACED' ? ['apresentado', 'mint'] : e.insight_status === 'SUPPRESSED' ? ['sem interromper', 'grey'] : e.insight_status === 'REJECTED_BY_VALIDATION' ? ['descartado', 'bad'] : e.processing_status === 'SKIPPED' ? ['obsoleto', 'grey'] : e.processing_status === 'FAILED' ? ['falhou', 'bad'] : [e.processing_status.toLowerCase(), 'warn'];
+        return `<tr class="${e.insight_id ? 'click' : ''}" ${e.insight_id ? `data-href="#/insight/${esc(e.insight_id)}"` : ''}><td><span class="tag ${tcls}">${esc(tag)}</span> <span class="ttl">${esc(e.headline ?? '')}</span>${!e.headline && e.last_error ? `<div class="sub">${esc(e.last_error)}</div>` : ''}</td>
+          <td><span class="pill ${res[1]}">${res[0]}</span></td><td class="muted small">${esc(e.origin === 'DETECTOR' ? 'detectado pela Wendy' : e.origin === 'DEV_FIXTURE' ? 'exemplo (dev)' : e.origin === 'PRINCIPAL' ? 'você' : e.origin)}</td>
+          <td class="num">${e.score != null ? e.score.toFixed(2) : '—'}</td><td class="num muted">${fmtDate(e.received_at)}</td></tr>`;
+      }).join('')}</tbody></table>`
+    : `<div class="empty">${illo('slab', 150)}<h3>Nenhum sinal</h3></div>`;
+  return h + '</div></div></div>';
+}
+
+
+/* ---------- ONTOLOGIA ---------- */
+const OTYPE = {
+  principal: { pt: 'Executivo', g: '<path d="M12 4l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 16.4 7.2 18.9l.9-5.4L4.2 9.7l5.4-.8z"/>' },
+  person: { pt: 'Pessoa', g: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5a7 7 0 0 1 14 0"/>' },
+  organization: { pt: 'Organização', g: '<path d="M5 20V6l7-3v17M12 9l7 3v8M8 9v.01M8 13v.01M8 17v.01M15.5 14v.01M15.5 17v.01M3 20h18"/>' },
+  meeting: { pt: 'Reunião', g: '<rect x="4" y="5.5" width="16" height="14" rx="1.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/>' },
+  commitment: { pt: 'Compromisso', g: '<rect x="4.5" y="4.5" width="15" height="15" rx="1.5"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/>' },
+  memory: { pt: 'Memória', g: '<path d="M7 4h10v16l-5-3.5L7 20z"/>' },
+  insight: { pt: 'Insight', g: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.3 6.3l2.5 2.5M15.2 15.2l2.5 2.5M6.3 17.7l2.5-2.5M15.2 8.8l2.5-2.5"/>' },
+};
+let onto = null;
+async function viewOntology() {
+  const g = await api('/api/ontology');
+  onto = { ...g, hidden: onto?.hidden ?? new Set(), sel: null };
+  const counts = {};
+  for (const n of g.nodes) counts[n.type] = (counts[n.type] ?? 0) + 1;
+  let h = head('Ontologia', 'O mundo do executivo como a Wendy o enxerga: objetos e ligações, direto dos registros');
+  h += `<div class="canvas" style="padding-top:18px"><div class="wrap" style="max-width:none">${sampleNotice()}`;
+  if (!g.nodes.length) return h + `<div class="card empty">${illo('nodes')}<h3>Nada na ontologia ainda</h3></div></div></div>`;
+  h += `<div class="onto" id="onto"><svg id="ontoSvg"></svg>
+    <div class="ofilters">${Object.entries(counts).map(([t, c]) => `<button data-otype="${t}" class="${onto.hidden.has(t) ? 'off' : ''}">${OTYPE[t]?.pt ?? t} · ${c}</button>`).join('')}</div>
+    <div class="ocard" id="ocard" hidden></div>
+    <div class="ohint">ARRASTE PARA MOVER · ROLE PARA ZOOM · CLIQUE EM UM OBJETO</div></div>`;
+  return h + '</div></div>';
+}
+function startOntology() {
+  const svg = document.getElementById('ontoSvg');
+  if (!svg || !onto) return;
+  const W = svg.clientWidth || 1000, H = svg.clientHeight || 640;
+  const nodes = onto.nodes.map((n) => ({ ...n }));
+  const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+  const edges = onto.edges.map((e) => ({ ...e, s: byId[e.source], t: byId[e.target] })).filter((e) => e.s && e.t);
+  const ring = { principal: 0, person: 1, organization: 2, meeting: 1.6, commitment: 1.7, memory: 2.1, insight: 1.9 };
+  nodes.forEach((n, i) => { const a = (i / nodes.length) * Math.PI * 2; const r = (ring[n.type] ?? 2) * Math.min(W, H) * 0.2; n.x = W / 2 + Math.cos(a) * r; n.y = H / 2 + Math.sin(a) * r; n.vx = 0; n.vy = 0; });
+  const center = nodes.find((n) => n.type === 'principal');
+  if (center) { center.x = W / 2; center.y = H / 2; center.fixed = true; }
+  for (let it = 0; it < 320; it++) {
+    const k = 1 - it / 320;
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j]; let dx = b.x - a.x, dy = b.y - a.y; const d2 = dx * dx + dy * dy + 0.01; const f = 5200 / d2; const d = Math.sqrt(d2);
+      dx /= d; dy /= d; a.vx -= dx * f; a.vy -= dy * f; b.vx += dx * f; b.vy += dy * f;
+    }
+    for (const e of edges) { let dx = e.t.x - e.s.x, dy = e.t.y - e.s.y; const d = Math.sqrt(dx * dx + dy * dy) || 1; const f = (d - 120) * 0.02; dx /= d; dy /= d; e.s.vx += dx * f; e.s.vy += dy * f; e.t.vx -= dx * f; e.t.vy -= dy * f; }
+    for (const n of nodes) { n.vx += (W / 2 - n.x) * 0.002; n.vy += (H / 2 - n.y) * 0.002; if (!n.fixed) { n.x += Math.max(-12, Math.min(12, n.vx)) * k; n.y += Math.max(-12, Math.min(12, n.vy)) * k; } n.vx *= 0.5; n.vy *= 0.5; }
+  }
+  let vb = { x: 0, y: 0, w: W, h: H };
+  const setVB = () => svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+  setVB();
+  const short = (t, n = 26) => (t.length > n ? t.slice(0, n - 1) + '…' : t);
+  function render() {
+    const vis = (n) => !onto.hidden.has(n.type);
+    const sel = onto.sel;
+    const nbr = new Set();
+    if (sel) for (const e of edges) { if (e.s.id === sel) nbr.add(e.t.id); if (e.t.id === sel) nbr.add(e.s.id); }
+    const fewEdges = edges.length <= 24;
+    let out = '<g>';
+    for (const e of edges) {
+      if (!vis(e.s) || !vis(e.t)) continue;
+      const hi = sel && (e.s.id === sel || e.t.id === sel);
+      out += `<line class="edge ${hi ? 'hi' : ''}" x1="${e.s.x}" y1="${e.s.y}" x2="${e.t.x}" y2="${e.t.y}"/>`;
+    }
+    for (const e of edges) {
+      if (!vis(e.s) || !vis(e.t)) continue;
+      const hi = sel && (e.s.id === sel || e.t.id === sel);
+      const mx = (e.s.x + e.t.x) / 2, my = (e.s.y + e.t.y) / 2, w = e.label.length * 6.2 + 14;
+      out += `<g class="elabel ${hi || (!sel && fewEdges) ? 'show' : ''}" transform="translate(${mx},${my})"><rect x="${-w / 2}" y="-9" width="${w}" height="18" rx="9"/><text text-anchor="middle" y="3.5">${esc(e.label)}</text></g>`;
+    }
+    for (const n of nodes) {
+      if (!vis(n)) continue;
+      const r = n.type === 'principal' ? 22 : 17;
+      const dim = sel && n.id !== sel && !nbr.has(n.id);
+      out += `<g class="n ${n.type} ${n.id === sel ? 'sel' : ''} ${dim ? 'dim' : ''}" data-id="${esc(n.id)}" transform="translate(${n.x},${n.y})">
+        <circle class="o" r="${r}"/><g class="glyph" transform="translate(-9,-9) scale(.75)">${OTYPE[n.type]?.g ?? ''}</g>
+        <text text-anchor="middle" y="${r + 14}">${esc(short(n.label))}</text></g>`;
+    }
+    svg.innerHTML = out + '</g>';
+  }
+  function showCard(n) {
+    const card = document.getElementById('ocard');
+    if (!n) { card.hidden = true; return; }
+    const idx = nodes.filter((x) => x.type === n.type).indexOf(n) + 1;
+    const fmt = (v) => (v == null || v === '' ? '—' : typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(2)) : /^\d{4}-\d{2}-\d{2}T/.test(String(v)) ? fmtDate(v) : String(v));
+    const raw = n.id.split(':')[1];
+    const link = n.type === 'insight' ? `#/insight/${raw}` : n.type === 'person' ? `#/pessoas/${raw}` : null;
+    card.innerHTML = `<div class="h"><span>${esc(OTYPE[n.type]?.pt ?? n.type)} №${String(idx).padStart(2, '0')}</span><a href="#/ontologia" id="ocardX">×</a></div>
+      <div class="t">${esc(n.label)}</div>
+      ${Object.entries(n.props).map(([k, v]) => `<div class="row"><span>${esc(k)}</span><span title="${esc(fmt(v))}">${esc(fmt(v))}</span></div>`).join('')}
+      <div class="row"><span>ligações</span><span>${edges.filter((e) => e.s === n || e.t === n).length}</span></div>
+      ${link ? `<div class="row-btns"><a class="btn mint" href="${link}">Abrir ${ICON.arrow}</a></div>` : ''}`;
+    card.hidden = false;
+    document.getElementById('ocardX').onclick = (ev) => { ev.preventDefault(); onto.sel = null; showCard(null); render(); };
+  }
+  render();
+  // interactions: pan, zoom, drag node, select
+  let drag = null;
+  const pt = (ev) => { const r = svg.getBoundingClientRect(); return { x: vb.x + ((ev.clientX - r.left) / r.width) * vb.w, y: vb.y + ((ev.clientY - r.top) / r.height) * vb.h }; };
+  svg.onmousedown = (ev) => {
+    const g = ev.target.closest('.n');
+    drag = g ? { node: byId[g.dataset.id], moved: false } : { pan: true, sx: ev.clientX, sy: ev.clientY, vb: { ...vb }, moved: false };
+  };
+  window.onmousemove = (ev) => {
+    if (!drag) return;
+    drag.moved = true;
+    if (drag.node) { const p = pt(ev); drag.node.x = p.x; drag.node.y = p.y; render(); }
+    else { const r = svg.getBoundingClientRect(); vb.x = drag.vb.x - ((ev.clientX - drag.sx) / r.width) * vb.w; vb.y = drag.vb.y - ((ev.clientY - drag.sy) / r.height) * vb.h; setVB(); }
+  };
+  window.onmouseup = () => {
+    if (drag && !drag.moved) { if (drag.node) { onto.sel = onto.sel === drag.node.id ? null : drag.node.id; showCard(onto.sel ? drag.node : null); } else { onto.sel = null; showCard(null); } render(); }
+    drag = null;
+  };
+  svg.onwheel = (ev) => { ev.preventDefault(); const p = pt(ev); const f = ev.deltaY > 0 ? 1.1 : 0.9; vb = { x: p.x - (p.x - vb.x) * f, y: p.y - (p.y - vb.y) * f, w: vb.w * f, h: vb.h * f }; setVB(); };
+  document.querySelectorAll('[data-otype]').forEach((b) => (b.onclick = () => { const t = b.dataset.otype; onto.hidden.has(t) ? onto.hidden.delete(t) : onto.hidden.add(t); b.classList.toggle('off'); render(); }));
+}
+
+/* ---------- PESSOAS ---------- */
+async function viewPeople(selectedId) {
+  const { people, memories } = await api('/api/people');
+  const sel = people.find((p) => p.id === selectedId) ?? people[0];
+  let h = head('Pessoas e memória', 'Quem importa, como está a relação e o que a Wendy lembra — com a fonte de cada memória');
+  h += `<div class="canvas"><div class="wrap">${sampleNotice()}`;
+  const principalMem = memories.filter((m) => !m.subject_person_id);
+  h += `<div class="kpis" style="margin-top:0"><div class="kpi"><div class="v">${people.length}</div><div class="l">pessoas</div></div><div class="kpi"><div class="v">${people.filter((p) => p.explicit_importance >= 0.7).length}</div><div class="l">importantes</div><div class="s">definidas por você</div></div><div class="kpi"><div class="v">${memories.length}</div><div class="l">memórias</div><div class="s">${memories.filter((m) => m.written_by === 'WENDY').length} aprendidas pela Wendy</div></div><div class="kpi"><div class="v">${people.reduce((s, p) => s + p.open_commitments, 0)}</div><div class="l">compromissos abertos</div></div></div>`;
+  if (!people.length) return h + `<div class="card empty">${illo('nodes', 150)}<h3>Nenhuma pessoa ainda</h3></div></div></div>`;
+  h += `<div class="split"><div class="card plist">${people.map((p) => `<a class="p ${p.id === sel.id ? 'on' : ''}" href="#/pessoas/${esc(p.id)}"><div class="ttl">${esc(p.full_name)}</div><div class="sub">${esc([p.title, p.organization].filter(Boolean).join(' · ') || p.emails || '')}</div></a>`).join('')}</div><div class="card" style="padding:18px 22px">`;
+  const mine = memories.filter((m) => m.subject_person_id === sel.id);
+  h += `<div class="eyebrow">${esc(sel.relationship ? (REL_PT[sel.relationship] ?? sel.relationship) : 'sem relação registrada')}</div><h2 style="margin:4px 0 2px;font-size:20px">${esc(sel.full_name)}</h2><div class="muted">${esc([sel.title, sel.organization, sel.emails].filter(Boolean).join(' · '))}</div>
+    <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin:16px 0"><div class="kpi"><div class="v" style="font-size:22px">${sel.explicit_importance != null ? Number(sel.explicit_importance).toFixed(2) : '—'}</div><div class="s">importância (sua)</div></div><div class="kpi"><div class="v" style="font-size:22px">${sel.interactions_90d}</div><div class="s">interações · 90 dias</div></div><div class="kpi"><div class="v" style="font-size:22px">${sel.last_interaction ? fmtDay(sel.last_interaction) : '—'}</div><div class="s">última interação</div></div><div class="kpi"><div class="v" style="font-size:22px">${sel.birthdate ? fmtDay(sel.birthdate + 'T12:00:00') : '—'}</div><div class="s">aniversário</div></div></div>`;
+  h += `<div class="eyebrow" style="margin-top:6px">O que a Wendy lembra</div>`;
+  h += mine.length ? mine.map(memRow).join('') : '<div class="empty-line">Nenhuma memória sobre esta pessoa ainda.</div>';
+  if (principalMem.length) h += `<div class="eyebrow" style="margin-top:20px">Suas preferências gerais</div>${principalMem.map(memRow).join('')}`;
+  return h + `<div class="note" style="margin-top:14px">Fonte do registro: ${esc(sel.source)}</div></div></div></div></div>`;
+}
+function memRow(m) {
+  const who = m.written_by === 'WENDY' ? 'aprendida pela Wendy' : m.written_by === 'PRINCIPAL' ? 'dita por você' : 'registro do sistema';
+  return `<div class="claim" style="padding:10px 0;border-bottom:1px solid var(--line-2)"><div class="s">${esc(m.content)}</div><div class="m">${esc(m.kind.toLowerCase())} · ${who} · confiança ${Number(m.confidence).toFixed(2)} · ${fmtDay(m.created_at)}${m.status !== 'ACTIVE' ? ` · ${esc(m.status)}` : ''}${(m.evidence || []).length ? ` · ${m.evidence.length} fonte(s)` : ' · sem fonte registrada'}</div></div>`;
+}
+
+/* ---------- INTEGRAÇÕES ---------- */
+function viewIntegrations() {
+  const planned = [
+    ['Gmail', 'Ler e-mails para entender pessoas, pedidos e urgência', ICON.mail, 'Planejado · fase de sensores'],
+    ['Google Calendar', 'Reuniões, participantes e preparação', ICON.cal, 'Planejado · fase de sensores'],
+    ['Google Contacts', 'Pessoas, aniversários e organizações', ICON.user, 'Planejado'],
+    ['Google Drive', 'Documentos citados nas conversas', ICON.doc, 'Planejado'],
+    ['Slack', 'Conversas de trabalho', ICON.chat, 'Depois'],
+    ['WhatsApp', 'Conversas pessoais e de negócio', ICON.chat, 'Depois'],
+  ];
+  let h = head('Integrações', 'Os sensores do mundo da Wendy');
+  h += `<div class="canvas"><div class="wrap narrow">`;
+  h += `<div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-top:0"><div class="kpi"><div class="v">0</div><div class="l">fontes reais conectadas</div></div><div class="kpi"><div class="v">2</div><div class="l">fontes locais de desenvolvimento</div></div><div class="kpi"><div class="v" style="font-size:16px;padding-top:10px">Somente leitura</div><div class="l">nenhum envio externo</div></div></div>`;
+  h += `<div class="section-title"><h2>Conectado agora</h2></div><div class="grid3" style="margin-bottom:28px">
+    <div class="card tile"><div class="ic">${ICON.inbox}</div><h3>Caixa de entrada de exemplo</h3><p>E-mails, reuniões e compromissos de fixtures rotuladas (DEV_FIXTURE).</p><span class="pill grey">desenvolvimento</span></div>
+    <div class="card tile"><div class="ic">${ICON.box}</div><h3>Caixa de saída local</h3><p>E-mails aprovados ficam aqui. <b>Nada é entregue a ninguém.</b></p><span class="pill grey">desenvolvimento</span></div>
+    <div class="card tile"><div class="ic">${ICON.bolt}</div><h3>Claude</h3><p>Raciocínio da Wendy (claude-opus-5-5). Bloqueado: organização sem saldo de API.</p><span class="pill warn">aguardando saldo de API</span></div></div>`;
+  h += `<div class="section-title"><h2>Próximos sensores</h2><span class="muted small">Só depois do Cognitive Core aprovado com o Claude real</span></div><div class="grid3">${planned.map(([n, d, ic, s]) => `<div class="card tile locked"><div class="ic">${ic}</div><h3>${n}</h3><p>${d}</p><span class="pill grey">${s}</span></div>`).join('')}</div>`;
+  return h + '</div></div>';
+}
+
+/* ---------- AUDITORIA ---------- */
+async function viewAudit() {
+  const [led, calls] = await Promise.all([api('/api/ledger'), api('/api/model-calls')]);
+  const real = calls.filter((c) => c.model !== 'TEST_DOUBLE').length;
+  let h = head('Auditoria', 'Integridade do registro, chamadas ao modelo e raciocínio técnico', `<a class="btn" href="/tecnico#schema=${esc(state.schema)}">Visão técnica completa ${ICON.arrow}</a>`);
+  h += `<div class="canvas"><div class="wrap">`;
+  h += `<div class="kpis" style="margin-top:0"><div class="kpi"><div class="v" style="color:${led.integrity.valid ? 'var(--mint)' : 'var(--bad)'}">${led.integrity.valid ? 'Íntegro' : 'Falha'}</div><div class="l">ledger de auditoria</div><div class="s">${led.integrity.valid ? `${led.integrity.blockCount} blocos verificados` : esc(led.integrity.error)}</div></div>
+    <div class="kpi"><div class="v">${calls.length}</div><div class="l">chamadas ao modelo</div><div class="s">${real} reais · ${calls.length - real} substituto de teste</div></div>
+    <div class="kpi"><div class="v">${calls.filter((c) => c.error).length}</div><div class="l">chamadas com erro</div></div>
+    <div class="kpi"><div class="v">${calls.reduce((s, c) => s + (c.usage?.input_tokens ?? 0) + (c.usage?.output_tokens ?? 0), 0).toLocaleString('pt-BR')}</div><div class="l">tokens usados</div><div class="s">somente chamadas reais</div></div></div>`;
+  h += `<div class="card" style="margin-bottom:22px"><div class="toolbar"><b>Chamadas ao modelo</b></div>${calls.length ? `<table><thead><tr><th>Etapa</th><th>Modelo</th><th>ID da API</th><th class="num">Evidências enviadas</th><th class="num">Quando</th></tr></thead><tbody>${calls.slice(0, 50).map((c) => `<tr><td>${esc(c.purpose)}</td><td>${c.model === 'TEST_DOUBLE' ? '<span class="pill warn">substituto de teste</span>' : esc(c.served_by_model || c.model)}${c.error ? ` <span class="pill bad">erro</span>` : ''}</td><td class="mono muted">${esc(c.api_message_id ?? '—')}</td><td class="num">${esc(c.evidence_sent)}</td><td class="num muted">${fmtDate(c.started_at)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Nenhuma chamada.</div>'}</div>`;
+  h += `<div class="card"><div class="toolbar"><b>Ledger · últimos blocos</b><span class="muted small">cada mudança de estado relevante, encadeada por hash</span></div><table><thead><tr><th class="num" style="width:60px">#</th><th>Evento</th><th>Ator</th><th>Hash</th><th class="num">Quando</th></tr></thead><tbody>${led.blocks.slice(0, 40).map((b) => `<tr><td class="num muted">${b.seq}</td><td>${esc(b.event_type)}</td><td class="muted">${esc(b.actor)}</td><td class="mono muted">${esc(b.hash.slice(0, 16))}…</td><td class="num muted">${fmtDate(b.at)}</td></tr>`).join('')}</tbody></table></div>`;
+  return h + '</div></div>';
+}
+
+function bind() {
+  document.querySelectorAll('[data-iview]').forEach((b) => (b.onclick = () => { insightView = insightView === b.dataset.iview ? 'summary' : b.dataset.iview; route(); }));
+  document.querySelectorAll('[data-filter]').forEach((b) => (b.onclick = () => { approvalsFilter = b.dataset.filter; route(); }));
+  document.querySelectorAll('[data-afilter]').forEach((b) => (b.onclick = () => { activityFilter = b.dataset.afilter; route(); }));
+  document.querySelectorAll('tr[data-href]').forEach((tr) => (tr.onclick = () => (location.hash = tr.dataset.href)));
+  const box = $('#evbox');
+  document.querySelectorAll('[data-ev]').forEach((b) => (b.onclick = () => {
+    const f = evidenceIndex[b.dataset.ev];
+    if (!f || !box) return;
+    const same = box.dataset.cur === b.dataset.ev && box.classList.contains('show');
+    box.classList.toggle('show', !same);
+    box.dataset.cur = b.dataset.ev;
+    box.textContent = f.statement;
+    if (!same) box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }));
-  document.querySelectorAll('#detail button[data-call]').forEach((b) => (b.onclick = async () => {
-    const row = document.getElementById(`call-${b.dataset.call}`);
-    if (!row.hidden) { row.hidden = true; return; }
-    const c = await api('/api/model-call', { id: b.dataset.call });
-    row.firstElementChild.innerHTML = `${c.input?.system ? `<div class="small muted">System</div><pre>${esc(c.input.system)}</pre>` : ''}
-      <div class="small muted" style="margin-top:8px">Mensagem enviada (contexto real recuperado)</div><pre>${esc(c.input?.user ?? '')}</pre>
-      <div class="small muted" style="margin-top:8px">Resposta${c.error ? ` · erro: ${esc(c.error)}` : ''}</div><pre>${esc(JSON.stringify(c.output, null, 2))}</pre>`;
-    row.hidden = false;
-  }));
 }
 
-async function showLedger() {
-  const { integrity, blocks } = await api('/api/ledger');
-  document.querySelectorAll('.ev').forEach((el) => el.classList.remove('sel'));
-  $('#detail').innerHTML = `<section class="panel card"><h2>Ledger de auditoria</h2>
-    <p><span class="badge ${integrity.valid ? 'ok' : 'bad'}">${integrity.valid ? `íntegro · ${integrity.blockCount} blocos verificados do gênese à cabeça` : `COMPROMETIDO: ${esc(integrity.error)}`}</span></p>
-    <table><thead><tr><th>#</th><th>Quando</th><th>Evento</th><th>Ator</th><th>Sujeito</th><th>Hash</th></tr></thead><tbody>
-    ${blocks.map((b) => `<tr><td>${esc(b.seq)}</td><td class="small">${esc(fmt(b.at))}</td><td>${esc(b.event_type)}</td><td>${esc(b.actor)}</td><td class="small">${esc(b.subject_type)} ${esc(b.subject_id.slice(0, 8))}</td><td class="small"><code>${esc(b.hash.slice(0, 16))}…</code></td></tr>`).join('')}
-    </tbody></table></section>`;
-}
-
-init().catch((e) => { $('#events').innerHTML = `<div class="empty">Erro: ${esc(e.message)}</div>`; });
+boot().catch((e) => ($('#main').innerHTML = `<div class="canvas"><div class="card empty"><h3>Erro</h3>${esc(e.message)}</div></div>`));
 </script>
 </body>
 </html>

@@ -15,11 +15,13 @@ import pg from 'pg';
 import { verifyLedgerIntegrity } from '../src/audit/ledger.js';
 import { loadEnv } from '../src/config.js';
 import '../src/db/db.js'; // registers pg type parsers
+import { activity, actionsList, insightDetail, modelCalls, ontology, people, principals, today } from './views.js';
 
 loadEnv();
 const DB_URL = process.env.INSPECT_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres:///wendy';
 const PORT = Number(process.env.INSPECT_PORT ?? 3457);
 const PAGE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'index.html');
+const TECH_PAGE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'technical.html');
 const SCHEMA_RE = /^[a-z_][a-z0-9_]{0,62}$/;
 
 const pools = new Map<string, pg.Pool>();
@@ -163,15 +165,29 @@ http
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
         return res.end(fs.readFileSync(PAGE));
       }
+      if (url.pathname === '/tecnico') {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(fs.readFileSync(TECH_PAGE));
+      }
       if (url.pathname === '/api/schemas') return send(res, 200, { database: DB_URL.replace(/\/\/[^@]*@/, '//'), schemas: await listSchemas() });
       const schema = await schemaGuard(url.searchParams.get('schema'));
       const db = poolFor(schema);
       const id = url.searchParams.get('id') ?? '';
+      const principal = url.searchParams.get('principal');
+      if (principal && !UUID_RE.test(principal)) return send(res, 400, { error: 'invalid principal' });
       if (url.pathname === '/api/overview') return send(res, 200, await overview(db));
+      if (url.pathname === '/api/principals') return send(res, 200, await principals(db));
+      if (url.pathname === '/api/today') return send(res, 200, await today(db, principal));
+      if (url.pathname === '/api/actions') return send(res, 200, await actionsList(db, principal));
+      if (url.pathname === '/api/activity') return send(res, 200, await activity(db, principal));
+      if (url.pathname === '/api/people') return send(res, 200, await people(db, principal));
+      if (url.pathname === '/api/model-calls') return send(res, 200, await modelCalls(db, principal));
+      if (url.pathname === '/api/ontology') return send(res, 200, await ontology(db, principal));
       if (url.pathname === '/api/ledger') return send(res, 200, await ledger(db));
       if (!UUID_RE.test(id)) return send(res, 400, { error: 'invalid id' });
       if (url.pathname === '/api/event') return send(res, 200, await eventDetail(db, id));
       if (url.pathname === '/api/model-call') return send(res, 200, await modelCall(db, id));
+      if (url.pathname === '/api/insight') return send(res, 200, await insightDetail(db, id));
       send(res, 404, { error: 'not found' });
     } catch (err) {
       const e = err as Error & { status?: number };

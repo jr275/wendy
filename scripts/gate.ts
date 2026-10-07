@@ -10,6 +10,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { loadEnv, MODELS } from '../src/config.js';
+import { claudeProvider, createClaudeClient } from '../src/cognition/llm.js';
 
 loadEnv();
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -18,9 +19,10 @@ const outFile = `gate-results/${stamp}.md`;
 const lines: string[] = [`# Gate run ${new Date().toISOString()}`, ''];
 const write = () => fs.writeFileSync(outFile, lines.join('\n') + '\n');
 
-const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
-const client = new Anthropic(workspaceId ? { defaultHeaders: { 'anthropic-workspace-id': workspaceId } } : {});
+const provider = claudeProvider();
+lines.push(`Provider: **${provider}**${provider === 'vertex' ? ` (project ${process.env.GOOGLE_CLOUD_PROJECT ?? '?'}, region ${process.env.CLOUD_ML_REGION ?? 'global'})` : ''}`, '');
 try {
+  const client = createClaudeClient(provider);
   const r = await client.messages.create({ model: MODELS.reasoning, max_tokens: 5, messages: [{ role: 'user', content: 'ok' }] });
   lines.push(`## Preflight: OK (${r.model}, ${r.id})`, '');
 } catch (e) {

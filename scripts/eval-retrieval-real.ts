@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import { parseArgs } from 'node:util';
 import { readOnlyPool } from '../inspector/readOnlyPool.js';
-import { ClaudeReasoningClient } from '../src/cognition/llm.js';
+import { ClaudeReasoningClient, hasClaudeCredentials } from '../src/cognition/llm.js';
 import { databaseUrl, loadEnv } from '../src/config.js';
 import { createPool } from '../src/db/db.js';
 import { RealCasesSchema, runRealRetrievalEval } from '../src/eval/realRetrievalEval.js';
@@ -22,7 +22,7 @@ const fail = (m: string, code = 1): never => {
 };
 if (!a['principal-email']) fail('✗ informe --principal-email');
 if (!fs.existsSync(a.cases!)) fail(`✗ arquivo de perguntas não encontrado: ${a.cases} (copie config/retrieval-cases.example.json)`);
-if (a.claude && !process.env.ANTHROPIC_API_KEY) fail('BLOCKED: --claude requires ANTHROPIC_API_KEY. Nothing was simulated.', 2);
+if (a.claude && !hasClaudeCredentials()) fail('BLOCKED: --claude requires ANTHROPIC_API_KEY. Nothing was simulated.', 2);
 const cases = RealCasesSchema.parse(JSON.parse(fs.readFileSync(a.cases!, 'utf8')));
 
 const ro = readOnlyPool(databaseUrl(), null);

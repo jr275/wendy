@@ -4,7 +4,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { answerQuestion } from '../../src/cognition/ask.js';
-import { ClaudeReasoningClient } from '../../src/cognition/llm.js';
+import { ClaudeReasoningClient, hasClaudeCredentials } from '../../src/cognition/llm.js';
 import { loadEnv } from '../../src/config.js';
 import { verifyLedgerIntegrity } from '../../src/audit/ledger.js';
 import type { Db } from '../../src/db/db.js';
@@ -26,7 +26,7 @@ const NOW = new Date();
 const liveContext = (pool: Db = db): WendyContext => createContext({ db: pool, reasoner: new ClaudeReasoningClient(pool), clock: systemClock, emailProvider: new DevMailboxProvider(pool) });
 
 beforeAll(async () => {
-  if (!process.env.ANTHROPIC_API_KEY) throw new Error('LIVE TESTS REQUIRE ANTHROPIC_API_KEY (.env). They are not skipped silently.');
+  if (!hasClaudeCredentials()) throw new Error('LIVE TESTS REQUIRE Claude credentials (.env): ANTHROPIC_API_KEY, or CLAUDE_PROVIDER=vertex + GOOGLE_CLOUD_PROJECT. They are not skipped silently.');
   t = await createTestDb();
   db = t.db;
 });

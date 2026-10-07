@@ -10,14 +10,14 @@
  * it never substitutes simulated terms.
  */
 import fs from 'node:fs';
-import { ClaudeReasoningClient } from '../src/cognition/llm.js';
+import { ClaudeReasoningClient, hasClaudeCredentials } from '../src/cognition/llm.js';
 import { loadEnv } from '../src/config.js';
 import { runRetrievalEval, type EvalSummary } from '../src/eval/retrievalEval.js';
 import { createTestDb } from '../tests/helpers/db.js';
 
 loadEnv();
 const withClaude = process.argv.includes('--claude');
-if (withClaude && !process.env.ANTHROPIC_API_KEY) {
+if (withClaude && !hasClaudeCredentials()) {
   console.error('BLOCKED: --claude requires ANTHROPIC_API_KEY (.env). Nothing was simulated.');
   process.exit(2);
 }

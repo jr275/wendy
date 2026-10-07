@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { AnthropicVertex } from '@anthropic-ai/vertex-sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import type { z } from 'zod';
 import { MODELS, PROMPT_VERSION } from '../config.js';
@@ -73,21 +74,54 @@ export async function finishModelCall(
 }
 
 /**
- * Claude via the Anthropic SDK with structured outputs (schema-validated JSON).
- * Server-side refusal fallback is enabled ("default" routing); if the whole chain refuses,
- * or the output does not parse, the call fails — nothing is invented to fill the gap.
+ * Where Claude is reached. Same model, same request; only authentication and billing differ.
+ *   CLAUDE_PROVIDER=anthropic (default)  Claude API, ANTHROPIC_API_KEY (+ optional ANTHROPIC_WORKSPACE_ID)
+ *   CLAUDE_PROVIDER=vertex               Claude on Google Cloud Vertex AI, billed to the GCP project;
+ *                                        auth via Application Default Credentials (gcloud),
+ *                                        GOOGLE_CLOUD_PROJECT (required), CLOUD_ML_REGION (default "global")
+ */
+export type ClaudeProvider = 'anthropic' | 'vertex';
+type ClaudeClient = Pick<Anthropic, 'beta' | 'messages'>;
+
+export function claudeProvider(): ClaudeProvider {
+  const p = (process.env.CLAUDE_PROVIDER ?? 'anthropic').toLowerCase();
+  if (p !== 'anthropic' && p !== 'vertex') throw new Error(`CLAUDE_PROVIDER must be "anthropic" or "vertex" (got "${p}")`);
+  return p;
+}
+
+/** Whether credentials for the configured provider are present (not whether they work). */
+export function hasClaudeCredentials(): boolean {
+  return claudeProvider() === 'vertex' ? !!process.env.GOOGLE_CLOUD_PROJECT : !!process.env.ANTHROPIC_API_KEY;
+}
+
+export function createClaudeClient(provider: ClaudeProvider = claudeProvider()): ClaudeClient {
+  if (provider === 'vertex') {
+    const projectId = process.env.GOOGLE_CLOUD_PROJECT;
+    if (!projectId) throw new Error('CLAUDE_PROVIDER=vertex requires GOOGLE_CLOUD_PROJECT');
+    return new AnthropicVertex({ projectId, region: process.env.CLOUD_ML_REGION ?? 'global' }) as unknown as ClaudeClient;
+  }
+  // Keys not scoped to a workspace must name one via this header (same env var name the SDK uses for profiles).
+  const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
+  return new Anthropic(workspaceId ? { defaultHeaders: { 'anthropic-workspace-id': workspaceId } } : {});
+}
+
+/**
+ * Claude with structured outputs (schema-validated JSON).
+ * On the Claude API, server-side refusal fallback is enabled ("default" routing). Vertex AI has no
+ * server-side fallback: a refusal there is recorded and the call fails. In every case, if the model
+ * refuses or the output does not parse, nothing is invented to fill the gap.
  */
 export class ClaudeReasoningClient implements ReasoningClient {
-  private readonly client: Anthropic;
+  private readonly client: ClaudeClient;
+  private readonly provider: ClaudeProvider;
 
   constructor(
     private readonly db: Db,
-    opts: { client?: Anthropic; model?: string } = {},
+    opts: { client?: Anthropic; model?: string; provider?: ClaudeProvider } = {},
     private readonly model: string = opts.model ?? MODELS.reasoning,
   ) {
-    // Keys not scoped to a workspace must name one via this header (same env var name the SDK uses for profiles).
-    const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
-    this.client = opts.client ?? new Anthropic(workspaceId ? { defaultHeaders: { 'anthropic-workspace-id': workspaceId } } : {});
+    this.provider = opts.provider ?? claudeProvider();
+    this.client = opts.client ?? createClaudeClient(this.provider);
   }
 
   async generate<T>(req: ReasoningRequest<T>): Promise<ReasoningResult<T>> {
@@ -97,7 +131,7 @@ export class ClaudeReasoningClient implements ReasoningClient {
       principalId: req.principalId,
       purpose: req.purpose,
       model: this.model,
-      input: { system: req.system, user: req.user, effort: req.effort },
+      input: { system: req.system, user: req.user, effort: req.effort, provider: this.provider },
       evidenceRefs: req.evidenceRefs,
       startedAt: new Date(),
     });
@@ -106,8 +140,7 @@ export class ClaudeReasoningClient implements ReasoningClient {
       const response = await this.client.beta.messages.parse({
         model: this.model,
         max_tokens: 16000,
-        betas: ['server-side-fallback-2026-07-01'],
-        fallbacks: 'default',
+        ...(this.provider === 'anthropic' ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
         thinking: { type: 'adaptive' },
         output_config: { effort: req.effort, format: betaZodOutputFormat(req.schema) },
         system: [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }],

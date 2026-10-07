@@ -309,6 +309,7 @@
     <div class="navlabel">Operação</div>
     <nav id="nav">
       <a href="#/hoje" data-r="hoje"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Hoje</a>
+      <a href="#/radar" data-r="radar"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12l6-6"/></svg>Radar · 7 dias</a>
       <a href="#/aprovacoes" data-r="aprovacoes"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Aprovações<span class="count" id="cAwait"></span></a>
       <a href="#/atividade" data-r="atividade"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Atividade</a>
       <a href="#/ontologia" data-r="ontologia"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><circle cx="4.5" cy="6" r="2"/><circle cx="19.5" cy="6" r="2"/><circle cx="4.5" cy="18" r="2"/><circle cx="19.5" cy="18" r="2"/><path d="M6.3 7l3.6 3.4M17.7 7l-3.6 3.4M6.3 17l3.6-3.4M17.7 17l-3.6-3.4"/></svg>Ontologia</a>
@@ -480,6 +481,7 @@ async function route(keepScroll = false) {
   try {
     if (r === 'insight' && id) main.innerHTML = await viewInsight(id);
     else if (r === 'aprovacoes') main.innerHTML = await viewApprovals();
+    else if (r === 'radar') main.innerHTML = await viewRadar();
     else if (r === 'atividade') main.innerHTML = await viewActivity();
     else if (r === 'pessoas') main.innerHTML = await viewPeople(id);
     else if (r === 'ontologia') { main.innerHTML = await viewOntology(); }
@@ -694,6 +696,51 @@ function actionCard(a) {
   const v = a.execution?.verification;
   const verif = v ? `<div class="note">${v.contentMatches ? 'Verificado por leitura de volta' : 'Verificação falhou'} · ${esc(v.provider)}${v.deliversExternally === false ? ' (local — não entregue externamente)' : ''}</div>` : '';
   return `<div class="action"><div class="h"><b>${esc(ACTION_NAME[a.action_type] ?? a.action_type)}${a.action_type === 'PREPARE_BRIEFING' && c.title ? ` · ${esc(c.title)}` : ''}</b><span class="pill ${sc}">${sl}</span></div>${body}${verif}</div>`;
+}
+
+/* ---------- RADAR ---------- */
+async function viewRadar() {
+  const d = await api('/api/radar');
+  if (!d.principal) return head('Radar', '') + '<div class="canvas"><div class="card empty"><h3>Sem executivo</h3></div></div>';
+  const tz = d.principal.timezone;
+  const time = (iso) => new Date(iso).toLocaleTimeString('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+  const dayLabel = (key) => {
+    const diff = Math.round((Date.parse(key + 'T12:00:00Z') - Date.parse(d.today + 'T12:00:00Z')) / 86400000);
+    const long = new Date(key + 'T12:00:00Z').toLocaleDateString('pt-BR', { timeZone: 'UTC', weekday: 'long', day: '2-digit', month: 'long' });
+    return diff === 0 ? `Hoje · ${long}` : diff === 1 ? `Amanhã · ${long}` : long.charAt(0).toUpperCase() + long.slice(1);
+  };
+  const TREND = { UP: 'contato aumentando', DOWN: 'contato diminuindo', STABLE: 'contato estável', NEW: 'contato recente', NONE: 'sem troca de mensagens' };
+  const personLine = (p) => {
+    if (!p || !p.id) return `<span class="chip">${esc(p?.address ?? 'convidado')}</span>`;
+    const bits = [
+      p.explicit_importance != null ? `importância ${Number(p.explicit_importance).toFixed(2)}` : null,
+      p.daysSinceContact == null ? 'nunca trocaram mensagens' : p.daysSinceContact === 0 ? 'falaram hoje' : `último contato há ${p.daysSinceContact} dias`,
+      TREND[p.trend] ?? null,
+      p.open_commitments ? `${p.open_commitments} compromisso(s) aberto(s)` : null,
+      p.awaiting_actions ? `${p.awaiting_actions} aprovação(ões) pendente(s)` : null,
+    ].filter(Boolean);
+    return `<div class="small" style="margin-top:4px"><a href="#/pessoas/${esc(p.id)}"><b>${esc(p.full_name)}</b></a> <span class="muted">· ${esc(bits.join(' · '))}</span></div>`;
+  };
+  const row = (it) => {
+    if (it.kind === 'meeting') return `<div class="claim" style="padding:10px 0;border-bottom:1px solid var(--line-2)"><div class="s"><span class="mono small muted">${time(it.at)}–${time(it.ends_at)}</span> &nbsp;${ICON.cal} ${esc(it.title)}${it.status === 'TENTATIVE' ? ' <span class="pill grey">a confirmar</span>' : ''}</div>${it.people.length ? it.people.map(personLine).join('') : '<div class="small muted">sem outros participantes</div>'}</div>`;
+    if (it.kind === 'commitment') return `<div class="claim" style="padding:10px 0;border-bottom:1px solid var(--line-2)"><div class="s"><span class="mono small muted">${time(it.at)}</span> &nbsp;${ICON.clock} Vence: ${esc(it.description)}</div><div class="small muted">${it.owner === 'PRINCIPAL' ? 'você deve a' : 'deve a você:'} <a href="#/pessoas/${esc(it.counterparty_person_id)}">${esc(it.full_name)}</a></div></div>`;
+    if (it.kind === 'approval_expiring') return `<div class="claim" style="padding:10px 0;border-bottom:1px solid var(--line-2)"><div class="s"><span class="mono small muted">${time(it.at)}</span> &nbsp;${ICON.list} Expira a aprovação: <a href="#/insight/${esc(it.insight_id)}">${esc(ACTION_NAME[it.action_type] ?? it.action_type)}${it.full_name ? ` para ${esc(it.full_name)}` : ''}</a></div></div>`;
+    if (it.kind === 'birthday') return `<div class="claim" style="padding:10px 0;border-bottom:1px solid var(--line-2)"><div class="s">${ICON.user} Aniversário de <a href="#/pessoas/${esc(it.person.id)}">${esc(it.person.full_name)}</a>${it.turning ? ` · faz ${it.turning}` : ''}</div>${personLine(it.person)}</div>`;
+    return '';
+  };
+  const byDay = new Map();
+  for (const it of d.items) byDay.set(it.day, [...(byDay.get(it.day) ?? []), it]);
+  let h = head('Radar · próximos 7 dias', 'O que vem pela frente, com o estado de cada relação. Só fatos registrados.');
+  h += `<div class="canvas"><div class="wrap narrow">${sampleNotice()}`;
+  const counts = { meeting: 0, commitment: 0, birthday: 0, approval_expiring: 0 };
+  for (const it of d.items) counts[it.kind]++;
+  h += `<div class="kpis" style="margin-top:0"><div class="kpi"><div class="v">${counts.meeting}</div><div class="l">reuniões</div></div><div class="kpi"><div class="v">${counts.commitment}</div><div class="l">compromissos vencendo</div></div><div class="kpi ${d.overdue.length ? 'hot' : ''}"><div class="v" ${d.overdue.length ? 'style="color:var(--bad)"' : ''}>${d.overdue.length}</div><div class="l">atrasados</div></div><div class="kpi"><div class="v">${counts.birthday}</div><div class="l">aniversários</div></div></div>`;
+  if (d.overdue.length) h += `<div class="card" style="padding:14px 18px;margin-bottom:18px;border-color:var(--bad)"><div class="eyebrow" style="color:var(--bad)">Atrasados</div>${d.overdue.map((c) => `<div class="claim" style="padding:8px 0"><div class="s">${esc(c.description)}</div><div class="small muted">venceu ${fmtDate(c.due_at)} · ${c.owner === 'PRINCIPAL' ? 'você deve a' : 'deve a você:'} <a href="#/pessoas/${esc(c.counterparty_person_id)}">${esc(c.full_name)}</a></div></div>`).join('')}</div>`;
+  h += byDay.size
+    ? [...byDay].map(([day, its]) => `<div class="card" style="padding:14px 18px;margin-bottom:14px"><div class="eyebrow">${esc(dayLabel(day))}</div>${its.map(row).join('')}</div>`).join('')
+    : `<div class="card empty">${illo('slab', 150)}<h3>Semana livre</h3>Nenhuma reunião, prazo ou aniversário registrado nos próximos 7 dias.</div>`;
+  h += `<div class="note" style="margin-top:10px">O Radar só junta o que está registrado (agenda, compromissos, pessoas e aprovações). A leitura antecipada (o que preparar, o que pode dar errado, quem precisa de atenção) é trabalho do raciocínio da Wendy e chega na Fase 3, com o Claude.</div>`;
+  return h + '</div></div>';
 }
 
 /* ---------- APROVAÇÕES ---------- */

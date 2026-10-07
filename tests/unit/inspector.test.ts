@@ -4,7 +4,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readOnlyPool } from '../../inspector/readOnlyPool.js';
-import { insightDetail, ontology, today } from '../../inspector/views.js';
+import { insightDetail, ontology, radar, today } from '../../inspector/views.js';
 import { ingestInboundEmail } from '../../src/events/ingest.js';
 import { DevMailboxProvider } from '../../src/providers/devMailbox.js';
 import { createContext } from '../../src/runtime/context.js';
@@ -63,6 +63,19 @@ describe('inspector (UI server)', () => {
     expect(d.kpis?.awaiting).toBe(awaiting);
     expect(d.kpis?.insights_total).toBe(insights);
     expect(d.insights?.length).toBe(insights);
+  });
+
+  it('radar lists the next 7 days from persisted records only, with each attendee\'s relationship state', async () => {
+    const d = await radar(ro, world.principalId);
+    const meeting = d.items.find((i) => i.kind === 'meeting' && i.id === world.meetingId) as { people: { id?: string; full_name?: string; daysSinceContact?: number | null }[] } | undefined;
+    expect(meeting, 'the scenario meeting is within 7 days').toBeTruthy();
+    const carlos = meeting!.people.find((p) => p.id === world.counterpartId)!;
+    expect(carlos.full_name).toBe(SCENARIO_A.counterpart.name);
+    expect(carlos.daysSinceContact).not.toBeUndefined();
+    const meetingsInDb = Number((await t.db.query(`SELECT count(*) n FROM meetings WHERE status <> 'CANCELLED' AND starts_at >= now() AND starts_at < now() + interval '7 days'`)).rows[0].n);
+    expect(d.items.filter((i) => i.kind === 'meeting')).toHaveLength(meetingsInDb);
+    const open = Number((await t.db.query(`SELECT count(*) n FROM commitments WHERE status = 'OPEN' AND due_at < now() + interval '7 days'`)).rows[0].n);
+    expect(d.items.filter((i) => i.kind === 'commitment').length + d.overdue.length).toBe(open);
   });
 
   it('labels evidence from the real records (no invented text)', async () => {

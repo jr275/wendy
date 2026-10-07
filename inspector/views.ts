@@ -359,3 +359,90 @@ export async function sources(db: pg.Pool, principalIdParam: string | null) {
   const lastImport = (await db.query(`SELECT at, payload FROM audit_blocks WHERE principal_id = $1 AND event_type = 'IMPORT_COMPLETED' ORDER BY seq DESC LIMIT 1`, [pid])).rows[0] ?? null;
   return { messages, meetings, lastImport };
 }
+
+/**
+ * Radar: the next N days as facts only (meetings with who will be there and the state of each
+ * relationship, commitments due or overdue, birthdays, approvals expiring). No interpretation —
+ * anticipating what matters is the reasoning layer's job (Phase 3), not this view's.
+ */
+export async function radar(db: pg.Pool, principalIdParam: string | null, days = 7) {
+  const { relationshipMetrics } = await import('../src/people/relationshipMetrics.js');
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { principal: null, items: [], overdue: [] };
+  const principal = (await db.query('SELECT id, display_name, timezone, primary_email FROM principals WHERE id = $1', [pid])).rows[0];
+  const tz: string = principal.timezone;
+  const now = new Date();
+  const end = new Date(now.getTime() + days * 24 * HOUR);
+  const dayKey = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+
+  const personCtx = new Map<string, unknown>();
+  async function person(personId: string) {
+    if (!personCtx.has(personId)) {
+      const p = (
+        await db.query(
+          `SELECT p.id, p.full_name, r.explicit_importance,
+                  (SELECT count(*) FROM commitments c WHERE c.principal_id = $1 AND c.counterparty_person_id = p.id AND c.status = 'OPEN')::int AS open_commitments,
+                  (SELECT count(*) FROM actions a WHERE a.principal_id = $1 AND a.target_person_id = p.id AND a.state = 'AWAITING_APPROVAL')::int AS awaiting_actions
+           FROM people p LEFT JOIN relationships r ON r.person_id = p.id AND r.principal_id = p.principal_id WHERE p.principal_id = $1 AND p.id = $2`,
+          [pid, personId],
+        )
+      ).rows[0];
+      const m = await relationshipMetrics(db, pid!, personId, now);
+      personCtx.set(personId, { ...p, daysSinceContact: m.daysSinceContact, messages90d: m.messages90d, trend: m.trend, principalReplyHoursMedian: m.principalReplyHoursMedian });
+    }
+    return personCtx.get(personId);
+  }
+
+  const items: { day: string; at: string; kind: string; [k: string]: unknown }[] = [];
+  const meetings = (
+    await db.query(
+      `SELECT mt.id, mt.title, mt.starts_at, mt.ends_at, mt.status, mt.provider,
+              (SELECT json_agg(json_build_object('address', a.address, 'person_id', a.person_id)) FROM meeting_attendees a WHERE a.meeting_id = mt.id) AS attendees
+       FROM meetings mt WHERE mt.principal_id = $1 AND mt.status <> 'CANCELLED' AND mt.starts_at >= $2 AND mt.starts_at < $3 ORDER BY mt.starts_at`,
+      [pid, now, end],
+    )
+  ).rows;
+  for (const m of meetings) {
+    const attendees = (m.attendees ?? []).filter((a: { address: string }) => a.address !== principal.primary_email);
+    const people = [];
+    for (const a of attendees) people.push(a.person_id ? await person(a.person_id) : { full_name: null, address: a.address });
+    items.push({ day: dayKey(m.starts_at), at: m.starts_at.toISOString(), kind: 'meeting', id: m.id, title: m.title, ends_at: m.ends_at, status: m.status, people });
+  }
+  const commitments = (
+    await db.query(
+      `SELECT c.id, c.description, c.due_at, c.owner, c.counterparty_person_id, p.full_name FROM commitments c JOIN people p ON p.id = c.counterparty_person_id
+       WHERE c.principal_id = $1 AND c.status = 'OPEN' AND c.due_at < $2 ORDER BY c.due_at`,
+      [pid, end],
+    )
+  ).rows;
+  const overdue = commitments.filter((c) => c.due_at < now);
+  for (const c of commitments.filter((x) => x.due_at >= now)) items.push({ day: dayKey(c.due_at), at: c.due_at.toISOString(), kind: 'commitment', ...c });
+  const actions = (
+    await db.query(
+      `SELECT a.id, a.action_type, a.expires_at, a.insight_id, p.full_name FROM actions a LEFT JOIN people p ON p.id = a.target_person_id
+       WHERE a.principal_id = $1 AND a.state = 'AWAITING_APPROVAL' AND a.expires_at >= $2 AND a.expires_at < $3 ORDER BY a.expires_at`,
+      [pid, now, end],
+    )
+  ).rows;
+  for (const a of actions) items.push({ day: dayKey(a.expires_at), at: a.expires_at.toISOString(), kind: 'approval_expiring', ...a });
+
+  // birthdays: next occurrence of month/day, in the principal's time zone (29 Feb → 28 Feb in common years)
+  const today = dayKey(now);
+  const [y] = today.split('-').map(Number) as [number];
+  const isLeap = (yr: number) => (yr % 4 === 0 && yr % 100 !== 0) || yr % 400 === 0;
+  const people = (await db.query(`SELECT id, full_name, birthdate FROM people WHERE principal_id = $1 AND birthdate IS NOT NULL`, [pid])).rows;
+  const endKey = dayKey(end);
+  for (const p of people) {
+    const [, mo, d] = String(p.birthdate).split('-').map(Number) as [number, number, number];
+    for (const yr of [y, y + 1]) {
+      const dd = mo === 2 && d === 29 && !isLeap(yr) ? 28 : d;
+      const key = `${yr}-${String(mo).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+      if (key >= today && key < endKey) {
+        items.push({ day: key, at: `${key}T00:00:00`, kind: 'birthday', person: await person(p.id), turning: Number(String(p.birthdate).slice(0, 4)) ? yr - Number(String(p.birthdate).slice(0, 4)) : null });
+        break;
+      }
+    }
+  }
+  items.sort((a, b) => (a.day === b.day ? a.at.localeCompare(b.at) : a.day.localeCompare(b.day)));
+  return { principal, from: now.toISOString(), to: end.toISOString(), today, items, overdue };
+}

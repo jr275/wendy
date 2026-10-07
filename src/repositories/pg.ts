@@ -62,24 +62,7 @@ export class PgRelationshipRepository implements RelationshipRepository {
   async getRelationship(q: Queryable, principalId: string, personId: string) {
     return (await q.query<Relationship>('SELECT * FROM relationships WHERE principal_id = $1 AND person_id = $2', [principalId, personId])).rows[0] ?? null;
   }
-  async interactionStats(q: Queryable, principalId: string, personId: string, since: Date) {
-    const r = (
-      await q.query<{ count: string; last_at: Date | null }>(
-        `SELECT count(DISTINCT m.id) AS count, max(m.sent_at) AS last_at
-         FROM messages m JOIN message_participants mp ON mp.message_id = m.id
-         WHERE m.principal_id = $1 AND mp.person_id = $2 AND m.sent_at >= $3`,
-        [principalId, personId, since],
-      )
-    ).rows[0];
-    const lastEver = (
-      await q.query<{ last_at: Date | null }>(
-        `SELECT max(m.sent_at) AS last_at FROM messages m JOIN message_participants mp ON mp.message_id = m.id
-         WHERE m.principal_id = $1 AND mp.person_id = $2`,
-        [principalId, personId],
-      )
-    ).rows[0];
-    return { count: Number(r?.count ?? 0), lastAt: lastEver?.last_at ?? null };
-  }
+
 }
 
 export class PgEventRepository implements EventRepository {

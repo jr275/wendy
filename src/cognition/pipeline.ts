@@ -22,6 +22,7 @@ import { resolveMentions, type Mention } from './entityResolution.js';
 import { describeTime, REASON_SYSTEM, UNDERSTAND_SYSTEM } from './prompts.js';
 import { renderInsight } from './render.js';
 import { computeSalience, type SalienceResult } from './salience.js';
+import { relationshipMetrics } from '../people/relationshipMetrics.js';
 import { ReasoningSchema, UnderstandingSchema, type Reasoning, type Understanding } from './schemas.js';
 import { validateReasoning, validateUnderstanding, type ValidationReport } from './validator.js';
 
@@ -270,8 +271,19 @@ export async function processEvent(ctx: WendyContext, event: WendyEvent): Promis
   let relationshipInput: Parameters<typeof computeSalience>[0]['relationship'] = null;
   if (primary) {
     const rel = await repos.relationships.getRelationship(db, principal.id, primary);
-    const stats = await repos.relationships.interactionStats(db, principal.id, primary, new Date(now.getTime() - 90 * DAY_MS));
-    relationshipInput = rel || stats.count ? { explicitImportance: rel?.explicit_importance ?? null, interactions90d: stats.count, lastInteractionAt: stats.lastAt } : null;
+    // Derived from persisted interactions (messages and meetings), never typed by hand.
+    const m = await relationshipMetrics(db, principal.id, primary, now);
+    const interactions = m.messages90d + m.meetings90d;
+    const lastAt = [m.lastInboundAt, m.lastOutboundAt].filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+    relationshipInput =
+      rel || interactions || lastAt
+        ? {
+            explicitImportance: rel?.explicit_importance ?? null,
+            interactions90d: interactions,
+            lastInteractionAt: lastAt,
+            replies: { unansweredInbound: m.unansweredInbound, oldestUnansweredAt: m.oldestUnansweredAt, principalReplyHoursMedian: m.principalReplyHoursMedian },
+          }
+        : null;
   }
   const salience = computeSalience({
     relationship: relationshipInput,

@@ -325,6 +325,21 @@ O status de cada teste do gate **não muda**: os testes dependentes do Claude co
 - **Testes determinísticos:** 85/85 (eram 81).
 - Os dados da interface ainda são do **substituto de teste**, e a interface avisa isso em todas as telas.
 
+## Atenção para quem ler o resultado do gate — mudanças no núcleo antes de ele rodar
+
+Com autorização do executivo, a parte determinística da Fase 2 foi feita **em paralelo** ao gate. Quando `npm run gate` rodar, ele vai medir o núcleo **com estas mudanças**:
+
+- **Memórias deduzidas** de e-mails entram como **PROPOSED** e só chegam ao raciocínio depois de confirmadas. Notas ditadas pelo executivo continuam entrando direto. Nenhum teste live da Fase 1 depende de memória deduzida de e-mail.
+- **Evidência da pessoa** inclui métricas derivadas das interações: volume em 30 e 90 dias, tempo de resposta, tendência, reuniões e mensagens sem resposta.
+- **Busca** ignora acentos e reduz palavras à raiz em português e inglês (migração 004). Isso traz mais registros relacionados para o contexto.
+- **Prioridade:**
+  - `relationship_relevance` agora usa mensagens e reuniões derivadas.
+  - Fator novo `reply_pressure`, que só se aplica quando o executivo deve uma resposta. Fora isso fica "não se aplica" e não altera a pontuação.
+  - A importância definida pelo executivo continua intacta.
+- **Compromissos PROPOSED** existem como estado, mas nada os cria ainda (a extração depende do Claude). Eles são excluídos da busca e dos detectores.
+
+Se um teste live falhar, considerar estas mudanças antes de concluir que o núcleo da Fase 1 regrediu.
+
 ---
 
 NOT READY FOR PHASE 2

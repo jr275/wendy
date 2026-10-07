@@ -7,6 +7,7 @@
  * - trend: rate in the last 30 days vs the rate in the 60 days before
  * - last inbound / last outbound / days since last contact
  * - meetings: held in the last 90 days (not cancelled) and the next scheduled one
+ * - unanswered: messages from them after the principal's last message to them, and since when
  */
 import type { Queryable } from '../db/db.js';
 import { DAY_MS, HOUR_MS } from '../util/clock.js';
@@ -25,6 +26,8 @@ export interface RelationshipMetrics {
   daysSinceContact: number | null;
   meetings90d: number;
   nextMeetingAt: Date | null;
+  unansweredInbound: number;
+  oldestUnansweredAt: Date | null;
 }
 
 const REPLY_WINDOW_MS = 7 * DAY_MS;
@@ -89,6 +92,7 @@ export async function relationshipMetrics(q: Queryable, principalId: string, per
   const trend: RelationshipMetrics['trend'] =
     rows.length === 0 ? 'NONE' : prior60 === 0 ? 'NEW' : rate30 > rate60 * 1.5 ? 'UP' : rate30 < rate60 * 0.5 ? 'DOWN' : 'STABLE';
 
+  const unanswered = rows.filter((r) => r.direction === 'INBOUND' && (!last.last_out || r.sent_at > last.last_out));
   const lastContact = [last.last_in, last.last_out].filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
   const round1 = (x: number | null) => (x === null ? null : Math.round(x * 10) / 10);
   return {
@@ -105,6 +109,8 @@ export async function relationshipMetrics(q: Queryable, principalId: string, per
     daysSinceContact: lastContact ? Math.floor((now.getTime() - lastContact.getTime()) / DAY_MS) : null,
     meetings90d: mt.held,
     nextMeetingAt: mt.next,
+    unansweredInbound: unanswered.length,
+    oldestUnansweredAt: unanswered[0]?.sent_at ?? null,
   };
 }
 
@@ -117,5 +123,6 @@ export function renderMetrics(m: RelationshipMetrics): string {
     `contact trend (30d vs prior 60d): ${m.trend}`,
     `days since last contact: ${m.daysSinceContact ?? 'never'}`,
     `meetings: ${m.meetings90d} in the last 90 days; next scheduled: ${m.nextMeetingAt ? m.nextMeetingAt.toISOString() : 'none'}`,
+    `messages from them not yet answered by the principal: ${m.unansweredInbound}${m.oldestUnansweredAt ? ` (oldest ${m.oldestUnansweredAt.toISOString()})` : ''}`,
   ].join('\n');
 }

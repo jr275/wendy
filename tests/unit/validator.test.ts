@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EvidenceRegistry } from '../../src/cognition/context.js';
-import { computeSalience, timeSensitivity } from '../../src/cognition/salience.js';
+import { computeSalience, replyPressure, timeSensitivity } from '../../src/cognition/salience.js';
 import { validateReasoning, validateUnderstanding } from '../../src/cognition/validator.js';
 import { emptyUnderstanding, minimalReasoning } from '../helpers/scriptedReasoner.js';
 
@@ -172,6 +172,28 @@ describe('salience', () => {
     const repeated = computeSalience({ relationship: { explicitImportance: 0.9, interactions90d: 6, lastInteractionAt: now }, deadlines: [], now, priorSimilarInsights: 3, validation: report, sourceKind: 'TEXT' });
     expect(unknown.score).toBeLessThan(known.score);
     expect(repeated.score).toBeLessThan(known.score);
+  });
+
+  it('reply pressure applies only when the principal really owes a reply, scaled by their own reply habit', () => {
+    const h = (x: number) => new Date(now.getTime() - x * 3_600_000);
+    expect(replyPressure({ unansweredInbound: 0, oldestUnansweredAt: null, principalReplyHoursMedian: 2 }, now)).toBeNull();
+    expect(replyPressure({ unansweredInbound: 1, oldestUnansweredAt: h(1), principalReplyHoursMedian: 2 }, now)).toBeNull(); // the message just arrived
+    const late = replyPressure({ unansweredInbound: 1, oldestUnansweredAt: h(6), principalReplyHoursMedian: 2 }, now)!;
+    expect(late.value).toBeCloseTo(1, 6); // 6h waiting vs 2h habit → 3× → saturates
+    expect(late.basis).toMatch(/costuma responder em 2h/);
+    const slowHabit = replyPressure({ unansweredInbound: 1, oldestUnansweredAt: h(30), principalReplyHoursMedian: 20 }, now)!;
+    expect(slowHabit.value).toBeCloseTo(0.5, 6);
+    expect(replyPressure({ unansweredInbound: 3, oldestUnansweredAt: h(1), principalReplyHoursMedian: 48 }, now)!.value).toBeCloseTo(2 / 3, 6); // streak
+  });
+
+  it('reply pressure raises the score when it applies and changes nothing when it does not', () => {
+    const base = { explicitImportance: 0.5, interactions90d: 6, lastInteractionAt: now };
+    const none = computeSalience({ relationship: { ...base, replies: { unansweredInbound: 0, oldestUnansweredAt: null, principalReplyHoursMedian: 2 } }, deadlines: [], now, priorSimilarInsights: 0, validation: report, sourceKind: 'TEXT' });
+    const without = computeSalience({ relationship: base, deadlines: [], now, priorSimilarInsights: 0, validation: report, sourceKind: 'TEXT' });
+    const owed = computeSalience({ relationship: { ...base, replies: { unansweredInbound: 2, oldestUnansweredAt: new Date(now.getTime() - 48 * 3_600_000), principalReplyHoursMedian: 2 } }, deadlines: [], now, priorSimilarInsights: 0, validation: report, sourceKind: 'TEXT' });
+    expect(none.score).toBe(without.score);
+    expect(owed.score).toBeGreaterThan(none.score);
+    expect(owed.factors.find((f) => f.name === 'importance')!.value).toBe(0.5); // the principal's importance is untouched
   });
 
   it('time sensitivity increases as the deadline approaches', () => {

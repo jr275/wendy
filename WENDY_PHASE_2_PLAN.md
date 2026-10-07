@@ -5,9 +5,9 @@
 | Item | Estado |
 |---|---|
 | 3.1 Ciclo de vida da memória | REAL (determinístico; testes unitários). Falta a meia-vida por tipo |
-| 3.2 Métricas de relação | REAL (mensagens; reuniões ainda não entram). Ainda não são fatores do salience |
+| 3.2 Métricas de relação | REAL: mensagens e reuniões, sem resposta e tempo de resposta. Na prioridade: `relationship_relevance` usa as métricas derivadas e o fator novo `reply_pressure` (resposta sua pendente) entra só quando há dívida real. A importância continua sua |
 | 3.3 Compromissos extraídos | PARTIAL: ciclo de vida REAL (proposto → aberto → concluído/cancelado, mudança de prazo, API e interface). Uma proposta só é aceita se a citação estiver literalmente no e-mail, e propostas nunca chegam ao raciocínio. A **extração pelo Claude** ainda não existe (BLOCKED) |
-| 3.4 pgvector | NOT IMPLEMENTED (só se a medição pedir) |
+| 3.4 pgvector | NOT IMPLEMENTED (só se a medição pedir). Antes disso: busca sem acento e com raiz em pt/en (migração 004) subiu o piso de 22% para 42% |
 | 3.5 Calibração | NOT IMPLEMENTED |
 | 3.6 API de escrita + interface | REAL (login por link único, cookie HttpOnly, CSRF, Origin, zod, auditoria; e-mail só na caixa local) |
 | Importador do Google Takeout (Gmail .mbox + Agenda .ics) | REAL (`npm run import`, com `--dry-run`): só leitura, exclusões aplicadas antes de gravar, nada vai ao Claude. Recorrências raras são contadas, não adivinhadas |

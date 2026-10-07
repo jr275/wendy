@@ -27,7 +27,13 @@ export interface SalienceResult {
 }
 
 export interface SalienceInputs {
-  relationship: { explicitImportance: number | null; interactions90d: number; lastInteractionAt: Date | null } | null;
+  relationship: {
+    explicitImportance: number | null;
+    interactions90d: number;
+    lastInteractionAt: Date | null;
+    /** Derived from persisted messages (relationshipMetrics); absent → reply_pressure does not apply. */
+    replies?: { unansweredInbound: number; oldestUnansweredAt: Date | null; principalReplyHoursMedian: number | null };
+  } | null;
   deadlines: { at: Date; basis: string }[];
   now: Date;
   priorSimilarInsights: number;
@@ -42,6 +48,23 @@ function relationshipRelevance(interactions90d: number, lastAt: Date | null, now
   const days = Math.max(0, (now.getTime() - lastAt.getTime()) / 86_400_000);
   const recency = Math.exp(-days / 45);
   return Math.min(1, 0.6 * volume + 0.4 * recency);
+}
+
+/**
+ * Reply pressure: the principal owes this person a reply. Applies only when there is real debt —
+ * two or more of their messages unanswered, or the oldest one waiting longer than the principal's
+ * own typical reply time (24h when there is no history). Otherwise it is not applicable (null).
+ */
+export function replyPressure(r: { unansweredInbound: number; oldestUnansweredAt: Date | null; principalReplyHoursMedian: number | null }, now: Date): { value: number; basis: string } | null {
+  if (r.unansweredInbound === 0 || !r.oldestUnansweredAt) return null;
+  const typical = r.principalReplyHoursMedian ?? 24;
+  const waiting = Math.max(0, (now.getTime() - r.oldestUnansweredAt.getTime()) / HOUR_MS);
+  if (r.unansweredInbound < 2 && waiting < typical) return null;
+  const value = Math.min(1, Math.max(waiting / (3 * Math.max(typical, 1)), (r.unansweredInbound - 1) / 3));
+  return {
+    value,
+    basis: `${r.unansweredInbound} mensagem(ns) da pessoa sem resposta sua, a mais antiga há ${Math.round(waiting)}h (você costuma responder em ${r.principalReplyHoursMedian == null ? '— sem histórico, referência 24' : Math.round(typical * 10) / 10}h)`,
+  };
 }
 
 /** Hours until the nearest deadline → sensitivity. Overdue or ≤4h → 1; one week → ~0.2. */
@@ -112,6 +135,9 @@ export function computeSalience(input: SalienceInputs): SalienceResult {
     value: v.actions.length === 0 ? 0 : external ? 1 : 0.7,
     basis: v.actions.length === 0 ? 'nenhuma ação validada' : `${v.actions.length} ação(ões) validada(s)`,
   });
+
+  const rp = input.relationship?.replies ? replyPressure(input.relationship.replies, input.now) : null;
+  factors.push(rp ? { name: 'reply_pressure', ...rp } : { name: 'reply_pressure', value: null, basis: 'nenhuma resposta sua pendente para esta pessoa' });
 
   const net = v.preferences.reduce((s, p) => s + (p.effect === 'RAISE' ? 1 : -1), 0);
   factors.push(

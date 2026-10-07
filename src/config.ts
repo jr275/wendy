@@ -26,6 +26,7 @@ export const SALIENCE_WEIGHTS = {
   time_sensitivity: 0.16,
   actionability: 0.1,
   executive_preference: 0.06,
+  reply_pressure: 0.08, // applies only when the principal owes a reply (see salience.ts)
 } as const;
 
 /** Insights scoring at or above this are surfaced proactively; below are persisted as SUPPRESSED. */

@@ -369,7 +369,7 @@ const ACTION_STATE = {
 };
 const ACTION_NAME = { PREPARE_BRIEFING: 'Briefing', SEND_EMAIL: 'E-mail' };
 const KIND_PT = { INFERENCE: 'Por que importa', HYPOTHESIS: 'Hipóteses', ANTICIPATION: 'O que espero', RECOMMENDATION: 'O que recomendo' };
-const FACTOR = { importance: 'Importância da pessoa', urgency: 'Urgência expressa', relationship_relevance: 'Relevância da relação', business_impact: 'Impacto', novelty: 'Novidade', confidence: 'Confiança', time_sensitivity: 'Prazo', actionability: 'Acionável', executive_preference: 'Suas preferências' };
+const FACTOR = { importance: 'Importância da pessoa', urgency: 'Urgência expressa', relationship_relevance: 'Relevância da relação', business_impact: 'Impacto', novelty: 'Novidade', confidence: 'Confiança', time_sensitivity: 'Prazo', actionability: 'Acionável', executive_preference: 'Suas preferências', reply_pressure: 'Resposta sua pendente' };
 const REL_PT = { INVESTOR: 'investidor', CLIENT: 'cliente', KEY_CLIENT: 'cliente-chave', COLLEAGUE: 'colega', PARTNER: 'parceiro', FRIEND: 'amigo', FAMILY: 'família' };
 const conf = (c) => (c >= 0.75 ? 'confiança alta' : c >= 0.5 ? 'confiança média' : 'confiança baixa');
 const confDots = (c) => (c >= 0.75 ? '●●●' : c >= 0.5 ? '●●○' : '●○○');

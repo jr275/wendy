@@ -169,6 +169,19 @@ describe('relationship metrics (derived from interactions)', () => {
     expect(renderMetrics(m)).toContain('meetings: 1 in the last 90 days');
   });
 
+  it('counts messages from them after the principal\'s last message as unanswered', async () => {
+    const lonely = await createPerson(db, principalId, { fullName: 'Waiting', emails: ['w@example.test'], source: 'TEST' });
+    await msg('p@example.test', 'w@example.test', ago(10));
+    await msg('w@example.test', 'p@example.test', ago(3));
+    await msg('w@example.test', 'p@example.test', ago(1));
+    const m = await relationshipMetrics(db, principalId, lonely, now);
+    expect(m.unansweredInbound).toBe(2);
+    expect(m.oldestUnansweredAt!.getTime()).toBe(ago(3).getTime());
+    expect(renderMetrics(m)).toContain('not yet answered by the principal: 2');
+    await msg('p@example.test', 'w@example.test', ago(0, 1));
+    expect((await relationshipMetrics(db, principalId, lonely, now)).unansweredInbound).toBe(0);
+  });
+
   it('is scoped to the principal', async () => {
     const m = await relationshipMetrics(db, otherPrincipalId, personId, now);
     expect(m.messages90d).toBe(0);

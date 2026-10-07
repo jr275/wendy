@@ -46,7 +46,6 @@ export interface EntityRepository {
 
 export interface RelationshipRepository {
   getRelationship(q: Queryable, principalId: string, personId: string): Promise<Relationship | null>;
-  interactionStats(q: Queryable, principalId: string, personId: string, since: Date): Promise<{ count: number; lastAt: Date | null }>;
 }
 
 export interface EventRepository {

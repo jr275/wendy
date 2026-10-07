@@ -110,7 +110,14 @@ export async function today(db: pg.Pool, principalIdParam: string | null) {
     )
   ).rows;
   const openConflicts = Number((await db.query(`SELECT count(*) n FROM memory_conflicts WHERE principal_id = $1 AND status = 'OPEN'`, [pid])).rows[0].n);
-  return { principal, kpis, insights, prepared, needsYou, pendingMemories, openConflicts };
+  const pendingCommitments = (
+    await db.query(
+      `SELECT c.id, c.description, c.due_at, c.counterparty_person_id, p.full_name FROM commitments c JOIN people p ON p.id = c.counterparty_person_id
+       WHERE c.principal_id = $1 AND c.status = 'PROPOSED' ORDER BY c.due_at LIMIT 6`,
+      [pid],
+    )
+  ).rows;
+  return { principal, kpis, insights, prepared, needsYou, pendingMemories, openConflicts, pendingCommitments };
 }
 
 export async function insightDetail(db: pg.Pool, id: string) {
@@ -205,7 +212,17 @@ export async function people(db: pg.Pool, principalIdParam: string | null) {
       [pid],
     )
   ).rows;
-  return { people: rows, memories, conflicts };
+  const commitments = (
+    await db.query(
+      `SELECT c.id, c.owner, c.counterparty_person_id, c.description, c.due_at, c.status, c.source, c.source_quote, c.created_at, c.completed_at,
+              m.subject AS source_subject, m.sent_at AS source_sent_at
+       FROM commitments c LEFT JOIN messages m ON m.id = c.source_message_id
+       WHERE c.principal_id = $1 AND (c.status IN ('PROPOSED','OPEN') OR coalesce(c.status_changed_at, c.completed_at, c.created_at) >= now() - interval '30 days')
+       ORDER BY CASE c.status WHEN 'PROPOSED' THEN 0 WHEN 'OPEN' THEN 1 ELSE 2 END, c.due_at`,
+      [pid],
+    )
+  ).rows;
+  return { people: rows, memories, conflicts, commitments };
 }
 
 export async function modelCalls(db: pg.Pool, principalIdParam: string | null) {

@@ -6,7 +6,7 @@
 |---|---|
 | 3.1 Ciclo de vida da memória | REAL (determinístico; testes unitários). Falta a meia-vida por tipo |
 | 3.2 Métricas de relação | REAL (mensagens; reuniões ainda não entram). Ainda não são fatores do salience |
-| 3.3 Compromissos extraídos | NOT IMPLEMENTED (depende do Claude) |
+| 3.3 Compromissos extraídos | PARTIAL: ciclo de vida REAL (proposto → aberto → concluído/cancelado, mudança de prazo, API e interface). Uma proposta só é aceita se a citação estiver literalmente no e-mail, e propostas nunca chegam ao raciocínio. A **extração pelo Claude** ainda não existe (BLOCKED) |
 | 3.4 pgvector | NOT IMPLEMENTED (só se a medição pedir) |
 | 3.5 Calibração | NOT IMPLEMENTED |
 | 3.6 API de escrita + interface | REAL (login por link único, cookie HttpOnly, CSRF, Origin, zod, auditoria; e-mail só na caixa local) |

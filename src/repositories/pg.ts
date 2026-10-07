@@ -248,7 +248,7 @@ export class PgCommitmentRepository implements CommitmentRepository {
     if (t.length === 0) return [];
     return (
       await q.query<Commitment>(
-        `SELECT * FROM commitments c WHERE c.principal_id = $1 AND ${ANY_TERM('c.search', '$2')} ORDER BY c.due_at LIMIT $3`,
+        `SELECT * FROM commitments c WHERE c.principal_id = $1 AND c.status <> 'PROPOSED' AND ${ANY_TERM('c.search', '$2')} ORDER BY c.due_at LIMIT $3`,
         [principalId, t, limit],
       )
     ).rows;

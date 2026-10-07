@@ -525,7 +525,7 @@ async function viewToday() {
   }</ul>${d.prepared.length ? '' : '<div class="empty-line">Nada preparado ainda.</div>'}</div>
   <div><div class="eyebrow">Precisa de você</div><ul class="bul warn">${
     d.needsYou.length ? d.needsYou.map((a) => `<li><a href="#/insight/${esc(a.insight_id)}"><div class="t">${esc(ACTION_NAME[a.action_type] ?? a.action_type)}${a.subject ? `: ${esc(a.subject)}` : ''}</div><div class="d">${a.recipients ? `para ${esc(a.recipients.join(', '))} · ` : ''}${a.expires_at ? `expira ${fmtDate(a.expires_at)}` : 'sem prazo'}</div></a></li>`).join('') : ''
-  }${(d.pendingMemories ?? []).map((m) => `<li><a href="#/pessoas/${esc(m.subject_person_id ?? '')}"><div class="t">Confirmar memória${m.full_name ? ` sobre ${esc(m.full_name)}` : ''}</div><div class="d">${esc(m.content)}</div></a></li>`).join('')}${d.openConflicts ? `<li><a href="#/pessoas"><div class="t">${d.openConflicts} ${d.openConflicts === 1 ? 'conflito de memória' : 'conflitos de memória'}</div><div class="d">escolha qual informação vale</div></a></li>` : ''}</ul>${d.needsYou.length || (d.pendingMemories ?? []).length || d.openConflicts ? '' : '<div class="empty-line">Nada pendente com você.</div>'}</div></div>`;
+  }${(d.pendingCommitments ?? []).map((c) => `<li><a href="#/pessoas/${esc(c.counterparty_person_id)}"><div class="t">Confirmar compromisso com ${esc(c.full_name)}</div><div class="d">${esc(c.description)} · prazo ${fmtDate(c.due_at)}</div></a></li>`).join('')}${(d.pendingMemories ?? []).map((m) => `<li><a href="#/pessoas/${esc(m.subject_person_id ?? '')}"><div class="t">Confirmar memória${m.full_name ? ` sobre ${esc(m.full_name)}` : ''}</div><div class="d">${esc(m.content)}</div></a></li>`).join('')}${d.openConflicts ? `<li><a href="#/pessoas"><div class="t">${d.openConflicts} ${d.openConflicts === 1 ? 'conflito de memória' : 'conflitos de memória'}</div><div class="d">escolha qual informação vale</div></a></li>` : ''}</ul>${d.needsYou.length || (d.pendingMemories ?? []).length || (d.pendingCommitments ?? []).length || d.openConflicts ? '' : '<div class="empty-line">Nada pendente com você.</div>'}</div></div>`;
   h += `<div class="section-title"><h2>${surfaced.length} ${surfaced.length === 1 ? 'insight' : 'insights'}<span>, mais importante primeiro</span></h2></div>`;
   h += surfaced.length ? surfaced.map((i, n) => playCard(i, n + 1)).join('') : `<div class="card empty">${illo('slab')}<h3>Nenhum insight apresentado</h3>Quando algo merecer sua atenção, aparece aqui.</div>`;
   if (suppressed.length)
@@ -856,7 +856,7 @@ function startOntology() {
 
 /* ---------- PESSOAS ---------- */
 async function viewPeople(selectedId) {
-  const { people, memories, conflicts } = await api('/api/people');
+  const { people, memories, conflicts, commitments } = await api('/api/people');
   const sel = people.find((p) => p.id === selectedId) ?? people[0];
   let h = head('Pessoas e memória', 'Quem importa, como está a relação e o que a Wendy lembra — com a fonte de cada memória');
   h += `<div class="canvas"><div class="wrap">${sampleNotice()}`;
@@ -883,7 +883,10 @@ async function viewPeople(selectedId) {
     <button class="btn primary" type="submit" ${canWrite() ? '' : `disabled ${LOCKED}`}>Salvar</button></div><div class="note">Só você define. A Wendy não deduz importância.</div></form>`;
   const myConflicts = (conflicts ?? []).filter((c) => (c.memories ?? []).some((m) => m.subject_person_id === sel.id || m.subject_person_id == null));
   if (myConflicts.length) h += `<div class="eyebrow" style="margin-top:6px">Memórias em conflito · escolha qual vale</div>${myConflicts.map(conflictBox).join('')}`;
-  h += `<div class="eyebrow" style="margin-top:6px">O que a Wendy lembra</div>`;
+  const mineC = (commitments ?? []).filter((c) => c.counterparty_person_id === sel.id);
+  h += `<div class="eyebrow" style="margin-top:6px">Compromissos</div>`;
+  h += mineC.length ? mineC.map(commitRow).join('') : '<div class="empty-line" style="margin-bottom:14px">Nenhum compromisso com esta pessoa.</div>';
+  h += `<div class="eyebrow" style="margin-top:16px">O que a Wendy lembra</div>`;
   const proposed = mine.filter((m) => m.status === 'PROPOSED');
   if (proposed.length) h += `<div class="note" style="margin:4px 0 6px">${proposed.length} ${proposed.length === 1 ? 'memória deduzida aguarda' : 'memórias deduzidas aguardam'} sua confirmação. Só memórias confirmadas entram no raciocínio.</div>`;
   h += mine.length ? mine.map(memRow).join('') : '<div class="empty-line">Nenhuma memória sobre esta pessoa ainda.</div>';
@@ -901,6 +904,21 @@ function memRow(m) {
     ? `<div class="mem-acts"><button class="btn" data-memretract="${esc(m.id)}" ${dis}>Descartar</button></div>`
     : '';
   return `<div class="claim" style="padding:10px 0;border-bottom:1px solid var(--line-2);${m.status === 'SUPERSEDED' || m.status === 'RETRACTED' ? 'opacity:.6' : ''}"><div class="s">${esc(m.content)}</div><div class="m"><span class="pill ${sc}">${sl}</span> ${esc(m.kind.toLowerCase())} · ${who} · confiança ${Number(m.confidence).toFixed(2)} · ${fmtDay(m.created_at)}${(m.evidence || []).length ? ` · ${m.evidence.length} fonte(s)` : ' · sem fonte registrada'}</div>${acts}</div>`;
+}
+const COMMIT_STATUS = { PROPOSED: ['proposto · aguarda você', 'warn'], OPEN: ['aberto', 'info'], DONE: ['concluído', 'mint'], CANCELLED: ['cancelado', 'grey'] };
+function commitRow(c) {
+  const [sl, sc] = COMMIT_STATUS[c.status] ?? [c.status, 'grey'];
+  const dis = canWrite() ? '' : `disabled ${LOCKED}`;
+  const overdue = c.status === 'OPEN' && new Date(c.due_at) < new Date();
+  const who = c.owner === 'PRINCIPAL' ? 'você deve' : 'deve a você';
+  const acts = c.status === 'PROPOSED'
+    ? `<button class="btn primary" data-cconfirm="${esc(c.id)}" ${dis}>Confirmar</button><button class="btn" data-cdue="${esc(c.id)}" ${dis}>Mudar prazo</button><button class="btn" data-cdiscard="${esc(c.id)}" ${dis}>Não é compromisso</button>`
+    : c.status === 'OPEN'
+    ? `<button class="btn primary" data-cdone="${esc(c.id)}" ${dis}>Concluído</button><button class="btn" data-cdue="${esc(c.id)}" ${dis}>Mudar prazo</button><button class="btn" data-ccancel="${esc(c.id)}" ${dis}>Cancelar</button>`
+    : '';
+  return `<div class="claim" style="padding:10px 0;border-bottom:1px solid var(--line-2);${c.status === 'DONE' || c.status === 'CANCELLED' ? 'opacity:.6' : ''}"><div class="s">${esc(c.description)}</div>
+    <div class="m"><span class="pill ${overdue ? 'bad' : sc}">${overdue ? 'atrasado' : sl}</span> ${who} · prazo ${fmtDate(c.due_at)}${c.source_subject ? ` · do e-mail “${esc(c.source_subject)}”` : ` · fonte ${esc(c.source)}`}</div>
+    ${c.source_quote ? `<div class="m" style="font-style:italic">“${esc(c.source_quote)}”</div>` : ''}${acts ? `<div class="mem-acts">${acts}</div>` : ''}</div>`;
 }
 function conflictBox(c) {
   const dis = canWrite() ? '' : `disabled ${LOCKED}`;
@@ -1045,6 +1063,23 @@ function bind() {
   document.querySelectorAll('[data-keep]').forEach((b) => (b.onclick = () => {
     const [conflictId, keep] = b.dataset.keep.split(':');
     doWrite('/api/write/memory/resolve-conflict', { conflictId, keepIds: [keep] }, 'Conflito resolvido.');
+  }));
+  // commitments
+  document.querySelectorAll('[data-cconfirm]').forEach((b) => (b.onclick = () => doWrite('/api/write/commitment/confirm', { commitmentId: b.dataset.cconfirm }, 'Compromisso confirmado. Agora a Wendy acompanha o prazo.')));
+  document.querySelectorAll('[data-cdone]').forEach((b) => (b.onclick = () => doWrite('/api/write/commitment/complete', { commitmentId: b.dataset.cdone }, 'Compromisso concluído.')));
+  document.querySelectorAll('[data-cdiscard]').forEach((b) => (b.onclick = () => doWrite('/api/write/commitment/discard', { commitmentId: b.dataset.cdiscard, reason: 'não era um compromisso' }, 'Proposta descartada.')));
+  document.querySelectorAll('[data-ccancel]').forEach((b) => (b.onclick = () => {
+    const reason = prompt('Motivo do cancelamento (opcional):');
+    if (reason === null) return;
+    doWrite('/api/write/commitment/cancel', { commitmentId: b.dataset.ccancel, reason: reason.trim() || null }, 'Compromisso cancelado.');
+  }));
+  document.querySelectorAll('[data-cdue]').forEach((b) => (b.onclick = () => {
+    const v = prompt('Novo prazo (AAAA-MM-DD, vale até as 18h no seu horário):');
+    if (!v) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v.trim())) return toast('Use o formato AAAA-MM-DD.', 'err');
+    const due = new Date(`${v.trim()}T18:00:00`);
+    if (Number.isNaN(due.getTime())) return toast('Data inválida.', 'err');
+    doWrite('/api/write/commitment/reschedule', { commitmentId: b.dataset.cdue, dueAt: due.toISOString() }, 'Prazo alterado.');
   }));
   // people
   document.querySelectorAll('[data-impform]').forEach((f) => (f.onsubmit = (e) => {

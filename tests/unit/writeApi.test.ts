@@ -8,7 +8,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { proposeAction } from '../../src/actions/actions.js';
 import { verifyLedgerIntegrity } from '../../src/audit/ledger.js';
 import { withTx, type Db } from '../../src/db/db.js';
-import { createPerson, createPrincipal } from '../../src/events/world.js';
+import { proposeCommitment } from '../../src/commitments/commitmentService.js';
+import { createPerson, createPrincipal, storeMessage } from '../../src/events/world.js';
 import { pgRepositories } from '../../src/repositories/pg.js';
 import { createWriteApi, SESSION_COOKIE } from '../../inspector/writeApi.js';
 import { createTestDb } from '../helpers/db.js';
@@ -146,6 +147,21 @@ describe('writes through domain services', () => {
     expect((await post('/api/write/policy', { principalId, actionType: 'PREPARE_BRIEFING', mode: 'REQUIRE_APPROVAL' }, s)).status).toBe(200);
     expect((await post('/api/write/person/importance', { principalId, personId, importance: 2 }, s)).status).toBe(400);
     expect((await post('/api/write/person/importance', { principalId, personId, importance: 0.8 }, s)).status).toBe(200);
+  });
+
+  it('commitments: confirm a proposal with a corrected date, then mark it done', async () => {
+    const s = await login();
+    const { messageId } = await withTx(db, (tx) =>
+      storeMessage(tx, principalId, { provider: 'test', externalId: 'api-promise', from: 'p@example.test', to: ['r@example.test'], subject: 'x', body: 'Envio o relatório na segunda.', sentAt: new Date() }),
+    );
+    const id = await withTx(db, (tx) =>
+      proposeCommitment(tx, { principalId, owner: 'PRINCIPAL', counterpartyPersonId: personId, description: 'Enviar o relatório', dueAt: new Date(), sourceMessageId: messageId, quote: 'Envio o relatório na segunda', source: 'WENDY', now: new Date() }),
+    );
+    expect((await post('/api/write/commitment/confirm', { principalId, commitmentId: id, dueAt: 'not-a-date' }, s)).status).toBe(400);
+    expect((await post('/api/write/commitment/confirm', { principalId, commitmentId: id, dueAt: '2026-10-12T15:00:00.000Z' }, s)).status).toBe(200);
+    expect((await post('/api/write/commitment/discard', { principalId, commitmentId: id }, s)).status).toBe(409);
+    expect((await post('/api/write/commitment/complete', { principalId, commitmentId: id }, s)).status).toBe(200);
+    expect((await db.query('SELECT status, due_at FROM commitments WHERE id = $1', [id])).rows[0]).toEqual({ status: 'DONE', due_at: new Date('2026-10-12T15:00:00.000Z') });
   });
 
   it('every write is in the ledger and the chain is valid', async () => {

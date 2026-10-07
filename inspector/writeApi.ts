@@ -19,6 +19,7 @@ import { z } from 'zod';
 import { ActionService, IllegalTransitionError, PolicyService } from '../src/actions/actions.js';
 import { ActionExecutor } from '../src/actions/executor.js';
 import type { Db } from '../src/db/db.js';
+import { CommitmentService, CommitmentTransitionError } from '../src/commitments/commitmentService.js';
 import { MemoryService, MemoryTransitionError } from '../src/memory/memoryService.js';
 import { PeopleService } from '../src/people/peopleService.js';
 import { DevMailboxProvider } from '../src/providers/devMailbox.js';
@@ -77,6 +78,26 @@ const ROUTES = {
       return { mode: b.mode };
     },
   ),
+  '/api/write/commitment/confirm': route(z.object({ principalId: uuid, commitmentId: uuid, dueAt: z.string().datetime({ offset: true }).optional() }), async (db, b, at) => {
+    await new CommitmentService(db).confirm(b.principalId, b.commitmentId, at, b.dueAt ? new Date(b.dueAt) : undefined);
+    return { status: 'OPEN' };
+  }),
+  '/api/write/commitment/discard': route(z.object({ principalId: uuid, commitmentId: uuid, reason: z.string().max(2000).nullable().optional() }), async (db, b, at) => {
+    await new CommitmentService(db).discard(b.principalId, b.commitmentId, b.reason ?? null, at);
+    return { status: 'CANCELLED' };
+  }),
+  '/api/write/commitment/complete': route(z.object({ principalId: uuid, commitmentId: uuid }), async (db, b, at) => {
+    await new CommitmentService(db).complete(b.principalId, b.commitmentId, at);
+    return { status: 'DONE' };
+  }),
+  '/api/write/commitment/cancel': route(z.object({ principalId: uuid, commitmentId: uuid, reason: z.string().max(2000).nullable().optional() }), async (db, b, at) => {
+    await new CommitmentService(db).cancel(b.principalId, b.commitmentId, b.reason ?? null, at);
+    return { status: 'CANCELLED' };
+  }),
+  '/api/write/commitment/reschedule': route(z.object({ principalId: uuid, commitmentId: uuid, dueAt: z.string().datetime({ offset: true }) }), async (db, b, at) => {
+    await new CommitmentService(db).reschedule(b.principalId, b.commitmentId, new Date(b.dueAt), at);
+    return { dueAt: b.dueAt };
+  }),
 } as const;
 type WritePath = keyof typeof ROUTES;
 
@@ -227,7 +248,7 @@ export function createWriteApi(opts: WriteApiOptions) {
     } catch (err) {
       const e = err as Error & { status?: number };
       const status =
-        err instanceof HttpError ? err.status : err instanceof IllegalTransitionError || err instanceof MemoryTransitionError ? 409 : /not found/.test(e.message) ? 404 : (e.status ?? 500);
+        err instanceof HttpError ? err.status : err instanceof IllegalTransitionError || err instanceof MemoryTransitionError || err instanceof CommitmentTransitionError ? 409 : /not found/.test(e.message) ? 404 : (e.status ?? 500);
       json(res, status, { ok: false, error: e.message });
     }
     return true;

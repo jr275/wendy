@@ -86,8 +86,9 @@ export interface Commitment {
   counterparty_person_id: string;
   description: string;
   due_at: Date;
-  status: 'OPEN' | 'DONE' | 'CANCELLED';
+  status: 'PROPOSED' | 'OPEN' | 'DONE' | 'CANCELLED';
   source_message_id: string | null;
+  source_quote?: string | null;
   source: string;
   created_at: Date;
   completed_at: Date | null;

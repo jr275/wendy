@@ -14,11 +14,14 @@ import type {
 
 export const normalizeAddress = (a: string): string => a.trim().toLowerCase();
 
+/**
+ * One term as a query in the four indexed configurations (Portuguese stems with and without
+ * accents, English stems, accent-free literal), so "propostas" finds "proposta" and "preco" finds "preço" (migration 004).
+ */
+const TERM_QUERY = (t: string) => `(websearch_to_tsquery('wendy_pt_stem', ${t}) || websearch_to_tsquery('wendy_pt', ${t}) || websearch_to_tsquery('wendy_en', ${t}) || websearch_to_tsquery('wendy_simple', ${t}))`;
 /** Matches rows whose tsvector matches ANY of the terms (each term is a websearch query). */
-const ANY_TERM = (col: string, param: string) =>
-  `EXISTS (SELECT 1 FROM unnest(${param}::text[]) t WHERE ${col} @@ websearch_to_tsquery('simple', t))`;
-const RANK = (col: string, param: string) =>
-  `(SELECT coalesce(max(ts_rank(${col}, websearch_to_tsquery('simple', t))), 0) FROM unnest(${param}::text[]) t)`;
+const ANY_TERM = (col: string, param: string) => `EXISTS (SELECT 1 FROM unnest(${param}::text[]) t WHERE ${col} @@ ${TERM_QUERY('t')})`;
+const RANK = (col: string, param: string) => `(SELECT coalesce(max(ts_rank(${col}, ${TERM_QUERY('t')})), 0) FROM unnest(${param}::text[]) t)`;
 
 function cleanTerms(terms: string[]): string[] {
   return [...new Set(terms.map((t) => t.trim()).filter((t) => t.length >= 2))].slice(0, 20);

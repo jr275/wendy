@@ -63,7 +63,7 @@ export function replyPressure(r: { unansweredInbound: number; oldestUnansweredAt
   const value = Math.min(1, Math.max(waiting / (3 * Math.max(typical, 1)), (r.unansweredInbound - 1) / 3));
   return {
     value,
-    basis: `${r.unansweredInbound} mensagem(ns) da pessoa sem resposta sua, a mais antiga há ${Math.round(waiting)}h (você costuma responder em ${r.principalReplyHoursMedian == null ? '— sem histórico, referência 24' : Math.round(typical * 10) / 10}h)`,
+    basis: `${r.unansweredInbound} mensagem(ns) da pessoa sem resposta sua, a mais antiga há ${Math.round(waiting)}h (${r.principalReplyHoursMedian == null ? 'sem histórico de respostas suas; referência de 24h' : `você costuma responder em ${Math.round(typical * 10) / 10}h`})`,
   };
 }
 

@@ -8,7 +8,7 @@
 import type { ReasoningClient } from '../cognition/llm.js';
 import { describeTime, UNDERSTAND_SYSTEM } from '../cognition/prompts.js';
 import { UnderstandingSchema } from '../cognition/schemas.js';
-import { withTx, type Db } from '../db/db.js';
+import { withTx, type Db, type Queryable } from '../db/db.js';
 import { createCommitment, createPerson, createPrincipal, storeMessage, upsertMeeting } from '../events/world.js';
 import { pgRepositories } from '../repositories/pg.js';
 import { DAY_MS } from '../util/clock.js';
@@ -64,7 +64,7 @@ export async function loadEvalCorpus(db: Db, now: Date): Promise<{ principalId: 
 }
 
 /** Same searches as retrieveContext, each limited to k, over all time (isolates the lexical part). */
-async function searchAll(db: Db, principalId: string, terms: string[], k: number): Promise<Set<string>> {
+export async function searchAll(db: Queryable, principalId: string, terms: string[], k: number): Promise<Set<string>> {
   const repos = pgRepositories();
   const far = [new Date('2000-01-01T00:00:00Z'), new Date('2100-01-01T00:00:00Z')] as const;
   const found = new Set<string>();
@@ -76,12 +76,17 @@ async function searchAll(db: Db, principalId: string, terms: string[], k: number
 }
 
 /** Asks the real understanding step (same prompt and schema as answering a question) for search terms. */
-async function claudeTerms(reasoner: ReasoningClient, principalId: string, question: string, now: Date): Promise<string[]> {
+export async function claudeTerms(
+  reasoner: ReasoningClient,
+  principal: { id: string; name: string; timezone: string },
+  question: string,
+  now: Date,
+): Promise<string[]> {
   const u = await reasoner.generate({
     purpose: 'eval-understand-question',
-    principalId,
+    principalId: principal.id,
     system: UNDERSTAND_SYSTEM,
-    user: `Principal: João Mendes, time zone America/Sao_Paulo.\nText timestamp: ${describeTime(now, 'America/Sao_Paulo')}\nText type: question from the principal\n\n<text>\n${question}\n</text>`,
+    user: `Principal: ${principal.name}, time zone ${principal.timezone}.\nText timestamp: ${describeTime(now, principal.timezone)}\nText type: question from the principal\n\n<text>\n${question}\n</text>`,
     schema: UnderstandingSchema,
     effort: 'low',
     evidenceRefs: [],
@@ -100,7 +105,7 @@ export async function runRetrievalEval(db: Db, k = 10, now = new Date(), reasone
   for (const c of EVAL_CASES) {
     const row: CaseResult = { question: c.question, category: c.category, expected: c.expected, literal: await measure(c, c.literal), instructed: await measure(c, c.instructed) };
     if (reasoner) {
-      const terms = await claudeTerms(reasoner, principalId, c.question, now);
+      const terms = await claudeTerms(reasoner, { id: principalId, name: 'João Mendes', timezone: 'America/Sao_Paulo' }, c.question, now);
       row.claude = { terms, ...(await measure(c, terms)) };
     }
     cases.push(row);

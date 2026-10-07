@@ -10,3 +10,6 @@ gate-results/
 
 # personal import settings (who/what never enters Wendy)
 config/import-exclusions.json
+# personal retrieval questions and their results (contain real subjects)
+config/retrieval-cases.json
+eval-results/

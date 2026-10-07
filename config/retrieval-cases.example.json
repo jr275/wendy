@@ -1,0 +1,15 @@
+[
+  {
+    "question": "Como está a renovação com a Horizon?",
+    "terms": ["renovação"],
+    "expected": [
+      { "kind": "message", "contains": "renewal" },
+      { "kind": "meeting", "contains": "Horizon" }
+    ]
+  },
+  {
+    "question": "O que eu prometi para a Ana?",
+    "terms": ["prometi Ana"],
+    "expected": [{ "kind": "commitment", "contains": "proposta" }]
+  }
+]

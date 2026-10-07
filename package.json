@@ -22,7 +22,8 @@
     "gate": "tsx scripts/gate.ts",
     "import": "tsx scripts/import-takeout.ts",
     "eval:retrieval": "tsx scripts/eval-retrieval.ts",
-    "test:live:phase2": "vitest run tests/live-phase2"
+    "test:live:phase2": "vitest run tests/live-phase2",
+    "eval:retrieval:real": "tsx scripts/eval-retrieval-real.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

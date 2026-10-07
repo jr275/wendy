@@ -28,3 +28,18 @@ describe('retrieval evaluation harness', () => {
     }
   });
 });
+
+describe('retrieval evaluation on real data (cases written by the principal)', () => {
+  it('resolves expected records by text fragment, reports unresolved ones, and measures the same search', async () => {
+    const { runRealRetrievalEval } = await import('../../src/eval/realRetrievalEval.js');
+    const p = (await t.db.query(`SELECT id, display_name, timezone FROM principals LIMIT 1`)).rows[0];
+    const r = await runRealRetrievalEval(t.db, { id: p.id, name: p.display_name, timezone: p.timezone }, [
+      { question: 'pricing?', terms: ['pricing'], expected: [{ kind: 'message', contains: 'tiered pricing' }, { kind: 'commitment', contains: 'pricing schedule' }] },
+      { question: 'contrato?', terms: ['acordo'], expected: [{ kind: 'message', contains: 'cláusulas do contrato' }, { kind: 'message', contains: 'does not exist anywhere' }] },
+    ]);
+    expect(r.cases[0]).toMatchObject({ literal: { found: 2, of: 2 }, unresolved: [] });
+    expect(r.cases[1]).toMatchObject({ literal: { found: 0, of: 1 }, unresolved: ['message: "does not exist anywhere"'] });
+    expect(r.literal).toBe(0.5);
+    expect(r.claude).toBeUndefined();
+  });
+});

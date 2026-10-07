@@ -109,6 +109,17 @@ export async function today(db: pg.Pool, principalIdParam: string | null) {
       [pid],
     )
   ).rows;
+  const { memoryFreshness } = await import('../src/memory/freshness.js');
+  const toReview = (
+    await db.query(
+      `SELECT m.id, m.kind, m.status, m.content, m.created_at, m.last_confirmed_at, m.subject_person_id, p.full_name FROM memories m LEFT JOIN people p ON p.id = m.subject_person_id
+       WHERE m.principal_id = $1 AND m.status = 'ACTIVE' AND m.kind IN ('PREFERENCE','FACT') ORDER BY coalesce(m.last_confirmed_at, m.created_at) LIMIT 50`,
+      [pid],
+    )
+  ).rows
+    .map((m) => ({ ...m, freshness: memoryFreshness(m, new Date()) }))
+    .filter((m) => m.freshness.needsReview)
+    .slice(0, 4);
   const openConflicts = Number((await db.query(`SELECT count(*) n FROM memory_conflicts WHERE principal_id = $1 AND status = 'OPEN'`, [pid])).rows[0].n);
   const pendingCommitments = (
     await db.query(
@@ -117,7 +128,7 @@ export async function today(db: pg.Pool, principalIdParam: string | null) {
       [pid],
     )
   ).rows;
-  return { principal, kpis, insights, prepared, needsYou, pendingMemories, openConflicts, pendingCommitments };
+  return { principal, kpis, insights, prepared, needsYou, pendingMemories, openConflicts, pendingCommitments, memoriesToReview: toReview };
 }
 
 export async function insightDetail(db: pg.Pool, id: string) {
@@ -195,11 +206,13 @@ export async function people(db: pg.Pool, principalIdParam: string | null) {
   ).rows;
   const memories = (
     await db.query(
-      `SELECT m.id, m.kind, m.subject_person_id, m.content, m.confidence, m.status, m.written_by, m.created_at, m.evidence
+      `SELECT m.id, m.kind, m.subject_person_id, m.content, m.confidence, m.status, m.written_by, m.created_at, m.last_confirmed_at, m.evidence
        FROM memories m WHERE m.principal_id = $1 ORDER BY m.created_at DESC LIMIT 500`,
       [pid],
     )
   ).rows;
+  const { memoryFreshness } = await import('../src/memory/freshness.js');
+  for (const m of memories) m.freshness = memoryFreshness(m, new Date());
   const { relationshipMetrics } = await import('../src/people/relationshipMetrics.js');
   const now = new Date();
   for (const r of rows) r.metrics = await relationshipMetrics(db, pid!, r.id, now);

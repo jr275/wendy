@@ -336,6 +336,7 @@ Com autorização do executivo, a parte determinística da Fase 2 foi feita **em
   - `relationship_relevance` agora usa mensagens e reuniões derivadas.
   - Fator novo `reply_pressure`, que só se aplica quando o executivo deve uma resposta. Fora isso fica "não se aplica" e não altera a pontuação.
   - A importância definida pelo executivo continua intacta.
+- **Memórias** chegam ao Claude com a idade e o peso (meia-vida por tipo, desde a última confirmação). Nenhuma memória é filtrada por idade.
 - **Compromissos PROPOSED** existem como estado, mas nada os cria ainda (a extração depende do Claude). Eles são excluídos da busca e dos detectores.
 
 Se um teste live falhar, considerar estas mudanças antes de concluir que o núcleo da Fase 1 regrediu.

@@ -527,7 +527,7 @@ async function viewToday() {
   }</ul>${d.prepared.length ? '' : '<div class="empty-line">Nada preparado ainda.</div>'}</div>
   <div><div class="eyebrow">Precisa de você</div><ul class="bul warn">${
     d.needsYou.length ? d.needsYou.map((a) => `<li><a href="#/insight/${esc(a.insight_id)}"><div class="t">${esc(ACTION_NAME[a.action_type] ?? a.action_type)}${a.subject ? `: ${esc(a.subject)}` : ''}</div><div class="d">${a.recipients ? `para ${esc(a.recipients.join(', '))} · ` : ''}${a.expires_at ? `expira ${fmtDate(a.expires_at)}` : 'sem prazo'}</div></a></li>`).join('') : ''
-  }${(d.pendingCommitments ?? []).map((c) => `<li><a href="#/pessoas/${esc(c.counterparty_person_id)}"><div class="t">Confirmar compromisso com ${esc(c.full_name)}</div><div class="d">${esc(c.description)} · prazo ${fmtDate(c.due_at)}</div></a></li>`).join('')}${(d.pendingMemories ?? []).map((m) => `<li><a href="#/pessoas/${esc(m.subject_person_id ?? '')}"><div class="t">Confirmar memória${m.full_name ? ` sobre ${esc(m.full_name)}` : ''}</div><div class="d">${esc(m.content)}</div></a></li>`).join('')}${d.openConflicts ? `<li><a href="#/pessoas"><div class="t">${d.openConflicts} ${d.openConflicts === 1 ? 'conflito de memória' : 'conflitos de memória'}</div><div class="d">escolha qual informação vale</div></a></li>` : ''}</ul>${d.needsYou.length || (d.pendingMemories ?? []).length || (d.pendingCommitments ?? []).length || d.openConflicts ? '' : '<div class="empty-line">Nada pendente com você.</div>'}</div></div>`;
+  }${(d.pendingCommitments ?? []).map((c) => `<li><a href="#/pessoas/${esc(c.counterparty_person_id)}"><div class="t">Confirmar compromisso com ${esc(c.full_name)}</div><div class="d">${esc(c.description)} · prazo ${fmtDate(c.due_at)}</div></a></li>`).join('')}${(d.memoriesToReview ?? []).map((m) => `<li><a href="#/pessoas/${esc(m.subject_person_id ?? '')}"><div class="t">Isto ainda vale${m.full_name ? ` sobre ${esc(m.full_name)}` : ''}?</div><div class="d">${esc(m.content)} · ${m.last_confirmed_at ? 'confirmada' : 'registrada'} há ${m.freshness.ageDays} dias</div></a></li>`).join('')}${(d.pendingMemories ?? []).map((m) => `<li><a href="#/pessoas/${esc(m.subject_person_id ?? '')}"><div class="t">Confirmar memória${m.full_name ? ` sobre ${esc(m.full_name)}` : ''}</div><div class="d">${esc(m.content)}</div></a></li>`).join('')}${d.openConflicts ? `<li><a href="#/pessoas"><div class="t">${d.openConflicts} ${d.openConflicts === 1 ? 'conflito de memória' : 'conflitos de memória'}</div><div class="d">escolha qual informação vale</div></a></li>` : ''}</ul>${d.needsYou.length || (d.pendingMemories ?? []).length || (d.pendingCommitments ?? []).length || (d.memoriesToReview ?? []).length || d.openConflicts ? '' : '<div class="empty-line">Nada pendente com você.</div>'}</div></div>`;
   h += `<div class="section-title"><h2>${surfaced.length} ${surfaced.length === 1 ? 'insight' : 'insights'}<span>, mais importante primeiro</span></h2></div>`;
   h += surfaced.length ? surfaced.map((i, n) => playCard(i, n + 1)).join('') : `<div class="card empty">${illo('slab')}<h3>Nenhum insight apresentado</h3>Quando algo merecer sua atenção, aparece aqui.</div>`;
   if (suppressed.length)
@@ -948,9 +948,12 @@ function memRow(m) {
   const acts = m.status === 'PROPOSED'
     ? `<div class="mem-acts"><button class="btn primary" data-memconfirm="${esc(m.id)}" ${dis}>Confirmar</button><button class="btn" data-memretract="${esc(m.id)}" ${dis}>Descartar</button></div>`
     : m.status === 'ACTIVE' && m.written_by !== 'SYSTEM'
-    ? `<div class="mem-acts"><button class="btn" data-memretract="${esc(m.id)}" ${dis}>Descartar</button></div>`
+    ? `<div class="mem-acts">${m.freshness?.needsReview ? `<button class="btn primary" data-memconfirm="${esc(m.id)}" ${dis}>Ainda vale</button>` : ''}<button class="btn" data-memretract="${esc(m.id)}" ${dis}>Descartar</button></div>`
     : '';
-  return `<div class="claim" style="padding:10px 0;border-bottom:1px solid var(--line-2);${m.status === 'SUPERSEDED' || m.status === 'RETRACTED' ? 'opacity:.6' : ''}"><div class="s">${esc(m.content)}</div><div class="m"><span class="pill ${sc}">${sl}</span> ${esc(m.kind.toLowerCase())} · ${who} · confiança ${Number(m.confidence).toFixed(2)} · ${fmtDay(m.created_at)}${(m.evidence || []).length ? ` · ${m.evidence.length} fonte(s)` : ' · sem fonte registrada'}</div>${acts}</div>`;
+  const fr = m.freshness && m.status === 'ACTIVE'
+    ? ` · ${m.last_confirmed_at ? `confirmada há ${m.freshness.ageDays} dias` : `registrada há ${m.freshness.ageDays} dias`} · peso ${Number(m.freshness.weight).toFixed(2)}${m.freshness.needsReview ? ' · <b style="color:var(--warn)">pode estar desatualizada</b>' : ''}`
+    : '';
+  return `<div class="claim" style="padding:10px 0;border-bottom:1px solid var(--line-2);${m.status === 'SUPERSEDED' || m.status === 'RETRACTED' ? 'opacity:.6' : ''}"><div class="s">${esc(m.content)}</div><div class="m"><span class="pill ${sc}">${sl}</span> ${esc(m.kind.toLowerCase())} · ${who} · confiança ${Number(m.confidence).toFixed(2)} · ${fmtDay(m.created_at)}${(m.evidence || []).length ? ` · ${m.evidence.length} fonte(s)` : ' · sem fonte registrada'}${fr}</div>${acts}</div>`;
 }
 const COMMIT_STATUS = { PROPOSED: ['proposto · aguarda você', 'warn'], OPEN: ['aberto', 'info'], DONE: ['concluído', 'mint'], CANCELLED: ['cancelado', 'grey'] };
 function commitRow(c) {
@@ -1102,7 +1105,7 @@ function bind() {
     route(true);
   }));
   // memory
-  document.querySelectorAll('[data-memconfirm]').forEach((b) => (b.onclick = () => doWrite('/api/write/memory/confirm', { memoryId: b.dataset.memconfirm }, 'Memória confirmada. Agora ela entra no raciocínio.')));
+  document.querySelectorAll('[data-memconfirm]').forEach((b) => (b.onclick = () => doWrite('/api/write/memory/confirm', { memoryId: b.dataset.memconfirm }, 'Memória confirmada. Ela entra no raciocínio com peso total.')));
   document.querySelectorAll('[data-memretract]').forEach((b) => (b.onclick = () => {
     if (!confirm('Descartar esta memória? Ela deixa de ser usada (o histórico fica no registro).')) return;
     doWrite('/api/write/memory/retract', { memoryId: b.dataset.memretract, reason: 'descartada pelo executivo' }, 'Memória descartada.');

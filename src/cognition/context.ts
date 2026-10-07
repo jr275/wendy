@@ -8,6 +8,7 @@ import type { Commitment, EvidenceKind, EvidenceRef, Meeting, Memory, Message, P
 import type { Repositories } from '../repositories/pg.js';
 import { DAY_MS } from '../util/clock.js';
 import { relationshipMetrics, renderMetrics } from '../people/relationshipMetrics.js';
+import { memoryFreshness } from '../memory/freshness.js';
 
 export interface EvidenceItem {
   handle: string;
@@ -113,8 +114,13 @@ export function renderCommitment(c: Commitment, counterparty: string): string {
   ].join('\n');
 }
 
-export function renderMemory(m: Memory, subject: string | null): string {
-  return [`${m.kind} memory${subject ? ` about ${subject}` : ' (principal-level)'}, written by ${m.written_by} ${iso(m.created_at)}, confidence ${m.confidence}`, `content: ${m.content}`].join('\n');
+export function renderMemory(m: Memory, subject: string | null, now: Date): string {
+  const f = memoryFreshness(m, now);
+  return [
+    `${m.kind} memory${subject ? ` about ${subject}` : ' (principal-level)'}, written by ${m.written_by} ${iso(m.created_at)}, confidence ${m.confidence}`,
+    `last confirmed ${m.last_confirmed_at ? iso(m.last_confirmed_at) : 'never (age counted from creation)'}; ${f.ageDays} days old; freshness ${f.weight} (half-life ${f.halfLifeDays} days)${f.needsReview ? '; older than one half-life — may be outdated' : ''}`,
+    `content: ${m.content}`,
+  ].join('\n');
 }
 
 export interface ContextBundle {
@@ -228,7 +234,7 @@ export async function retrieveContext(q: Queryable, repos: Repositories, input: 
   }
   for (const m of dedupe(memories)) {
     const subject = m.subject_person_id ? ((registry.get((await personHandle(m.subject_person_id)) ?? '')?.meta.full_name as string) ?? null) : null;
-    registry.add({ kind: 'memory', id: m.id }, m.created_at, renderMemory(m, subject), { memory_kind: m.kind });
+    registry.add({ kind: 'memory', id: m.id }, m.created_at, renderMemory(m, subject, now), { memory_kind: m.kind });
   }
 
   // Recent insights about the same people (for novelty and continuity).

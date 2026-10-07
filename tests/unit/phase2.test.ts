@@ -187,3 +187,31 @@ describe('relationship metrics (derived from interactions)', () => {
     expect(m.messages90d).toBe(0);
   });
 });
+
+describe('memory freshness', () => {
+  it('halves the weight every half-life since the last confirmation; only old preferences/facts ask for review', async () => {
+    const { memoryFreshness, HALF_LIFE_DAYS } = await import('../../src/memory/freshness.js');
+    const at = (days: number) => new Date(now.getTime() - days * DAY_MS);
+    const pref = (days: number, confirmedDaysAgo: number | null = null) =>
+      memoryFreshness({ kind: 'PREFERENCE', status: 'ACTIVE', created_at: at(days), last_confirmed_at: confirmedDaysAgo === null ? null : at(confirmedDaysAgo) }, now);
+    expect(pref(0).weight).toBe(1);
+    expect(pref(HALF_LIFE_DAYS.PREFERENCE).weight).toBe(0.5);
+    expect(pref(HALF_LIFE_DAYS.PREFERENCE * 2).weight).toBe(0.25);
+    expect(pref(400, 10).weight).toBeGreaterThan(0.9); // reconfirmation restarts the clock
+    expect(pref(200).needsReview).toBe(true);
+    expect(pref(100).needsReview).toBe(false);
+    expect(memoryFreshness({ kind: 'EPISODE', status: 'ACTIVE', created_at: at(200), last_confirmed_at: null }, now).needsReview).toBe(false);
+    expect(memoryFreshness({ kind: 'PREFERENCE', status: 'SUPERSEDED', created_at: at(400), last_confirmed_at: null }, now).needsReview).toBe(false);
+  });
+
+  it('reconfirming an active memory restarts its clock, and the model sees how old a memory is', async () => {
+    const { renderMemory } = await import('../../src/cognition/context.js');
+    const old = new Date(now.getTime() - 300 * DAY_MS);
+    const m = await repos.memories.write(db, { principalId, kind: 'PREFERENCE', subjectPersonId: personId, content: 'prefers calls on Fridays', confidence: 0.9, evidence: [], writtenBy: 'PRINCIPAL', createdAt: old });
+    expect(renderMemory(m, 'Metric Person', now)).toMatch(/300 days old; freshness 0\.315 .*may be outdated/);
+    await new MemoryService(db).confirm(principalId, m.id, now);
+    const fresh = (await repos.memories.get(db, principalId, m.id))!;
+    expect(fresh.last_confirmed_at!.getTime()).toBe(now.getTime());
+    expect(renderMemory(fresh, 'Metric Person', now)).toMatch(/0 days old; freshness 1 /);
+  });
+});

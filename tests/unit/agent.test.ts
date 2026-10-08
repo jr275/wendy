@@ -6,6 +6,8 @@ import type { Db } from '../../src/db/db.js';
 import { createPrincipal } from '../../src/events/world.js';
 import { DevMailboxProvider } from '../../src/providers/devMailbox.js';
 import { createContext } from '../../src/runtime/context.js';
+import { createSkillRuntime } from '../../src/skills/index.js';
+import { Toolbox } from '../../src/tools/index.js';
 import { addWebProperty } from '../../src/sensors/searchConsole.js';
 import { fixedClock } from '../../src/util/clock.js';
 import { createTestDb } from '../helpers/db.js';
@@ -39,10 +41,11 @@ afterAll(() => t.drop());
 
 const input = (q: string, state: Record<string, unknown> = {}): RunAgentInput => ({ threadId: 't', runId: 'r', state, messages: [{ id: 'm', role: 'user', content: q }], tools: [], context: [], forwardedProps: {} }) as RunAgentInput;
 
-async function collect(reasoner: ScriptedReasoner, q: string, state: Record<string, unknown> = {}) {
+async function collect(reasoner: ScriptedReasoner, q: string, state: Record<string, unknown> = {}, withSkills = false) {
   const events: (BaseEvent & Record<string, unknown>)[] = [];
   const ctx = createContext({ db, reasoner, clock: fixedClock(now), emailProvider: new DevMailboxProvider(db) });
-  await runWendyAgent({ ctx, db, principalId }, input(q, state), (e) => events.push(e as BaseEvent & Record<string, unknown>));
+  const skills = withSkills ? createSkillRuntime(ctx, { toolbox: new Toolbox({ search: () => ({ name: 'none', search: async () => [] }), documentsRoot: '/nonexistent' }) }) : undefined;
+  await runWendyAgent({ ctx, db, principalId, skills }, input(q, state), (e) => events.push(e as BaseEvent & Record<string, unknown>));
   const tools: Record<string, unknown> = {};
   const names: Record<string, string> = {};
   for (const e of events) {
@@ -128,6 +131,31 @@ describe('Wendy AG-UI agent run', () => {
       expect(answerUser).not.toMatch(/Outro/);
       expect(handlesIn(answerUser, 'SC')).toEqual([]);
     }
+  });
+
+  it('a request to DO something runs a skill: the card shows the pending approval and nothing changes before it', async () => {
+    const reasoner = new ScriptedReasoner(db, {
+      intent: () => ({ skill: 'task-management', input_json: JSON.stringify({ operation: 'create', tasks: [{ title: 'Revisar a proposta' }] }), reason: 'asks to create a task' }),
+    });
+    const { types, tools, text } = await collect(reasoner, 'Crie uma tarefa para revisar a proposta', {}, true);
+    expect(types.at(-1)).toBe('RUN_FINISHED');
+    const card = tools.show_execution as { skillId: string; status: string; approvals: { label: string; state: string; content: { tasks: { title: string }[] } }[] };
+    expect(card).toMatchObject({ skillId: 'task-management', status: 'waiting_permission' });
+    expect(card.approvals[0]).toMatchObject({ label: 'Criar tarefas', state: 'AWAITING_APPROVAL', content: { tasks: [{ title: 'Revisar a proposta' }] } });
+    expect(text).toMatch(/aprovação/);
+    expect((await db.query('SELECT count(*)::int n FROM tasks')).rows[0].n).toBe(0);
+    expect(reasoner.calls.map((c) => c.purpose)).toEqual(['intent']); // no answer flow, no extra model calls
+  });
+
+  it('a question about the principal\'s world falls through to the evidence-backed answer', async () => {
+    const reasoner = new ScriptedReasoner(db, {
+      intent: () => ({ skill: 'none', input_json: '{}', reason: 'question about own records' }),
+      'understand-question': () => emptyUnderstanding(),
+      answer: () => ({ answer: 'Não sei.', claims: [], used_evidence: [], conflicts: [], information_gaps: ['Sem dados.'] }),
+    });
+    const { tools } = await collect(reasoner, 'Quem me escreveu ontem?', {}, true);
+    expect(tools.show_answer).toBeDefined();
+    expect(tools.show_execution).toBeUndefined();
   });
 
   it('an empty question ends with RUN_ERROR and calls no model', async () => {

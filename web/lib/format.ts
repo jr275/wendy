@@ -1,4 +1,4 @@
-export const stripRefs = (s: string | null | undefined) => (s ?? "").replace(/\s*\[(?:C|E|P|M|MT|MEM|SC|I|A|R)\d+\](?:\s*\[(?:C|E|P|M|MT|MEM|SC|I|A|R)\d+\])*/g, "").trim();
+export const stripRefs = (s: string | null | undefined) => (s ?? "").replace(/\s*\[(?:C|E|P|M|MT|MEM|SC|I|A|R|W|D|T)\d+\](?:\s*\[(?:C|E|P|M|MT|MEM|SC|I|A|R|W|D|T)\d+\])*/g, "").trim();
 export const intPt = (n: number) => Math.round(n).toLocaleString("pt-BR");
 export const pct = (n: number | null | undefined) => (n === null || n === undefined ? "—" : `${n > 0 ? "+" : ""}${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`);
 export function dateLong(d: Date, tz: string) {

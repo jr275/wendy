@@ -37,6 +37,9 @@ export class EvidenceRegistry {
     insight: 'I',
     action: 'A',
     search_metric: 'SC',
+    web_page: 'W',
+    document: 'D',
+    task: 'T',
   };
 
   add(ref: EvidenceRef, at: Date | null, text: string, meta: Record<string, unknown> = {}): string {

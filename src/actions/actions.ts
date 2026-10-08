@@ -12,8 +12,11 @@ import { appendAudit } from '../audit/ledger.js';
 import { withTx, type Db, type Queryable, type Tx } from '../db/db.js';
 import { ActionState, TERMINAL_ACTION_STATES } from '../domain/types.js';
 import { hashOf, newId } from '../util/hash.js';
+import { assertSettable, decidePermission, LEVEL, PolicyError, type ActionCategory, type PolicyMode } from '../permissions/policy.js';
+import { toolSpec, type ToolName } from '../tools/specs.js';
 
-export type ActionType = 'PREPARE_BRIEFING' | 'SEND_EMAIL';
+/** Built-in action types, plus every tool that has an effect (tools are proposed as actions too). */
+export type ActionType = 'PREPARE_BRIEFING' | 'SEND_EMAIL' | ToolName;
 
 export const ALLOWED_TRANSITIONS: Record<ActionState, readonly ActionState[]> = {
   PROPOSED: ['STAGED', 'CANCELLED', 'EXPIRED'],
@@ -42,40 +45,57 @@ export interface ActionRow {
   policy_decision: PolicyDecision;
   current_version: number;
   expires_at: Date | null;
+  skill_execution_id: string | null;
+  skill_step_key: string | null;
   rejection_reason: string | null;
   failure: string | null;
   created_at: Date;
   updated_at: Date;
 }
 
-/** Action catalog: what each action does and how far it reaches. */
-export const ACTION_CATALOG: Record<ActionType, { authorizationLevel: number; external: boolean; provider: string }> = {
-  PREPARE_BRIEFING: { authorizationLevel: 1, external: false, provider: 'INTERNAL_ARTIFACTS' },
-  SEND_EMAIL: { authorizationLevel: 3, external: true, provider: 'EMAIL' },
-};
+/** Action catalog: what each built-in action does and how far it reaches. */
+export const ACTION_CATALOG = {
+  PREPARE_BRIEFING: { authorizationLevel: 1, external: false, provider: 'INTERNAL_ARTIFACTS', category: 'WRITE', defaultMode: 'AUTO' },
+  SEND_EMAIL: { authorizationLevel: 3, external: true, provider: 'EMAIL', category: 'EXTERNAL', defaultMode: 'REQUIRE_APPROVAL' },
+} as const satisfies Record<string, ActionSpec>;
+
+export interface ActionSpec {
+  authorizationLevel: number;
+  external: boolean;
+  provider: string;
+  category: ActionCategory;
+  defaultMode: 'AUTO' | 'REQUIRE_APPROVAL';
+}
+
+/** Spec of a built-in action or of an effectful tool; undefined for unknown types and read-only tools. */
+export function actionSpec(type: string): ActionSpec | undefined {
+  if (Object.hasOwn(ACTION_CATALOG, type)) return ACTION_CATALOG[type as keyof typeof ACTION_CATALOG];
+  const t = toolSpec(type);
+  if (!t || t.category === 'READ') return undefined;
+  return { authorizationLevel: LEVEL[t.category], external: t.category === 'EXTERNAL' || t.category === 'PAYMENT', provider: `TOOL:${t.name}`, category: t.category, defaultMode: t.defaultMode ?? 'REQUIRE_APPROVAL' };
+}
+
+function specOf(type: string): ActionSpec {
+  const spec = actionSpec(type);
+  if (!spec) throw new IllegalTransitionError(`unknown action type ${type}`);
+  return spec;
+}
 
 export interface PolicyDecision {
-  mode: 'AUTO' | 'REQUIRE_APPROVAL';
+  mode: PolicyMode;
   rule: string;
 }
 
-/**
- * Approval policy: the higher the impact, the more authorization required.
- * Level ≤1 (internal preparation, no external effect) runs automatically.
- * Level ≥2 requires the principal's explicit approval. (Per-principal overrides: Phase 4.)
- */
-export type PolicyOverride = 'AUTO' | 'REQUIRE_APPROVAL' | null;
+export type PolicyOverride = PolicyMode | null;
 
 /**
- * The principal may make an action stricter (require approval) or, for internal actions only,
- * automatic. External actions can never be made automatic by a setting in this phase.
+ * Approval policy (src/permissions/policy.ts): internal preparation runs automatically, writes follow
+ * their declared default, and external, destructive or payment actions always ask. The principal may
+ * make anything stricter (ask, or never), but can make only internal writes automatic.
  */
 export function decidePolicy(type: ActionType, override: PolicyOverride = null): PolicyDecision {
-  const { authorizationLevel, external } = ACTION_CATALOG[type];
-  if (override === 'REQUIRE_APPROVAL') return { mode: 'REQUIRE_APPROVAL', rule: 'principal policy: always ask' };
-  if (override === 'AUTO' && !external) return { mode: 'AUTO', rule: 'principal policy: run automatically (internal action)' };
-  if (!external && authorizationLevel <= 1) return { mode: 'AUTO', rule: 'level<=1 internal preparation runs automatically' };
-  return { mode: 'REQUIRE_APPROVAL', rule: `level ${authorizationLevel}${external ? ' external' : ''} action requires explicit approval` };
+  const spec = specOf(type);
+  return decidePermission({ category: spec.category, defaultMode: spec.defaultMode }, override);
 }
 
 export async function policyOverride(q: Queryable, principalId: string, type: ActionType): Promise<PolicyOverride> {
@@ -87,8 +107,13 @@ export class PolicyService {
   constructor(private readonly db: Db) {}
   /** Sets (or clears with null) the principal's policy for an action type. External actions cannot be set to AUTO. */
   async set(principalId: string, type: ActionType, mode: PolicyOverride, now: Date) {
-    if (!(type in ACTION_CATALOG)) throw new IllegalTransitionError(`unknown action type ${type}`);
-    if (mode === 'AUTO' && ACTION_CATALOG[type].external) throw new IllegalTransitionError(`${type} is external and cannot run without approval in this phase`);
+    const spec = specOf(type);
+    try {
+      assertSettable(spec.category, mode);
+    } catch (e) {
+      if (e instanceof PolicyError) throw new IllegalTransitionError(`${type}: ${e.message}`);
+      throw e;
+    }
     return withTx(this.db, async (tx) => {
       const before = await policyOverride(tx, principalId, type);
       if (mode === null) await tx.query('DELETE FROM approval_policies WHERE principal_id = $1 AND action_type = $2', [principalId, type]);
@@ -137,22 +162,31 @@ async function createExecution(tx: Tx, action: ActionRow): Promise<void> {
   await tx.query(
     `INSERT INTO action_executions(id, action_id, idempotency_key, version, content_hash, provider, status, created_at, updated_at)
      VALUES ($1,$2,$3,$4,$5,$6,'PENDING',now(),now())`,
-    [newId(), action.id, `wendy-action:${action.id}`, action.current_version, version.content_hash, ACTION_CATALOG[action.action_type].provider],
+    [newId(), action.id, `wendy-action:${action.id}`, action.current_version, version.content_hash, specOf(action.action_type).provider],
   );
 }
 
 /** Creates a proposed action (version 1, authored by Wendy) and applies the approval policy. */
 export async function proposeAction(
   tx: Tx,
-  a: { principalId: string; insightId: string | null; type: ActionType; targetPersonId: string | null; content: Record<string, unknown>; expiresAt: Date | null },
+  a: {
+    principalId: string;
+    insightId: string | null;
+    type: ActionType;
+    targetPersonId: string | null;
+    content: Record<string, unknown>;
+    expiresAt: Date | null;
+    /** Set when a skill step requests the action; the key makes the request idempotent per step. */
+    skill?: { executionId: string; stepKey: string };
+  },
 ): Promise<ActionRow> {
   const policy = decidePolicy(a.type, await policyOverride(tx, a.principalId, a.type));
   const id = newId();
   const created = (
     await tx.query<ActionRow>(
-      `INSERT INTO actions(id, principal_id, insight_id, action_type, target_person_id, state, authorization_level, policy_decision, current_version, expires_at, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,'PROPOSED',$6,$7,1,$8,now(),now()) RETURNING *`,
-      [id, a.principalId, a.insightId, a.type, a.targetPersonId, ACTION_CATALOG[a.type].authorizationLevel, JSON.stringify(policy), a.expiresAt],
+      `INSERT INTO actions(id, principal_id, insight_id, action_type, target_person_id, state, authorization_level, policy_decision, current_version, expires_at, created_at, updated_at, skill_execution_id, skill_step_key)
+       VALUES ($1,$2,$3,$4,$5,'PROPOSED',$6,$7,1,$8,now(),now(),$9,$10) RETURNING *`,
+      [id, a.principalId, a.insightId, a.type, a.targetPersonId, specOf(a.type).authorizationLevel, JSON.stringify(policy), a.expiresAt, a.skill?.executionId ?? null, a.skill?.stepKey ?? null],
     )
   ).rows[0]!;
   await tx.query(`INSERT INTO action_versions(action_id, version, content, content_hash, author, created_at) VALUES ($1,1,$2,$3,'WENDY',now())`, [id, JSON.stringify(a.content), hashOf(a.content)]);
@@ -167,7 +201,9 @@ export async function proposeAction(
   });
 
   let row = await transition(tx, created, 'STAGED', 'WENDY', 'content prepared');
-  if (policy.mode === 'AUTO') {
+  if (policy.mode === 'DENY') {
+    row = await transition(tx, row, 'CANCELLED', 'POLICY', policy.rule);
+  } else if (policy.mode === 'AUTO') {
     row = await transition(tx, row, 'APPROVED', 'POLICY', policy.rule);
     await createExecution(tx, row);
   } else {

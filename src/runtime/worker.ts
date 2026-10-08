@@ -1,5 +1,5 @@
 /**
- * The continuous loop: one cycle = verify ledger → detect → expire → think → reconcile → act.
+ * The continuous loop: one cycle = verify ledger → detect → expire → think → reconcile → act → resume skills.
  * Safe to run in several processes at once (events and executions are claimed with SKIP LOCKED).
  */
 import { assertLedgerIntegrity, LedgerIntegrityError } from '../audit/ledger.js';
@@ -20,12 +20,14 @@ export interface CycleReport {
   failures: { eventId: string; error: string }[];
   reconciled: string[];
   executed: string[];
+  /** Skill runs advanced this cycle (resumed after approval, child finished, or recovered after a crash). */
+  skills: string[];
 }
 
 export async function runCycle(ctx: WendyContext, opts: { inFlightStaleMs?: number } = {}): Promise<CycleReport> {
   await assertLedgerIntegrity(ctx.db); // FAIL CLOSED: nothing runs on a compromised ledger
   const now = ctx.clock.now();
-  const report: CycleReport = { detected: [], expired: 0, outcomes: [], failures: [], reconciled: [], executed: [] };
+  const report: CycleReport = { detected: [], expired: 0, outcomes: [], failures: [], reconciled: [], executed: [], skills: [] };
 
   for (const principal of await ctx.repos.entities.listPrincipals(ctx.db)) {
     report.detected.push(...(await runDetectors(ctx.db, principal, now)).emitted);
@@ -48,6 +50,7 @@ export async function runCycle(ctx: WendyContext, opts: { inFlightStaleMs?: numb
 
   report.reconciled = await ctx.executor.reconcileInFlight(new Date(Date.now() - (opts.inFlightStaleMs ?? WORKER_CONFIG.inFlightStaleMs)));
   report.executed = await ctx.executor.runPending();
+  if (ctx.skills) report.skills = await ctx.skills.runReady();
   return report;
 }
 

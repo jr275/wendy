@@ -1,8 +1,10 @@
 /**
  * One AG-UI run of Wendy's agent (transport-free, so it can be tested without HTTP).
  *
- * Takes the last user message, answers it through Wendy's own question flow (evidence registry →
- * reasoning → validator), and emits:
+ * Takes the last user message. If it asks Wendy to DO something a skill covers (intent step: the
+ * model picks from the registry, code validates), the skill runs and the turn emits `show_execution`
+ * (its progress, approvals and result). Otherwise it answers through Wendy's own question flow
+ * (evidence registry → reasoning → validator), and emits:
  *   - STEP_STARTED/FINISHED: 'raciocinando' (understanding, evidence, reasoning, validation) and 'montando' (cards)
  *   - tool call `show_answer`: validated answer, valid claims with their sources, conflicts, gaps, and
  *     which model reasoned (flagged when it is not Claude)
@@ -15,8 +17,23 @@ import { contentToText, EventType, type BaseEvent, type RunAgentInput } from '@a
 import { answerQuestion } from '../cognition/ask.js';
 import type { Db } from '../db/db.js';
 import type { WendyContext } from '../runtime/context.js';
+import { discoverIntent } from '../skills/discovery.js';
+import type { SkillRegistry } from '../skills/registry.js';
+import type { SkillRuntime } from '../skills/runtime.js';
+import { executionView } from '../skills/view.js';
+import type { Toolbox } from '../tools/index.js';
 import { siteCard } from './siteCard.js';
+import { summarizeRun } from './skillSummary.js';
 import { resolveViewing } from './viewing.js';
+
+/** How long a chat turn waits for a skill run before leaving it to continue in the background. */
+export const SKILL_TURN_BUDGET_MS = 90_000;
+
+export interface AgentSkills {
+  runtime: SkillRuntime;
+  registry: SkillRegistry;
+  toolbox: Toolbox;
+}
 
 export type Send = (e: BaseEvent) => void;
 
@@ -27,7 +44,7 @@ function lastUserText(input: RunAgentInput): string {
 }
 
 /** Claim/evidence markers like [C1] or [SC2] are for the validator; the chat shows them as cards instead. */
-const withoutMarkers = (s: string) => s.replace(/\s*\[(?:C|E|P|M|MT|MEM|SC|I|A|R)\d+\]/g, '').trim();
+const withoutMarkers = (s: string) => s.replace(/\s*\[(?:C|E|P|M|MT|MEM|SC|I|A|R|W|D|T)\d+\]/g, '').trim();
 
 function emitText(send: Send, text: string) {
   const messageId = crypto.randomUUID();
@@ -44,7 +61,7 @@ function emitTool(send: Send, name: string, args: unknown) {
   send({ type: EventType.TOOL_CALL_RESULT, messageId: crypto.randomUUID(), toolCallId, content: 'rendered' } as BaseEvent);
 }
 
-export async function runWendyAgent(deps: { ctx: WendyContext; db: Db; principalId: string }, input: RunAgentInput, send: Send): Promise<void> {
+export async function runWendyAgent(deps: { ctx: WendyContext; db: Db; principalId: string; skills?: AgentSkills }, input: RunAgentInput, send: Send): Promise<void> {
   const { ctx, db, principalId } = deps;
   const { threadId, runId } = input;
   send({ type: EventType.RUN_STARTED, threadId, runId } as BaseEvent);
@@ -56,6 +73,20 @@ export async function runWendyAgent(deps: { ctx: WendyContext; db: Db; principal
 
   // Shared state: the UI says what is on screen; code resolves it (scoped to the principal) or ignores it.
   const viewing = await resolveViewing(db, principalId, (input.state as { viewing?: unknown } | undefined)?.viewing);
+
+  // Something to DO (a skill) or something to ANSWER from records? The model picks from the registry;
+  // code validates. Questions about the principal's world keep the evidence-backed answer path below.
+  if (deps.skills) {
+    send({ type: EventType.STEP_STARTED, stepName: 'entendendo' } as BaseEvent);
+    const intent = await discoverIntent({ db, registry: deps.skills.registry, toolbox: deps.skills.toolbox, reasoner: ctx.reasoner }, { principalId, request: question, screen: viewing?.description ?? null, now: ctx.clock.now() });
+    send({ type: EventType.STEP_FINISHED, stepName: 'entendendo' } as BaseEvent);
+    if (intent.kind === 'skill') {
+      await runSkillTurn(deps.skills, db, principalId, question, intent.skillId, intent.input, send);
+      send({ type: EventType.RUN_FINISHED, threadId, runId } as BaseEvent);
+      return;
+    }
+  }
+
   send({ type: EventType.STEP_STARTED, stepName: 'raciocinando' } as BaseEvent);
   const ans = await answerQuestion(ctx, principalId, question, viewing);
   send({ type: EventType.STEP_FINISHED, stepName: 'raciocinando' } as BaseEvent);
@@ -96,4 +127,19 @@ export async function runWendyAgent(deps: { ctx: WendyContext; db: Db; principal
   }
   send({ type: EventType.STEP_FINISHED, stepName: 'montando' } as BaseEvent);
   send({ type: EventType.RUN_FINISHED, threadId, runId } as BaseEvent);
+}
+
+/** Starts a skill run, drives it for up to SKILL_TURN_BUDGET_MS, then reports its state as a card. */
+async function runSkillTurn(skills: AgentSkills, db: Db, principalId: string, question: string, skillId: string, input: unknown, send: Send): Promise<void> {
+  send({ type: EventType.STEP_STARTED, stepName: 'executando' } as BaseEvent);
+  const id = await skills.runtime.start(principalId, skillId, input, { kind: 'chat', question });
+  const driving = skills.runtime.advance(id).catch((e) => console.error('[skill run error]', id, e));
+  let timer: NodeJS.Timeout | undefined;
+  await Promise.race([driving, new Promise((r) => (timer = setTimeout(r, SKILL_TURN_BUDGET_MS)))]);
+  clearTimeout(timer);
+  send({ type: EventType.STEP_FINISHED, stepName: 'executando' } as BaseEvent);
+  const view = await executionView(db, skills.registry, principalId, id);
+  if (!view) throw new Error(`skill run ${id} not found`);
+  emitText(send, summarizeRun(view));
+  emitTool(send, 'show_execution', view);
 }

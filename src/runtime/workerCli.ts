@@ -5,12 +5,14 @@ import { DevMailboxProvider } from '../providers/devMailbox.js';
 import { systemClock } from '../util/clock.js';
 import { createContext } from './context.js';
 import { startWorker } from './worker.js';
+import { createSkillRuntime } from '../skills/index.js';
 import { GoogleSearchConsoleApi, syncDueProperties } from '../sensors/searchConsole.js';
 
 loadEnv();
 const db = createPool(databaseUrl());
 await migrate(db);
 const ctx = createContext({ db, reasoner: createReasoner(db), clock: systemClock, emailProvider: new DevMailboxProvider(db) });
+ctx.skills = createSkillRuntime(ctx, { owner: `worker:${process.pid}` }).runtime;
 
 if (reasonerKind() === 'gemini') console.log('⚠ Reasoner: GEMINI (MVP) — not Claude.');
 
@@ -27,8 +29,8 @@ const worker = startWorker(
   ctx,
   Number(process.env.WENDY_WORKER_INTERVAL_MS ?? 30_000),
   (r) => {
-    if (r.detected.length || r.outcomes.length || r.failures.length || r.executed.length)
-      console.log(JSON.stringify({ at: new Date().toISOString(), detected: r.detected.length, processed: r.outcomes, failures: r.failures, executed: r.executed }));
+    if (r.detected.length || r.outcomes.length || r.failures.length || r.executed.length || r.skills.length)
+      console.log(JSON.stringify({ at: new Date().toISOString(), detected: r.detected.length, processed: r.outcomes, failures: r.failures, executed: r.executed, skills: r.skills }));
   },
   (e) => console.error('[worker cycle error]', e),
 );

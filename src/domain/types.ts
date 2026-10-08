@@ -17,7 +17,7 @@ export const TERMINAL_ACTION_STATES: readonly ActionState[] = ['VERIFIED', 'REJE
 
 export type ClaimKind = 'FACT' | 'INFERENCE' | 'HYPOTHESIS' | 'ANTICIPATION' | 'RECOMMENDATION';
 
-export type EvidenceKind = 'event' | 'message' | 'meeting' | 'commitment' | 'memory' | 'person' | 'relationship' | 'insight' | 'action' | 'search_metric';
+export type EvidenceKind = 'event' | 'message' | 'meeting' | 'commitment' | 'memory' | 'person' | 'relationship' | 'insight' | 'action' | 'search_metric' | 'web_page' | 'document' | 'task';
 
 export interface EvidenceRef {
   kind: EvidenceKind;

@@ -35,7 +35,7 @@ const KIND: Record<string, { label: string; tone: string }> = {
 };
 const SOURCE: Record<string, string> = { search_metric: "Search Console", message: "E-mail", meeting: "Reunião", commitment: "Compromisso", memory: "Memória", person: "Pessoa", event: "Pergunta", insight: "Insight anterior" };
 
-const strip = (s: string) => s.replace(/\s*\[(?:C|E|P|M|MT|MEM|SC|I|A|R)\d+\]/g, "");
+const strip = (s: string) => s.replace(/\s*\[(?:C|E|P|M|MT|MEM|SC|I|A|R|W|D|T)\d+\]/g, "");
 const n = (x: number) => Math.round(x).toLocaleString("pt-BR");
 const dm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 

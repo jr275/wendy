@@ -7,11 +7,11 @@ export function TopBar({ reasoner, wide = false }: { reasoner: string | null; wi
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-bg/85 backdrop-blur">
       <div className={`mx-auto flex h-14 items-center gap-2 px-4 sm:gap-3 sm:px-6 ${wide ? "" : "max-w-5xl"}`}>
-        <Link href="/" className="flex items-center gap-3" aria-label="Menlo — Hoje">
+        <Link href="/" className="flex items-center gap-3" aria-label="Wendy — Hoje">
           <span className="grid h-7 w-7 place-items-center rounded-full bg-accent" aria-hidden>
             <span className="h-2.5 w-2.5 rounded-full bg-surface" />
           </span>
-          <span className="font-semibold tracking-tight">Menlo</span>
+          <span className="font-semibold tracking-tight">Wendy</span>
         </Link>
         <span className="ml-1 hidden h-5 w-px bg-line sm:ml-2 sm:block" aria-hidden />
         <Nav />

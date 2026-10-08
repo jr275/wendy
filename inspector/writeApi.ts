@@ -16,7 +16,7 @@ import crypto from 'node:crypto';
 import type http from 'node:http';
 import type pg from 'pg';
 import { z } from 'zod';
-import { ActionService, IllegalTransitionError, PolicyService } from '../src/actions/actions.js';
+import { ActionService, actionSpec, IllegalTransitionError, PolicyService, type ActionType } from '../src/actions/actions.js';
 import { ActionExecutor } from '../src/actions/executor.js';
 import type { Db } from '../src/db/db.js';
 import { CommitmentService, CommitmentTransitionError } from '../src/commitments/commitmentService.js';
@@ -24,6 +24,7 @@ import { MemoryService, MemoryTransitionError } from '../src/memory/memoryServic
 import { PeopleService } from '../src/people/peopleService.js';
 import { setSiteImportance } from '../src/sensors/searchConsole.js';
 import { DevMailboxProvider } from '../src/providers/devMailbox.js';
+import { effectsToolbox } from '../src/tools/index.js';
 import { newId, sha256 } from '../src/util/hash.js';
 
 export const SESSION_COOKIE = 'wendy_session';
@@ -48,9 +49,10 @@ const ROUTES = {
     async (db, b, at) => {
       const a = await new ActionService(db).approve(b.principalId, b.actionId, at, b.edits);
       // Execute right away. The only email provider is the local dev mailbox (nothing leaves the machine).
-      await new ActionExecutor(db, new DevMailboxProvider(db)).runPending();
+      await new ActionExecutor(db, new DevMailboxProvider(db), {}, effectsToolbox()).runPending();
       const state = (await db.query<{ state: string }>('SELECT state FROM actions WHERE id = $1', [a.id])).rows[0]!.state;
-      return { actionId: a.id, state, delivery: 'DEV_MAILBOX' };
+      // Only email goes to a mailbox (the local dev one); tool actions stay inside Wendy.
+      return { actionId: a.id, state, delivery: a.action_type === 'SEND_EMAIL' ? 'DEV_MAILBOX' : 'INTERNAL' };
     },
   ),
   '/api/write/action/reject': route(z.object({ principalId: uuid, actionId: uuid, reason: z.string().max(2000).nullable().optional() }), async (db, b, at) => ({
@@ -73,9 +75,13 @@ const ROUTES = {
     return { importance: b.importance };
   }),
   '/api/write/policy': route(
-    z.object({ principalId: uuid, actionType: z.enum(['PREPARE_BRIEFING', 'SEND_EMAIL']), mode: z.enum(['AUTO', 'REQUIRE_APPROVAL']).nullable() }),
+    z.object({
+      principalId: uuid,
+      actionType: z.string().refine((t) => !!actionSpec(t), 'unknown action type'),
+      mode: z.enum(['AUTO', 'REQUIRE_APPROVAL', 'DENY']).nullable(),
+    }),
     async (db, b, at) => {
-      await new PolicyService(db).set(b.principalId, b.actionType, b.mode, at);
+      await new PolicyService(db).set(b.principalId, b.actionType as ActionType, b.mode, at);
       return { mode: b.mode };
     },
   ),

@@ -151,3 +151,41 @@ export interface InsightDetail {
 export async function insight(id: string) {
   return get<InsightDetail>("/api/insight", { id });
 }
+
+/** One skill run as Wendy reports it (src/skills/view.ts). */
+export interface ExecutionView {
+  id: string;
+  skillId: string;
+  skillName: string;
+  version: string;
+  status: "queued" | "running" | "waiting_permission" | "waiting_child" | "completed" | "failed" | "cancelled";
+  error: { code: string; message: string; step: string | null; retryable: boolean } | null;
+  output: unknown;
+  createdAt: string;
+  completedAt: string | null;
+  steps: { id: string; label: string; status: "done" | "running" | "waiting" | "pending" | "failed" }[];
+  approvals: { actionId: string; tool: string; label: string; category: string; state: string; content: Record<string, unknown>; items: string[] }[];
+  models: string[];
+  children: ExecutionView[];
+}
+
+export async function execution(id: string, principalId: string): Promise<ExecutionView | null> {
+  try {
+    return await get<ExecutionView>("/api/execution", { id, principal: principalId });
+  } catch {
+    return null;
+  }
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  notes: string | null;
+  due_at: string | null;
+  created_by: "PRINCIPAL" | "WENDY";
+  created_at: string;
+}
+
+export async function tasks(principalId: string): Promise<Task[]> {
+  return (await get<{ tasks: Task[] }>("/api/tasks", { principal: principalId })).tasks;
+}

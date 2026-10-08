@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Menlo · Wendy",
-  description: "Remax AI Platform — a inteligência executiva que antecipa o que importa.",
+  title: "Wendy",
+  description: "Wendy — sua super assistente pessoal.",
 };
 
 /**

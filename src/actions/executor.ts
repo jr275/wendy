@@ -11,6 +11,8 @@
 import { assertLedgerIntegrity } from '../audit/ledger.js';
 import { withTx, type Db } from '../db/db.js';
 import type { EmailProvider } from '../providers/interfaces.js';
+import { effectsToolbox, type Toolbox } from '../tools/index.js';
+import { ToolError } from '../tools/types.js';
 import { hashOf, newId } from '../util/hash.js';
 import { getActionContent, lockAction, transition, type ActionRow } from './actions.js';
 
@@ -76,15 +78,37 @@ function artifactEffect(db: Db): Effect {
   };
 }
 
+/** A tool with an effect, adapted to the executor's perform / read back / compare contract. */
+function toolEffect(db: Db, toolbox: Toolbox, action: ActionRow): Effect {
+  const tool = toolbox.effect(action.action_type);
+  if (!tool) throw new ToolError('NOT_ALLOWED', `no tool implements ${action.action_type}`);
+  const ctx = (actionId: string) => ({ db, principalId: action.principal_id, now: new Date(), actionId, executionId: action.skill_execution_id ?? undefined });
+  const parse = (c: Record<string, unknown>) => tool.input.parse(c);
+  return {
+    name: `TOOL:${tool.spec.name}`,
+    deliversExternally: tool.spec.category === 'EXTERNAL' || tool.spec.category === 'PAYMENT',
+    perform: (_p, _key, actionId, c) => tool.perform(ctx(actionId), parse(c)),
+    readBack: async (_p, _key, actionId) => {
+      const { content } = await getActionContent(db, actionId, action.current_version);
+      return tool.readBack(ctx(actionId), parse(content));
+    },
+    expected: (c) => tool.expected(parse(c)),
+  };
+}
+
 export class ActionExecutor {
   constructor(
     private readonly db: Db,
     private readonly emailProvider: EmailProvider,
     private readonly hooks: ExecutorHooks = {},
+    /** Effects of tools (tasks.*). Always present, so no executor can mis-handle an approved tool action. */
+    private readonly toolbox: Toolbox = effectsToolbox(),
   ) {}
 
   private effectFor(action: ActionRow): Effect {
-    return action.action_type === 'SEND_EMAIL' ? emailEffect(this.emailProvider) : artifactEffect(this.db);
+    if (action.action_type === 'SEND_EMAIL') return emailEffect(this.emailProvider);
+    if (action.action_type === 'PREPARE_BRIEFING') return artifactEffect(this.db);
+    return toolEffect(this.db, this.toolbox, action);
   }
 
   /** Executes all PENDING executions. Returns the action ids that reached a terminal or executed state. */
@@ -120,7 +144,13 @@ export class ActionExecutor {
 
   private async perform(execution: ExecutionRow, action: ActionRow): Promise<void> {
     if (execution.status !== 'IN_FLIGHT') return;
-    const effect = this.effectFor(action);
+    let effect: Effect;
+    try {
+      effect = this.effectFor(action);
+    } catch (e) {
+      await this.fail(execution, action, e instanceof Error ? e.message : String(e));
+      return;
+    }
     const { content, content_hash } = await getActionContent(this.db, action.id, execution.version);
     if (content_hash !== execution.content_hash) {
       await this.fail(execution, action, 'approved content hash does not match execution record');

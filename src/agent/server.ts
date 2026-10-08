@@ -16,6 +16,7 @@ import { createPool } from '../db/db.js';
 import { DevMailboxProvider } from '../providers/devMailbox.js';
 import { createContext } from '../runtime/context.js';
 import { systemClock } from '../util/clock.js';
+import { createSkillRuntime } from '../skills/index.js';
 import { runWendyAgent } from './run.js';
 import { performWrite, WRITE_PATHS, writeErrorStatus, type WritePath } from '../../inspector/writeApi.js';
 
@@ -30,6 +31,18 @@ if (TOKEN.length < 24) {
 
 const db = createPool(databaseUrl());
 const ctx = createContext({ db, reasoner: createReasoner(db), clock: systemClock, emailProvider: new DevMailboxProvider(db) });
+const skills = createSkillRuntime(ctx, { owner: `agent:${process.pid}` });
+
+// Resume skill runs that can move: approved in the UI, a child finished, or left by a dead process.
+let resuming = false;
+setInterval(() => {
+  if (resuming) return;
+  resuming = true;
+  skills.runtime
+    .runReady()
+    .catch((e) => console.error('[skills resume error]', e))
+    .finally(() => (resuming = false));
+}, Number(process.env.WENDY_SKILLS_RESUME_MS ?? 3000));
 
 async function principalId(): Promise<string> {
   const r = (await db.query<{ id: string }>('SELECT id FROM principals WHERE primary_email = $1', [PRINCIPAL_EMAIL])).rows[0];
@@ -85,7 +98,7 @@ http
     res.writeHead(200, { 'Content-Type': enc.getContentType(), 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
     const send = (e: BaseEvent) => res.write(enc.encode(e));
     try {
-      await runWendyAgent({ ctx, db, principalId: await principalId() }, parsed.data as RunAgentInput, send);
+      await runWendyAgent({ ctx, db, principalId: await principalId(), skills }, parsed.data as RunAgentInput, send);
     } catch (e) {
       console.error('[agent run error]', e);
       send({ type: EventType.RUN_ERROR, message: (e as Error).message } as BaseEvent);

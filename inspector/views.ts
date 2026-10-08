@@ -343,7 +343,8 @@ export async function ontology(db: pg.Pool, principalIdParam: string | null) {
 
 /** Current configuration as the core actually applies it (read from code constants and the database). */
 export async function configuration(db: pg.Pool, principalIdParam: string | null) {
-  const { ACTION_CATALOG, decidePolicy } = await import('../src/actions/actions.js');
+  const { ACTION_CATALOG, actionSpec, decidePolicy } = await import('../src/actions/actions.js');
+  const { TOOL_SPECS } = await import('../src/tools/specs.js');
   const { DETECTOR_CONFIG } = await import('../src/cognition/detectors.js');
   const { SALIENCE_WEIGHTS, SURFACE_THRESHOLD, MODELS } = await import('../src/config.js');
   const pid = await resolvePrincipal(db, principalIdParam);
@@ -359,9 +360,11 @@ export async function configuration(db: pg.Pool, principalIdParam: string | null
     : [];
   const { policyOverride } = await import('../src/actions/actions.js');
   const policy = [];
-  for (const type of Object.keys(ACTION_CATALOG) as (keyof typeof ACTION_CATALOG)[]) {
+  // Built-in actions plus every tool with an effect (read-only tools never need a policy).
+  const types = [...Object.keys(ACTION_CATALOG), ...Object.keys(TOOL_SPECS).filter((t) => actionSpec(t))] as Parameters<typeof decidePolicy>[0][];
+  for (const type of types) {
     const override = pid ? await policyOverride(db, pid, type) : null;
-    policy.push({ type, ...ACTION_CATALOG[type], override, default: decidePolicy(type), decision: decidePolicy(type, override) });
+    policy.push({ type, ...actionSpec(type)!, override, default: decidePolicy(type), decision: decidePolicy(type, override) });
   }
   return { principal, important, policy, detectors: DETECTOR_CONFIG, salience: { threshold: SURFACE_THRESHOLD, weights: SALIENCE_WEIGHTS }, model: MODELS.reasoning };
 }
@@ -503,4 +506,21 @@ export async function sites(db: pg.Pool, principalIdParam: string | null) {
     out.push({ ...p, daily, current: cur ?? null, baseline: base ?? null, direction, movers, changes });
   }
   return { sites: out };
+}
+
+/** One skill run (with children) for the chat card; principal-scoped. */
+export async function execution(db: pg.Pool, principalIdParam: string | null, id: string) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return null;
+  const { builtinRegistry } = await import('../src/skills/index.js');
+  const { executionView } = await import('../src/skills/view.js');
+  return executionView(db, builtinRegistry(), pid, id);
+}
+
+/** Open tasks of the principal. */
+export async function tasks(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { tasks: [] };
+  const { listTasks } = await import('../src/tasks/taskService.js');
+  return { tasks: await listTasks(db, pid) };
 }

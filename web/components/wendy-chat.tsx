@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { z } from "zod";
 import { AnswerCard, SiteCard, type AnswerPayload, type SitePayload } from "./cards";
+import { ExecutionCard } from "./execution-card";
+import type { ExecutionView } from "@/lib/wendy";
 import { Sparkline } from "./sparkline";
 import { useOptionalWorkspace, type FocusCard } from "./workspace-context";
 
@@ -14,6 +16,8 @@ import { useOptionalWorkspace, type FocusCard } from "./workspace-context";
  */
 const n = (x: number) => Math.round(x).toLocaleString("pt-BR");
 const STEPS: Record<string, string> = {
+  entendendo: "Entendendo o que você pediu",
+  executando: "Executando",
   raciocinando: "Reunindo evidências e validando cada afirmação",
   montando: "Montando os cartões",
 };
@@ -190,6 +194,17 @@ function useWendyChat(suggestions: string[]) {
       },
     },
     [full, open],
+  );
+
+  // A skill run (S1): progress, approvals and result; the card keeps itself up to date.
+  useRenderTool(
+    {
+      name: "show_execution",
+      agentId: "wendy",
+      parameters: z.custom<ExecutionView>(),
+      render: ({ status, parameters }) => (status === "inProgress" || !parameters?.id ? <Pending label="Preparando…" /> : <ExecutionCard initial={parameters} />),
+    },
+    [],
   );
 
   return step;

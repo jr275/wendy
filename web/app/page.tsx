@@ -6,7 +6,7 @@ import { WorkspaceProvider } from "@/components/workspace-context";
 import { Sparkline } from "@/components/sparkline";
 import { TopBar } from "@/components/top-bar";
 import { ACTION_LABEL, EVENT_LABEL, dateLong, firstName, greeting, intPt, pct, stripRefs } from "@/lib/format";
-import { principal as getPrincipal, reasonerLabel, sites as getSites, today as getToday, type InsightCard, type Site } from "@/lib/wendy";
+import { principal as getPrincipal, reasonerLabel, sites as getSites, tasks as getTasks, today as getToday, type InsightCard, type Site } from "@/lib/wendy";
 
 const INSPECTOR = process.env.NEXT_PUBLIC_WENDY_INSPECTOR_URL ?? "http://127.0.0.1:3457";
 
@@ -31,7 +31,7 @@ function Skeleton() {
 async function Today() {
   const p = await getPrincipal();
   if (!p) return <Empty title="Nenhum executivo cadastrado" body="Cadastre um executivo na Wendy para começar." />;
-  const [t, s] = await Promise.all([getToday(p.id), getSites(p.id)]);
+  const [t, s, open] = await Promise.all([getToday(p.id), getSites(p.id), getTasks(p.id).catch(() => [])]);
   const insights = t.insights ?? [];
   const surfaced = insights.filter((i) => i.status === "SURFACED");
   const quiet = insights.filter((i) => i.status === "SUPPRESSED");
@@ -99,6 +99,25 @@ async function Today() {
             <Empty title="Nada urgente" body="Quando algo merecer sua atenção, aparece aqui — com a fonte de cada afirmação." />
           )}
         </Section>
+
+        {open.length ? (
+          <Section title="Suas tarefas" count={open.length} hint="criadas por você ou pela Wendy com sua aprovação">
+            <ul className="card divide-y divide-line-2 overflow-hidden">
+              {open.map((task) => (
+                <li key={task.id} className="flex items-start gap-3 px-5 py-3">
+                  <span className="mt-0.5 text-faint" aria-hidden>
+                    ○
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block">{task.title}</span>
+                    {task.notes ? <span className="mt-0.5 block truncate text-sm text-muted">{task.notes}</span> : null}
+                  </span>
+                  {task.created_by === "WENDY" ? <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-muted">pela Wendy</span> : null}
+                </li>
+              ))}
+            </ul>
+          </Section>
+        ) : null}
 
         {s.length ? (
           <Section title="Seus sites no Google" count={s.length} hint="últimos 7 dias contra a média das 4 semanas anteriores">

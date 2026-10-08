@@ -17,7 +17,7 @@ import { loadEnv } from '../src/config.js';
 import { createPool } from '../src/db/db.js'; // also registers pg type parsers
 import { readOnlyPool } from './readOnlyPool.js';
 import { createWriteApi } from './writeApi.js';
-import { activity, actionsList, configuration, radar, sites, sources, insightDetail, modelCalls, ontology, people, principals, today } from './views.js';
+import { activity, actionsList, configuration, execution, radar, sites, sources, insightDetail, modelCalls, ontology, people, principals, tasks, today } from './views.js';
 
 loadEnv();
 const DB_URL = process.env.INSPECT_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres:///wendy';
@@ -209,11 +209,16 @@ http
       if (url.pathname === '/api/sources') return send(res, 200, await sources(db, principal));
       if (url.pathname === '/api/radar') return send(res, 200, await radar(db, principal));
       if (url.pathname === '/api/sites') return send(res, 200, await sites(db, principal));
+      if (url.pathname === '/api/tasks') return send(res, 200, await tasks(db, principal));
       if (url.pathname === '/api/ledger') return send(res, 200, await ledger(db));
       if (!UUID_RE.test(id)) return send(res, 400, { error: 'invalid id' });
       if (url.pathname === '/api/event') return send(res, 200, await eventDetail(db, id));
       if (url.pathname === '/api/model-call') return send(res, 200, await modelCall(db, id));
       if (url.pathname === '/api/insight') return send(res, 200, await insightDetail(db, id));
+      if (url.pathname === '/api/execution') {
+        const v = await execution(db, principal, id);
+        return v ? send(res, 200, v) : send(res, 404, { error: 'not found' });
+      }
       send(res, 404, { error: 'not found' });
     } catch (err) {
       const e = err as Error & { status?: number };

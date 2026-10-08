@@ -25,7 +25,9 @@
     "test:live:phase2": "vitest run tests/live-phase2",
     "eval:retrieval:real": "tsx scripts/eval-retrieval-real.ts",
     "search": "tsx scripts/search-console.ts",
-    "agent": "tsx src/agent/server.ts"
+    "agent": "tsx src/agent/server.ts",
+    "google:connect": "tsx scripts/google-connect.ts",
+    "google:sync": "tsx scripts/google-sync.ts"
   },
   "dependencies": {
     "@ag-ui/core": "^1.0.2",

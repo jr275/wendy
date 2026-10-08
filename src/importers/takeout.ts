@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { appendAudit } from '../audit/ledger.js';
 import { withTx, type Db } from '../db/db.js';
 import { createPerson, storeMessage, upsertMeeting } from '../events/world.js';
+import { emitEmailReceived } from '../events/ingest.js';
 import { normalizeAddress } from '../repositories/pg.js';
 import { sha256 } from '../util/hash.js';
 import { parseIcs, type IcsOccurrence } from './ics.js';
@@ -53,6 +54,19 @@ export interface ImportOptions {
   exclusions: Exclusions;
   onlyCorrespondents?: boolean; // default true
   dryRun?: boolean;
+}
+
+/** The core works on already-read items, so live sources (Gmail/Calendar APIs) reuse it. */
+export interface ImportItemsOptions extends Omit<ImportOptions, 'mboxPath' | 'icsPaths'> {
+  mails: ParsedMail[];
+  meetings: IcsOccurrence[];
+  providers: { mail: string; calendar: string };
+  /** Free text recorded in the audit entry (files or source). */
+  origin: string[];
+  /** Live sync: new inbound mail from a known person also becomes an EMAIL_RECEIVED event. */
+  emitInboundEvents?: boolean;
+  /** Counts already done by the caller (mbox parsing, ics expansion). */
+  preCounts?: { mail?: Partial<ImportReport['mail']>; calendar?: Partial<ImportReport['calendar']> };
 }
 
 export interface ImportReport {
@@ -98,6 +112,39 @@ function exclusionMatcher(ex: Exclusions) {
 }
 
 export async function importTakeout(db: Db, opts: ImportOptions): Promise<ImportReport> {
+  const principal = (await db.query<{ timezone: string }>('SELECT timezone FROM principals WHERE id = $1', [opts.principalId])).rows[0];
+  if (!principal) throw new Error('unknown principal');
+  const mail = { read: 0, unparseable: 0 };
+  const calendar = { events: 0, unsupportedRecurrence: 0, unknownTimezone: 0, invalid: 0 };
+  const mails: ParsedMail[] = [];
+  if (opts.mboxPath) {
+    for await (const raw of readMbox(opts.mboxPath)) {
+      mail.read++;
+      try {
+        mails.push(parseMail(raw));
+      } catch {
+        mail.unparseable++;
+      }
+    }
+  }
+  const meetings: IcsOccurrence[] = [];
+  const lookahead = (opts.meetingLookaheadDays ?? 60) * 86_400_000;
+  for (const file of opts.icsPaths ?? []) {
+    const r = parseIcs(fs.readFileSync(file, 'utf8'), { from: opts.since, to: new Date(opts.until.getTime() + lookahead), defaultTz: principal.timezone });
+    for (const k of ['events', 'unsupportedRecurrence', 'unknownTimezone', 'invalid'] as const) calendar[k] += r.stats[k];
+    meetings.push(...r.occurrences);
+  }
+  return importItems(db, {
+    ...opts,
+    mails,
+    meetings,
+    providers: { mail: MAIL_PROVIDER, calendar: CALENDAR_PROVIDER },
+    origin: [opts.mboxPath, ...(opts.icsPaths ?? [])].filter(Boolean).map((f) => path.basename(f!)),
+    preCounts: { mail, calendar },
+  });
+}
+
+export async function importItems(db: Db, opts: ImportItemsOptions): Promise<ImportReport> {
   const principal = (await db.query<{ primary_email: string; timezone: string }>('SELECT primary_email, timezone FROM principals WHERE id = $1', [opts.principalId])).rows[0];
   if (!principal) throw new Error('unknown principal');
   const me = new Set([principal.primary_email, ...lower(opts.aliases ?? []).map(normalizeAddress)]);
@@ -106,55 +153,42 @@ export async function importTakeout(db: Db, opts: ImportOptions): Promise<Import
   const onlyCorrespondents = opts.onlyCorrespondents ?? true;
   const report: ImportReport = {
     dryRun: !!opts.dryRun,
-    mail: { read: 0, unparseable: 0, outOfWindow: 0, excluded: { address: 0, domain: 0, subject: 0, label: 0 }, withoutCorrespondent: 0, stored: 0, alreadyPresent: 0 },
-    calendar: { events: 0, occurrencesInWindow: 0, allDaySkipped: 0, excluded: 0, stored: 0, unsupportedRecurrence: 0, unknownTimezone: 0, invalid: 0 },
+    mail: { read: 0, unparseable: 0, outOfWindow: 0, excluded: { address: 0, domain: 0, subject: 0, label: 0 }, withoutCorrespondent: 0, stored: 0, alreadyPresent: 0, ...opts.preCounts?.mail },
+    calendar: { events: 0, occurrencesInWindow: 0, allDaySkipped: 0, excluded: 0, stored: 0, unsupportedRecurrence: 0, unknownTimezone: 0, invalid: 0, ...opts.preCounts?.calendar },
     people: { created: 0, alreadyKnown: 0 },
     sentToClaude: 0,
   };
+  if (!opts.preCounts?.mail) report.mail.read = opts.mails.length;
+  if (!opts.preCounts?.calendar) report.calendar.events = opts.meetings.length;
 
-  // ---- 1. read mail (kept in memory only within the window)
+  // ---- 1. filter mail (kept in memory only within the window)
   const mails: { m: ParsedMail; from: string; to: string[] }[] = [];
-  if (opts.mboxPath) {
-    for await (const raw of readMbox(opts.mboxPath)) {
-      report.mail.read++;
-      let m: ParsedMail;
-      try {
-        m = parseMail(raw);
-      } catch {
-        report.mail.unparseable++;
-        continue;
-      }
-      if (!m.from || !m.date) {
-        report.mail.unparseable++;
-        continue;
-      }
-      if (m.date < opts.since || m.date > opts.until) {
-        report.mail.outOfWindow++;
-        continue;
-      }
-      const from = asPrincipal(normalizeAddress(m.from.address));
-      const to = [...new Set([...m.to, ...m.cc].map((a) => asPrincipal(normalizeAddress(a.address))))];
-      const why = exclude.mail(m, [from, ...to]);
-      if (why) {
-        report.mail.excluded[why]++;
-        continue;
-      }
-      mails.push({ m, from, to });
+  for (const m of opts.mails) {
+    if (!m.from || !m.date) {
+      report.mail.unparseable++;
+      continue;
     }
+    if (m.date < opts.since || m.date > opts.until) {
+      report.mail.outOfWindow++;
+      continue;
+    }
+    const from = asPrincipal(normalizeAddress(m.from.address));
+    const to = [...new Set([...m.to, ...m.cc].map((a) => asPrincipal(normalizeAddress(a.address))))];
+    const why = exclude.mail(m, [from, ...to]);
+    if (why) {
+      report.mail.excluded[why]++;
+      continue;
+    }
+    mails.push({ m, from, to });
   }
 
-  // ---- 2. read calendar
+  // ---- 2. filter calendar
   const meetings: IcsOccurrence[] = [];
-  const lookahead = (opts.meetingLookaheadDays ?? 60) * 86_400_000;
-  for (const file of opts.icsPaths ?? []) {
-    const r = parseIcs(fs.readFileSync(file, 'utf8'), { from: opts.since, to: new Date(opts.until.getTime() + lookahead), defaultTz: principal.timezone });
-    for (const k of ['events', 'unsupportedRecurrence', 'unknownTimezone', 'invalid'] as const) report.calendar[k] += r.stats[k];
-    for (const o of r.occurrences) {
-      report.calendar.occurrencesInWindow++;
-      if (o.allDay) report.calendar.allDaySkipped++;
-      else if (exclude.meeting(o)) report.calendar.excluded++;
-      else meetings.push(o);
-    }
+  for (const o of opts.meetings) {
+    report.calendar.occurrencesInWindow++;
+    if (o.allDay) report.calendar.allDaySkipped++;
+    else if (exclude.meeting(o)) report.calendar.excluded++;
+    else meetings.push(o);
   }
 
   // ---- 3. correspondents (deterministic): people the principal wrote to, or met in a small meeting
@@ -200,22 +234,25 @@ export async function importTakeout(db: Db, opts: ImportOptions): Promise<Import
   // ---- 4. write (batched transactions; storeMessage / upsertMeeting are idempotent)
   const bestName = (a: string) => [...(names.get(a)?.entries() ?? [])].sort((x, y) => y[1] - x[1])[0]?.[0] ?? a.split('@')[0]!;
   await withTx(db, async (tx) => {
-    for (const a of toCreate) await createPerson(tx, opts.principalId, { fullName: bestName(a), emails: [a], source: MAIL_PROVIDER });
+    for (const a of toCreate) await createPerson(tx, opts.principalId, { fullName: bestName(a), emails: [a], source: opts.providers.mail });
   });
   for (let i = 0; i < keptMails.length; i += 200) {
     await withTx(db, async (tx) => {
       for (const { m, from, to } of keptMails.slice(i, i + 200)) {
         const externalId = m.messageId ?? `sha256:${sha256(`${from}|${m.date!.toISOString()}|${m.subject}`)}`;
-        const r = await storeMessage(tx, opts.principalId, { provider: MAIL_PROVIDER, externalId, threadExternalId: m.threadId, from, to, subject: m.subject, body: m.body, sentAt: m.date! });
+        const mail = { provider: opts.providers.mail, externalId, threadExternalId: m.threadId, from, to, subject: m.subject, body: m.body, sentAt: m.date! };
+        const r = await storeMessage(tx, opts.principalId, mail);
         if (r.inserted) report.mail.stored++;
         else report.mail.alreadyPresent++;
+        // Live mail from a known person is something to think about (the pipeline decides if it matters).
+        if (opts.emitInboundEvents && r.inserted && r.senderPersonId && !me.has(from)) await emitEmailReceived(tx, opts.principalId, mail, r.messageId, r.senderPersonId, 'PROVIDER');
       }
     });
   }
   await withTx(db, async (tx) => {
     for (const o of meetings) {
       await upsertMeeting(tx, opts.principalId, {
-        provider: CALENDAR_PROVIDER,
+        provider: opts.providers.calendar,
         externalId: o.externalId,
         title: o.title,
         description: o.description,
@@ -231,9 +268,9 @@ export async function importTakeout(db: Db, opts: ImportOptions): Promise<Import
       eventType: 'IMPORT_COMPLETED',
       actor: 'PRINCIPAL',
       subjectType: 'import',
-      subjectId: MAIL_PROVIDER,
+      subjectId: opts.providers.mail,
       payload: {
-        files: [opts.mboxPath, ...(opts.icsPaths ?? [])].filter(Boolean).map((f) => path.basename(f!)),
+        files: opts.origin,
         window: { since: opts.since.toISOString(), until: opts.until.toISOString() },
         mail: report.mail,
         calendar: report.calendar,

@@ -123,3 +123,24 @@ export async function syncProperty(db: Db, api: SearchConsoleApi, property: WebP
   counts.daily = daily.length;
   return { windows: w, counts };
 }
+
+/** Syncs every property whose last sync is older than `minIntervalHours` (any principal). Errors are reported, never thrown. */
+export async function syncDueProperties(db: Db, api: SearchConsoleApi, now: Date, minIntervalHours = 20) {
+  const due = (
+    await db.query<WebProperty>(
+      `SELECT id, principal_id, site_url, label, explicit_importance FROM web_properties
+       WHERE last_synced_at IS NULL OR last_synced_at < $1 ORDER BY label`,
+      [new Date(now.getTime() - minIntervalHours * 3_600_000)],
+    )
+  ).rows;
+  const results: { label: string; ok: boolean; detail: string }[] = [];
+  for (const p of due) {
+    try {
+      const r = await syncProperty(db, api, p, now);
+      results.push({ label: p.label, ok: true, detail: `${r.windows.current.start}..${r.windows.current.end}` });
+    } catch (e) {
+      results.push({ label: p.label, ok: false, detail: (e as Error).message });
+    }
+  }
+  return results;
+}

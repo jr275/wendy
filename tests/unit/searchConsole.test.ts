@@ -6,7 +6,7 @@ import { DevMailboxProvider } from '../../src/providers/devMailbox.js';
 import { createContext } from '../../src/runtime/context.js';
 import { runCycle } from '../../src/runtime/worker.js';
 import { addWebProperty, listWebProperties, syncProperty, windowsFor, type SearchConsoleApi, type SearchRow } from '../../src/sensors/searchConsole.js';
-import { compareWindows, runSearchDetector, SEARCH_DETECTOR_CONFIG } from '../../src/sensors/searchDetector.js';
+import { compareWindows, runSearchDetector, SEARCH_DETECTOR_CONFIG, siteChangeContributors } from '../../src/sensors/searchDetector.js';
 import { fixedClock } from '../../src/util/clock.js';
 import { createTestDb } from '../helpers/db.js';
 import { handlesIn, minimalReasoning, ScriptedReasoner } from '../helpers/scriptedReasoner.js';
@@ -118,5 +118,48 @@ describe('sync → detector → cycle (scripted reasoner, no network)', () => {
     expect(importance.basis).toMatch(/site Site Teste/);
     const claims = (await db.query(`SELECT statement, validation_status, produced_by, kind FROM claims WHERE statement = 'invented number'`)).rows;
     expect(claims[0].validation_status).not.toBe('VALID'); // cites a handle that does not exist
+  });
+
+  it('site-level change contributors: largest same-direction movers present in both windows, nothing invented', async () => {
+    const [p] = await listWebProperties(db, principalId);
+    const put = (start: string, end: string, dim: string, key: string, clicks: number, impressions: number) =>
+      db.query(
+        `INSERT INTO search_metric_windows(id, principal_id, property_id, window_start, window_end, dimension, key, clicks, impressions, ctr, position, row_limit, fetched_at)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 0, 5, 5000, now())`,
+        [principalId, p!.id, start, end, dim, key, clicks, impressions],
+      );
+    // baseline 2026-06-01..28 (weekly = /4), current 2026-06-29..07-05
+    await put('2026-06-01', '2026-06-28', 'page', '/a', 400, 40000); // weekly 10000 impressions
+    await put('2026-06-29', '2026-07-05', 'page', '/a', 20, 2000); // -8000
+    await put('2026-06-01', '2026-06-28', 'page', '/b', 400, 8000); // weekly 2000
+    await put('2026-06-29', '2026-07-05', 'page', '/b', 90, 1500); // -500
+    await put('2026-06-01', '2026-06-28', 'page', '/c', 40, 4000); // weekly 1000
+    await put('2026-06-29', '2026-07-05', 'page', '/c', 30, 3000); // +2000 (rise: excluded for a drop)
+    await put('2026-06-01', '2026-06-28', 'page', '/gone', 4000, 99000); // absent now: unknown, excluded
+    const c = await siteChangeContributors(db, p!.id, '2026-07-05', '2026-06-28', 'DROP');
+    expect(c.map((x) => `${x.key}:${x.deltaImpressions}`)).toEqual(['/a:-8000', '/b:-500']);
+    expect(c[0]).toMatchObject({ dimension: 'page', deltaClicks: -80 });
+  });
+});
+
+describe('daily sync scheduling', () => {
+  it('syncs only properties whose last sync is older than the interval', async () => {
+    const t = await createTestDb();
+    try {
+      const pid = await createPrincipal(t.db, { displayName: 'P', primaryEmail: 'p@example.test', timezone: 'UTC', locale: 'pt-BR' });
+      await addWebProperty(t.db, pid, { siteUrl: 'https://a.test/', label: 'A', source: 'TEST' });
+      await addWebProperty(t.db, pid, { siteUrl: 'https://b.test/', label: 'B', source: 'TEST' });
+      const { syncDueProperties } = await import('../../src/sensors/searchConsole.js');
+      let calls = 0;
+      const api = { query: async () => { calls++; return []; } };
+      const now = new Date('2026-10-08T12:00:00Z');
+      await t.db.query(`UPDATE web_properties SET last_synced_at = $1 WHERE label = 'B'`, [new Date(now.getTime() - 2 * 3_600_000)]);
+      const r = await syncDueProperties(t.db, api, now);
+      expect(r.map((x) => x.label)).toEqual(['A']);
+      expect(calls).toBeGreaterThan(0);
+      expect(await syncDueProperties(t.db, api, now)).toEqual([]); // A was just synced
+    } finally {
+      await t.drop();
+    }
   });
 });

@@ -23,6 +23,7 @@ import { describeTime, REASON_SYSTEM, UNDERSTAND_SYSTEM } from './prompts.js';
 import { renderInsight } from './render.js';
 import { computeSalience, type SalienceResult } from './salience.js';
 import { relationshipMetrics } from '../people/relationshipMetrics.js';
+import { siteChangeContributors } from '../sensors/searchDetector.js';
 import { ReasoningSchema, UnderstandingSchema, type Reasoning, type Understanding } from './schemas.js';
 import { validateReasoning, validateUnderstanding, type ValidationReport } from './validator.js';
 
@@ -139,6 +140,20 @@ async function buildFocus(ctx: WendyContext, principal: Principal, event: WendyE
         )
       ).rows;
       if (rows.length !== 2) return SKIP('search metric rows no longer exist (stale event)');
+      // Whole-site change: attach the pages and queries that moved most in the same direction (computed here).
+      const cw = p.current_window as { window_end: string };
+      const bw = p.baseline_window as { window_end: string };
+      const direction: 'DROP' | 'RISE' = (ch.changePct ?? 0) < 0 ? 'DROP' : 'RISE';
+      const contributors = ch.dimension === 'total' ? await siteChangeContributors(db, prop.id, cw.window_end, bw.window_end, direction) : [];
+      const contribRows = contributors.length
+        ? (
+            await db.query<(typeof rows)[number]>(
+              `SELECT id, to_char(window_start,'YYYY-MM-DD') AS window_start, to_char(window_end,'YYYY-MM-DD') AS window_end, dimension, key, clicks, impressions, ctr, position, fetched_at
+               FROM search_metric_windows WHERE principal_id = $1 AND id = ANY($2::uuid[])`,
+              [principal.id, contributors.flatMap((c) => [c.currentRowId, c.baselineRowId])],
+            )
+          ).rows
+        : [];
       const render = (r: (typeof rows)[number]) =>
         `Search Console, ${prop.label} (${prop.site_url}), ${r.dimension === 'total' ? 'whole site' : `${r.dimension}: ${r.key}`}, ${r.window_start} to ${r.window_end}: clicks ${r.clicks}, impressions ${r.impressions}, CTR ${(r.ctr * 100).toFixed(2)}%, average position ${r.position.toFixed(1)}`;
       const days = (r: (typeof rows)[number]) => Math.round((Date.parse(r.window_end) - Date.parse(r.window_start)) / DAY_MS) + 1;
@@ -151,11 +166,27 @@ async function buildFocus(ctx: WendyContext, principal: Principal, event: WendyE
           `change: ${ch.kind} on ${ch.dimension === 'total' ? 'the whole site' : `${ch.dimension} "${ch.key}"`}`,
           `clicks change vs baseline weekly average: ${ch.changePct === null ? 'n/a' : `${ch.changePct}%`}; average position change: ${ch.positionDelta === null ? 'n/a' : `${ch.positionDelta > 0 ? '+' : ''}${ch.positionDelta} (positive = worse)`}`,
           `windows: current = last 7 final days, baseline = the 28 days before (weekly average = baseline / 4)`,
+          ...(contributors.length
+            ? [
+                `largest ${direction === 'DROP' ? 'declines' : 'increases'} behind this site-level change (current week minus baseline weekly average; only pages/queries present in both windows; the current and baseline records for each are cited as evidence):`,
+                ...contributors.map((c) => `  - ${c.dimension} "${c.key}": impressions ${c.deltaImpressions > 0 ? '+' : ''}${c.deltaImpressions}, clicks ${c.deltaClicks > 0 ? '+' : ''}${c.deltaClicks}`),
+                ...(() => {
+                  // Coverage: how much of the site-level impression change the listed pages explain (computed, not inferred).
+                  const cur = rows.find((r) => r.window_end === cw.window_end);
+                  const base = rows.find((r) => r.window_end === bw.window_end);
+                  if (!cur || !base) return [];
+                  const siteDelta = Math.round(cur.impressions - base.impressions / 4);
+                  const pagesDelta = contributors.filter((c) => c.dimension === 'page').reduce((sum, c) => sum + c.deltaImpressions, 0);
+                  const share = siteDelta !== 0 ? Math.round((100 * pagesDelta) / siteDelta) : null;
+                  return [`coverage: the site's weekly impressions changed by ${siteDelta}; the pages listed above account for ${pagesDelta}${share === null ? '' : ` (${share}%)`}. The rest is spread across other pages or pages outside the stored top rows — do not attribute the whole change to the listed pages.`];
+                })(),
+              ]
+            : []),
           `Search Console reports only what Google measured; it does not say why. Any cause is a hypothesis.`,
         ].join('\n'),
         personIds: [],
         mentions: [],
-        extraRefs: rows.map((r) => ({ ref: { kind: 'search_metric' as const, id: r.id }, at: new Date(`${r.window_end}T23:59:59Z`), text: `${render(r)} (${days(r)} days)`, meta: { window_end: r.window_end, dimension: r.dimension } })),
+        extraRefs: [...rows, ...contribRows].map((r) => ({ ref: { kind: 'search_metric' as const, id: r.id }, at: new Date(`${r.window_end}T23:59:59Z`), text: `${render(r)} (${days(r)} days)`, meta: { window_end: r.window_end, dimension: r.dimension } })),
         deadlines: [],
         defaultExpiry: new Date(now.getTime() + 7 * DAY_MS),
         subject: { importance: prop.explicit_importance, label: `o site ${prop.label}` },

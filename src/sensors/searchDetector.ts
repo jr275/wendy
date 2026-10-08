@@ -127,3 +127,42 @@ export async function runSearchDetector(db: Db, principalId: string, properties:
   }
   return emitted;
 }
+
+export interface Contributor {
+  dimension: 'page' | 'query';
+  key: string;
+  currentRowId: string;
+  baselineRowId: string;
+  deltaClicks: number; // current week minus baseline weekly average
+  deltaImpressions: number;
+}
+
+/**
+ * For a whole-site change: the pages and queries whose weekly clicks/impressions moved the most in the
+ * same direction, computed from the stored windows (only keys present in both windows — a key missing
+ * from the current top rows is unknown, so it is not listed). Deterministic; no interpretation.
+ */
+export async function siteChangeContributors(q: Queryable, propertyId: string, currentEnd: string, baselineEnd: string, direction: 'DROP' | 'RISE', perDimension = 5): Promise<Contributor[]> {
+  const rows = (
+    await q.query<{ dimension: 'page' | 'query'; key: string; cur_id: string; base_id: string; d_clicks: number; d_impr: number }>(
+      `SELECT c.dimension, c.key, c.id AS cur_id, b.id AS base_id,
+              c.clicks - b.clicks / $4 AS d_clicks, c.impressions - b.impressions / $4 AS d_impr
+       FROM search_metric_windows c
+       JOIN search_metric_windows b ON b.property_id = c.property_id AND b.dimension = c.dimension AND b.key = c.key AND b.window_end = $3
+       WHERE c.property_id = $1 AND c.window_end = $2 AND c.dimension IN ('page','query')`,
+      [propertyId, currentEnd, baselineEnd, SEARCH_SYNC_CONFIG.baselineDays / SEARCH_SYNC_CONFIG.currentDays],
+    )
+  ).rows;
+  const sign = direction === 'DROP' ? 1 : -1;
+  const out: Contributor[] = [];
+  for (const dim of ['page', 'query'] as const) {
+    out.push(
+      ...rows
+        .filter((r) => r.dimension === dim && sign * r.d_impr < 0)
+        .sort((a, b) => sign * (a.d_impr - b.d_impr))
+        .slice(0, perDimension)
+        .map((r) => ({ dimension: dim, key: r.key, currentRowId: r.cur_id, baselineRowId: r.base_id, deltaClicks: Math.round(r.d_clicks * 10) / 10, deltaImpressions: Math.round(r.d_impr) })),
+    );
+  }
+  return out;
+}

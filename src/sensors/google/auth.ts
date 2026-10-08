@@ -79,7 +79,7 @@ export async function connectGoogle(opts: { open?: (url: string) => void; timeou
   const url = client.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: [...GOOGLE_SCOPES], state, code_challenge: codeChallenge, code_challenge_method: CodeChallengeMethod.S256 });
 
   const code = await new Promise<string>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new GoogleAuthError('no authorization within the time limit')), opts.timeoutMs ?? 10 * 60_000);
+    const timer = setTimeout(() => reject(new GoogleAuthError('no authorization within the time limit')), opts.timeoutMs ?? 30 * 60_000);
     server.on('request', (req, res) => {
       const u = new URL(req.url ?? '/', redirectUri);
       if (u.pathname !== '/oauth2callback') return void res.writeHead(404).end();

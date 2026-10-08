@@ -49,12 +49,38 @@ export function eventToOccurrence(e: GEvent): IcsOccurrence | null {
   };
 }
 
-export class GoogleRestApi implements GoogleApi {
-  constructor(private readonly client: OAuth2Client) {}
+/** Gmail allows 6,000 query units per minute per user (a message read costs 5): stay well below it. */
+export const GOOGLE_RATE = { requestsPerSecond: 12, rateLimitWaitMs: 20_000, maxRateLimitRetries: 6 };
 
+const isRateLimit = (e: unknown) => {
+  const x = e as { status?: number; response?: { status?: number }; message?: string };
+  const status = x?.response?.status ?? x?.status;
+  return (status === 429 || status === 403) && /rate ?limit|quota/i.test(x?.message ?? '');
+};
+
+export class GoogleRestApi implements GoogleApi {
+  private next = 0;
+
+  constructor(
+    private readonly client: OAuth2Client,
+    private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+  ) {}
+
+  /** Spaces requests evenly (shared by all concurrent workers) and waits out rate limits. */
   private async get<T>(url: string): Promise<T> {
-    const r = await this.client.request<T>({ url, method: 'GET', retry: true });
-    return r.data;
+    for (let attempt = 0; ; attempt++) {
+      const now = Date.now();
+      const at = Math.max(now, this.next);
+      this.next = at + 1000 / GOOGLE_RATE.requestsPerSecond;
+      if (at > now) await this.sleep(at - now);
+      try {
+        const r = await this.client.request<T>({ url, method: 'GET', retry: true });
+        return r.data;
+      } catch (e) {
+        if (!isRateLimit(e) || attempt >= GOOGLE_RATE.maxRateLimitRetries) throw e;
+        await this.sleep(GOOGLE_RATE.rateLimitWaitMs);
+      }
+    }
   }
 
   async listMessageIds(after: Date): Promise<string[]> {

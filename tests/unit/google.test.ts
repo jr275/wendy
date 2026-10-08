@@ -102,4 +102,20 @@ describe('google sync', () => {
     expect(new Set(methods)).toEqual(new Set(['GET']));
     expect(m?.labels).toEqual(['spam']); // Gmail system labels map onto the importer's exclusion names
   });
+
+  it('waits out a Gmail rate limit and retries instead of failing', async () => {
+    let calls = 0;
+    const waits: number[] = [];
+    const client = {
+      request: async () => {
+        calls++;
+        if (calls === 1) throw Object.assign(new Error("Quota exceeded for quota metric 'Total Query Cost'"), { response: { status: 403 } });
+        return { data: { messages: [{ id: 'a' }] } };
+      },
+    };
+    const g = new GoogleRestApi(client as never, async (ms) => void waits.push(ms));
+    expect(await g.listMessageIds(new Date())).toEqual(['a']);
+    expect(calls).toBe(2);
+    expect(waits.some((w) => w >= 20_000)).toBe(true);
+  });
 });

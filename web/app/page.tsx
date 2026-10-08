@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { AskShell } from "@/components/ask-shell";
 import { Sparkline } from "@/components/sparkline";
 import { TopBar } from "@/components/top-bar";
 import { ACTION_LABEL, EVENT_LABEL, dateLong, firstName, greeting, intPt, pct, stripRefs } from "@/lib/format";
@@ -40,10 +41,17 @@ async function Today() {
   ];
   const reasoner = reasonerLabel(insights);
 
+  // Suggestions come from Wendy's own data (what she found, which sites she watches), never from a fixed list.
+  const suggestions = [
+    ...surfaced.slice(0, 2).map((i) => `Explique: ${stripRefs(i.headline)}`),
+    ...s.map((site) => `Como está o site ${site.label}?`),
+  ].slice(0, 5);
+
   return (
     <>
       <TopBar reasoner={reasoner} />
-      <main className="mx-auto max-w-5xl px-4 pb-40 pt-10 sm:px-6 sm:pt-14">
+      <AskShell suggestions={suggestions}>
+      <main className="mx-auto max-w-5xl px-4 pb-48 pt-10 sm:px-6 sm:pt-14">
         <p className="eyebrow">{dateLong(now, p.timezone)} · Hoje</p>
         <h1 className="mt-4 text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
           {greeting(now, p.timezone)}, {firstName(p.display_name)}.
@@ -98,6 +106,7 @@ async function Today() {
           </Section>
         ) : null}
       </main>
+      </AskShell>
     </>
   );
 }

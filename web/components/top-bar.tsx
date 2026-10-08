@@ -12,9 +12,14 @@ export function TopBar({ reasoner }: { reasoner: string | null }) {
         <span className="eyebrow hidden sm:inline">Remax AI Platform · Wendy</span>
         <span className="ml-auto" />
         {reasoner ? (
-          <span className="hidden rounded-full bg-warn-soft px-3 py-1 text-xs text-warn md:inline" title="Modo MVP: o Claude ainda não está disponível">
-            Raciocínio: <span className="num">{reasoner}</span> · não é o Claude
-          </span>
+          <>
+            <span className="hidden rounded-full bg-warn-soft px-3 py-1 text-xs text-warn md:inline" title="Modo MVP: o Claude ainda não está disponível">
+              Raciocínio: <span className="num">{reasoner}</span> · não é o Claude
+            </span>
+            <span className="rounded-full bg-warn-soft px-2.5 py-1 text-[11px] text-warn md:hidden" title={`Raciocínio: ${reasoner} — não é o Claude (modo MVP)`}>
+              não é o Claude
+            </span>
+          </>
         ) : null}
         <ThemeToggle />
       </div>

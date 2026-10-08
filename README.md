@@ -33,6 +33,8 @@ credit balance). See `WENDY_PHASE_1_COMPLETION_REPORT.md`.
 | `npm run eval:retrieval:real -- --principal-email … [--claude]` | Recall@10 on your imported data with your questions (`config/retrieval-cases.json`, see the example); results go to git-ignored `eval-results/` |
 | `WENDY_REASONER=gemini` (no `.env`) | **MVP:** Gemini via Vertex raciocina no lugar do Claude, sempre rotulado "não é o Claude". O gate sempre usa o Claude |
 | `npm run search -- add\|list\|sync --principal-email … [--process]` | Google Search Console sensor (read-only): stores last-7-days vs prior-28 windows per site/page/query, runs the deterministic detector, and with `--process` reasons on the changes |
+| `npm run agent` | Wendy as an AG-UI agent on 127.0.0.1:3458 (server-to-server; bearer `WENDY_AGENT_TOKEN`). Used by the new web app |
+| `cd web && npx next dev -p 3010` | **New UI** (Next.js 16 + CopilotKit v2): Hoje workspace + ask-a-question workspaces with validated answer and site cards. Needs `npm run inspector` (read API) and `npm run agent` running |
 | `npm run test:live:phase2` | Phase 2 live tests (real Claude; separate from the Phase 1 gate) |
 | `npm run inspector:sample` | Builds a `sample_test_double` schema for the UI using the **test double, not Claude** (clearly labeled in the UI) |
 | `npm run typecheck` | TypeScript check |

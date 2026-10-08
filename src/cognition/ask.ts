@@ -22,6 +22,8 @@ export interface AnswerResult {
   conflicts: { description: string; evidence: string[] }[];
   gaps: string[];
   evidenceSentToModel: EvidenceRef[];
+  /** The records cited by valid claims, with the exact text the model saw (for the UI to show sources). */
+  citedEvidence: { handle: string; kind: string; id: string; text: string; at: string | null }[];
   modelCallIds: string[];
   eventId: string;
 }
@@ -102,6 +104,10 @@ export async function answerQuestion(ctx: WendyContext, principalId: string, que
     conflicts: v.conflicts,
     gaps: v.gaps,
     evidenceSentToModel: bundle.registry.refs(),
+    citedEvidence: [...new Set(v.claims.filter((c) => c.valid).flatMap((c) => c.evidence.map((e) => e.handle)))]
+      .map((h) => bundle.registry.get(h))
+      .filter((i): i is NonNullable<typeof i> => !!i)
+      .map((i) => ({ handle: i.handle, kind: i.ref.kind, id: i.ref.id, text: i.text, at: i.at ? i.at.toISOString() : null })),
     modelCallIds: [u.modelCallId, r.modelCallId],
     eventId: event.id,
   };

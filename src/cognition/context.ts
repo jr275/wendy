@@ -9,6 +9,7 @@ import type { Repositories } from '../repositories/pg.js';
 import { DAY_MS } from '../util/clock.js';
 import { relationshipMetrics, renderMetrics } from '../people/relationshipMetrics.js';
 import { memoryFreshness } from '../memory/freshness.js';
+import { searchEvidenceForTerms } from '../sensors/searchContext.js';
 
 export interface EvidenceItem {
   handle: string;
@@ -237,6 +238,10 @@ export async function retrieveContext(q: Queryable, repos: Repositories, input: 
     const subject = m.subject_person_id ? ((registry.get((await personHandle(m.subject_person_id)) ?? '')?.meta.full_name as string) ?? null) : null;
     registry.add({ kind: 'memory', id: m.id }, m.created_at, renderMemory(m, subject, now), { memory_kind: m.kind });
   }
+
+  // Websites named in the question: latest Search Console windows and largest movers (stored data only).
+  if (input.searchTerms.length)
+    for (const it of await searchEvidenceForTerms(q, pid, input.searchTerms)) registry.add({ kind: 'search_metric', id: it.id }, it.at, it.text, it.meta);
 
   // Recent insights about the same people (for novelty and continuity).
   if (input.focusPersonIds.length) {

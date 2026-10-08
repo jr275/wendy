@@ -495,7 +495,12 @@ export async function sites(db: pg.Pool, principalIdParam: string | null) {
         [pid, p.id],
       )
     ).rows;
-    out.push({ ...p, daily, current: windows[0] ?? null, baseline: windows[1] ?? null, changes });
+    const cur = windows[0];
+    const base = windows[1];
+    const direction = cur && base ? (cur.clicks < base.clicks / 4 ? 'DROP' : 'RISE') : null;
+    const { siteChangeContributors } = await import('../src/sensors/searchDetector.js');
+    const movers = cur && base && direction ? (await siteChangeContributors(db, p.id, cur.end, base.end, direction, 5)).map(({ dimension, key, deltaClicks, deltaImpressions }) => ({ dimension, key, deltaClicks, deltaImpressions })) : [];
+    out.push({ ...p, daily, current: cur ?? null, baseline: base ?? null, direction, movers, changes });
   }
   return { sites: out };
 }

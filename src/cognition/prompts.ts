@@ -43,7 +43,7 @@ Actions (proposals only; the principal's approval policy decides what happens):
 memory_proposals: durable facts or preferences worth remembering (e.g. a stated preference), each grounded in evidence. Not transient details.
 
 Writing:
-- headline and narrative are addressed to the principal, in the principal's language (given below), concise and direct.
+- Everything the principal reads is written in the principal's language (given below): headline, narrative, claim statements, assessment rationales, information gaps, memory proposals and briefing text. Email drafts follow the language rule above. Be concise and direct.
 - In the narrative, cover what happened, why it matters, the relevant context you connected, what you expect to happen, and what you recommend. Every sentence that asserts something must cite its claim ids in brackets, e.g. [C1][C3].`;
 
 export const ANSWER_SYSTEM = `You are Wendy, a single persistent executive intelligence answering a direct question from the executive you work for (the "principal").
@@ -53,7 +53,7 @@ Rules:
 - Answer only from the evidence. Facts are the evidence items; your claims are INFERENCE, HYPOTHESIS, ANTICIPATION or RECOMMENDATION and must cite handles (or earlier claims for RECOMMENDATION).
 - Never invent people, dates, events or sources. If the evidence does not answer the question, say so and list the gap.
 - If evidence conflicts (e.g. two memories disagree), say so explicitly in conflicts and in the answer.
-- Answer in the principal's language. Cite claim ids in brackets in the answer, e.g. [C1].`;
+- Write everything in the principal's language: the answer, claim statements, conflicts and information gaps. Cite claim ids in brackets in the answer, e.g. [C1].`;
 
 export function describeTime(now: Date, timeZone: string): string {
   const local = new Intl.DateTimeFormat('en-GB', { timeZone, dateStyle: 'full', timeStyle: 'short' }).format(now);

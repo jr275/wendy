@@ -17,6 +17,7 @@ import { DevMailboxProvider } from '../providers/devMailbox.js';
 import { createContext } from '../runtime/context.js';
 import { systemClock } from '../util/clock.js';
 import { runWendyAgent } from './run.js';
+import { performWrite, WRITE_PATHS, writeErrorStatus, type WritePath } from '../../inspector/writeApi.js';
 
 loadEnv();
 const PORT = Number(process.env.WENDY_AGENT_PORT ?? 3458);
@@ -44,12 +45,27 @@ const authorized = (h: string | undefined) => {
 
 http
   .createServer(async (req, res) => {
-    if (req.method !== 'POST' || !req.url?.startsWith('/agui')) {
+    if (req.method !== 'POST' || !(req.url?.startsWith('/agui') || req.url?.startsWith('/write/'))) {
       res.writeHead(404).end();
       return;
     }
     if (!authorized(req.headers.authorization)) {
       res.writeHead(401).end();
+      return;
+    }
+    if (req.url.startsWith('/write/')) {
+      // Writes from the web app's server actions. The principal is fixed here, never taken from the body.
+      const path = `/api/write/${req.url.slice('/write/'.length)}` as WritePath;
+      let raw = '';
+      for await (const chunk of req) raw += chunk;
+      try {
+        if (!WRITE_PATHS.includes(path)) throw Object.assign(new Error('unknown write'), { status: 404 });
+        const body = { ...(JSON.parse(raw || '{}') as Record<string, unknown>), principalId: await principalId() };
+        const result = await performWrite(db, path, body);
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true, result }));
+      } catch (e) {
+        res.writeHead(writeErrorStatus(e), { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: (e as Error).message }));
+      }
       return;
     }
     let body = '';

@@ -339,6 +339,8 @@ Com autorização do executivo, a parte determinística da Fase 2 foi feita **em
 - **Memórias** chegam ao Claude com a idade e o peso (meia-vida por tipo, desde a última confirmação). Nenhuma memória é filtrada por idade.
 - **Compromissos PROPOSED** existem como estado, mas nada os cria ainda (a extração depende do Claude). Eles são excluídos da busca e dos detectores.
 
+- **Prompts `core-v2`** (2026-10-08): o insight e a resposta pedem **todos** os campos lidos pelo executivo no idioma dele. Antes eram só a manchete, a narrativa e a resposta; as afirmações, justificativas e lacunas vinham em inglês. Não muda regras de evidência nem de validação.
+
 Se um teste live falhar, considerar estas mudanças antes de concluir que o núcleo da Fase 1 regrediu.
 
 ---

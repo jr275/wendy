@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { Nav } from "./nav";
 import { ThemeToggle } from "./theme-toggle";
 
 /** Brand + honesty label (which model reasons) + theme. */
@@ -5,11 +7,14 @@ export function TopBar({ reasoner }: { reasoner: string | null }) {
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-bg/85 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4 sm:px-6">
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-accent" aria-hidden>
-          <span className="h-2.5 w-2.5 rounded-full bg-surface" />
-        </span>
-        <span className="font-semibold tracking-tight">Menlo</span>
-        <span className="eyebrow hidden sm:inline">Remax AI Platform · Wendy</span>
+        <Link href="/" className="flex items-center gap-3" aria-label="Menlo — Hoje">
+          <span className="grid h-7 w-7 place-items-center rounded-full bg-accent" aria-hidden>
+            <span className="h-2.5 w-2.5 rounded-full bg-surface" />
+          </span>
+          <span className="font-semibold tracking-tight">Menlo</span>
+        </Link>
+        <span className="ml-2 hidden h-5 w-px bg-line sm:block" aria-hidden />
+        <Nav />
         <span className="ml-auto" />
         {reasoner ? (
           <>

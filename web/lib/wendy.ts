@@ -96,6 +96,8 @@ export interface Site {
   current: SiteWindow | null;
   baseline: SiteWindow | null;
   changes: SiteChange[];
+  direction: "DROP" | "RISE" | null;
+  movers: { dimension: "page" | "query"; key: string; deltaClicks: number; deltaImpressions: number }[];
 }
 
 export async function sites(principalId: string) {
@@ -106,4 +108,46 @@ export async function sites(principalId: string) {
 export function reasonerLabel(insights: InsightCard[]): string | null {
   const other = insights.find((i) => i.other_model)?.other_model;
   return other ?? null;
+}
+
+export interface DetailClaim {
+  ordinal: number;
+  label: string;
+  kind: "FACT" | "INFERENCE" | "HYPOTHESIS" | "ANTICIPATION" | "RECOMMENDATION";
+  statement: string;
+  confidence: number;
+  evidence: { kind: string; id: string; handle: string }[];
+  derived_from: number[];
+  produced_by: "CODE" | "CLAUDE";
+  validation_status: string;
+}
+export interface DetailAction {
+  id: string;
+  action_type: "SEND_EMAIL" | "PREPARE_BRIEFING";
+  state: string;
+  expires_at: string | null;
+  rejection_reason: string | null;
+  policy_decision: { mode: string; rule: string } | null;
+  content: { to?: string[]; subject?: string; body?: string; title?: string; sections?: { heading: string; points: { text: string }[] }[] };
+  author: string;
+  execution: { provider: string; status: string; verification: { contentMatches?: boolean; deliversExternally?: boolean } | null } | null;
+}
+export interface InsightDetail {
+  insight: {
+    id: string;
+    status: string;
+    headline: string | null;
+    narrative: string | null;
+    created_at: string;
+    salience: { score: number; threshold: number; factors: { name: string; value: number | null; weight: number; contribution: number; basis: string }[] };
+  };
+  event: { event_type: string; occurred_at: string };
+  claims: DetailClaim[];
+  actions: DetailAction[];
+  calls: { model: string; served_by_model: string | null }[];
+  labels: Record<string, string>;
+}
+
+export async function insight(id: string) {
+  return get<InsightDetail>("/api/insight", { id });
 }

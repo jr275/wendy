@@ -144,3 +144,15 @@ export async function syncDueProperties(db: Db, api: SearchConsoleApi, now: Date
   }
   return results;
 }
+
+/** Principal-set importance of a website (0..1, or null to clear). Never inferred; audited. */
+export async function setSiteImportance(db: Db, principalId: string, propertyId: string, importance: number | null, now: Date) {
+  if (importance !== null && !(Number.isFinite(importance) && importance >= 0 && importance <= 1)) throw new Error('importance must be between 0 and 1, or null');
+  return withTx(db, async (tx) => {
+    const p = (await tx.query<{ explicit_importance: number | null }>('SELECT explicit_importance FROM web_properties WHERE principal_id = $1 AND id = $2 FOR UPDATE', [principalId, propertyId])).rows[0];
+    if (!p) throw new Error('web property not found for principal');
+    await tx.query('UPDATE web_properties SET explicit_importance = $3 WHERE principal_id = $1 AND id = $2', [principalId, propertyId, importance]);
+    const { appendAudit } = await import('../audit/ledger.js');
+    await appendAudit(tx, { principalId, eventType: 'SITE_IMPORTANCE_SET', actor: 'PRINCIPAL', subjectType: 'web_property', subjectId: propertyId, payload: { from: p.explicit_importance, to: importance, at: now.toISOString() } });
+  });
+}

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { AskShell } from "@/components/ask-shell";
 import { Sparkline } from "@/components/sparkline";
@@ -34,7 +35,7 @@ async function Today() {
   const quiet = insights.filter((i) => i.status === "SUPPRESSED");
   const now = new Date();
   const needs = [
-    ...(t.needsYou ?? []).map((a) => ({ key: `a-${a.id}`, tone: "warn" as const, title: `${ACTION_LABEL[a.action_type] ?? a.action_type} aguardando sua aprovação`, detail: [a.subject, a.recipients?.length ? `para ${a.recipients.join(", ")}` : null].filter(Boolean).join(" · "), href: `${INSPECTOR}/#/insight/${a.insight_id}` })),
+    ...(t.needsYou ?? []).map((a) => ({ key: `a-${a.id}`, tone: "warn" as const, title: `${ACTION_LABEL[a.action_type] ?? a.action_type} aguardando sua aprovação`, detail: [a.subject, a.recipients?.length ? `para ${a.recipients.join(", ")}` : null].filter(Boolean).join(" · "), href: `/insight/${a.insight_id}` })),
     ...(t.pendingCommitments ?? []).map((c) => ({ key: `c-${c.id}`, tone: "warn" as const, title: `Confirmar compromisso com ${c.full_name}`, detail: c.description, href: `${INSPECTOR}/#/pessoas` })),
     ...(t.pendingMemories ?? []).map((m) => ({ key: `m-${m.id}`, tone: "info" as const, title: `Confirmar memória${m.full_name ? ` sobre ${m.full_name}` : ""}`, detail: m.content, href: `${INSPECTOR}/#/pessoas/${m.subject_person_id ?? ""}` })),
     ...(t.memoriesToReview ?? []).map((m) => ({ key: `r-${m.id}`, tone: "info" as const, title: `Isto ainda vale${m.full_name ? ` sobre ${m.full_name}` : ""}?`, detail: m.content, href: `${INSPECTOR}/#/pessoas` })),
@@ -61,7 +62,7 @@ async function Today() {
         </h1>
         {surfaced[0] ? (
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-2">
-            O mais importante agora: <a className="font-medium text-ink underline decoration-line underline-offset-4 hover:decoration-accent" href={`${INSPECTOR}/#/insight/${surfaced[0].id}`}>{stripRefs(surfaced[0].headline)}</a>
+            O mais importante agora: <Link className="font-medium text-ink underline decoration-line underline-offset-4 hover:decoration-accent" href={`/insight/${surfaced[0].id}`}>{stripRefs(surfaced[0].headline)}</Link>
           </p>
         ) : null}
 
@@ -137,7 +138,7 @@ function Dots({ score }: { score: number }) {
 
 function InsightTile({ i, n }: { i: InsightCard; n: number }) {
   return (
-    <a href={`${INSPECTOR}/#/insight/${i.id}`} className="card group block p-5 transition-shadow hover:shadow-md sm:p-6">
+    <Link href={`/insight/${i.id}`} className="card group block p-5 transition-shadow hover:shadow-md sm:p-6">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="num text-faint">{String(n).padStart(2, "0")}</span>
         <span className="rounded-full bg-surface-2 px-2 py-0.5 text-ink-2">{EVENT_LABEL[i.event_type] ?? i.event_type}</span>
@@ -151,7 +152,7 @@ function InsightTile({ i, n }: { i: InsightCard; n: number }) {
       <p className="mt-3 text-sm text-muted">
         {(i.claims ?? []).length} afirmações validadas · ver evidências <span aria-hidden>→</span>
       </p>
-    </a>
+    </Link>
   );
 }
 

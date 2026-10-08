@@ -11,6 +11,7 @@ import { withTx, type Db } from '../../src/db/db.js';
 import { proposeCommitment } from '../../src/commitments/commitmentService.js';
 import { createPerson, createPrincipal, storeMessage } from '../../src/events/world.js';
 import { pgRepositories } from '../../src/repositories/pg.js';
+import { addWebProperty } from '../../src/sensors/searchConsole.js';
 import { createWriteApi, SESSION_COOKIE } from '../../inspector/writeApi.js';
 import { createTestDb } from '../helpers/db.js';
 
@@ -147,6 +148,21 @@ describe('writes through domain services', () => {
     expect((await post('/api/write/policy', { principalId, actionType: 'PREPARE_BRIEFING', mode: 'REQUIRE_APPROVAL' }, s)).status).toBe(200);
     expect((await post('/api/write/person/importance', { principalId, personId, importance: 2 }, s)).status).toBe(400);
     expect((await post('/api/write/person/importance', { principalId, personId, importance: 0.8 }, s)).status).toBe(200);
+  });
+
+  it('site importance: principal-set, 0..1 or cleared, scoped to the owner, audited', async () => {
+    const s = await login();
+    const site = await addWebProperty(db, principalId, { siteUrl: 'https://www.site.test/', label: 'Site', source: 'TEST' });
+    const value = async () => (await db.query('SELECT explicit_importance FROM web_properties WHERE id = $1', [site])).rows[0].explicit_importance;
+    expect((await post('/api/write/site/importance', { principalId, propertyId: site, importance: 1.5 }, s)).status).toBe(400);
+    expect([404, 409]).toContain((await post('/api/write/site/importance', { principalId: otherPrincipalId, propertyId: site, importance: 0.9 }, s)).status);
+    expect(await value()).toBeNull();
+    expect((await post('/api/write/site/importance', { principalId, propertyId: site, importance: 0.9 }, s)).status).toBe(200);
+    expect(Number(await value())).toBe(0.9);
+    expect((await post('/api/write/site/importance', { principalId, propertyId: site, importance: null }, s)).status).toBe(200);
+    expect(await value()).toBeNull();
+    const audit = (await db.query(`SELECT payload FROM audit_blocks WHERE event_type = 'SITE_IMPORTANCE_SET' AND subject_id = $1 ORDER BY seq`, [site])).rows.map((r) => [r.payload.from, r.payload.to]);
+    expect(audit).toEqual([[null, 0.9], [0.9, null]]);
   });
 
   it('commitments: confirm a proposal with a corrected date, then mark it done', async () => {

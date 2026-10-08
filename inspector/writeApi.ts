@@ -22,6 +22,7 @@ import type { Db } from '../src/db/db.js';
 import { CommitmentService, CommitmentTransitionError } from '../src/commitments/commitmentService.js';
 import { MemoryService, MemoryTransitionError } from '../src/memory/memoryService.js';
 import { PeopleService } from '../src/people/peopleService.js';
+import { setSiteImportance } from '../src/sensors/searchConsole.js';
 import { DevMailboxProvider } from '../src/providers/devMailbox.js';
 import { newId, sha256 } from '../src/util/hash.js';
 
@@ -98,8 +99,30 @@ const ROUTES = {
     await new CommitmentService(db).reschedule(b.principalId, b.commitmentId, new Date(b.dueAt), at);
     return { dueAt: b.dueAt };
   }),
+  '/api/write/site/importance': route(z.object({ principalId: uuid, propertyId: uuid, importance: z.number().min(0).max(1).nullable() }), async (db, b, at) => {
+    await setSiteImportance(db, b.principalId, b.propertyId, b.importance, at);
+    return { importance: b.importance };
+  }),
 } as const;
-type WritePath = keyof typeof ROUTES;
+export type WritePath = keyof typeof ROUTES;
+export const WRITE_PATHS = Object.keys(ROUTES) as WritePath[];
+
+/**
+ * Validates and performs one write through the domain services (same table the cookie-authenticated
+ * UI API uses). Callers must have authenticated the request and must supply the principal themselves.
+ */
+export async function performWrite(db: Db, path: WritePath, body: unknown, now = new Date()): Promise<unknown> {
+  const r = ROUTES[path] as { schema: z.ZodType; run: (db: Db, body: unknown, at: Date) => Promise<unknown> };
+  const parsed = r.schema.safeParse(body);
+  if (!parsed.success) throw new HttpError(400, `invalid body: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
+  return r.run(db, parsed.data, now);
+}
+
+/** HTTP status for an error thrown by performWrite / the domain services. */
+export function writeErrorStatus(err: unknown): number {
+  const e = err as Error & { status?: number };
+  return err instanceof HttpError ? err.status : err instanceof IllegalTransitionError || err instanceof MemoryTransitionError || err instanceof CommitmentTransitionError ? 409 : /not found/.test(e.message) ? 404 : (e.status ?? 500);
+}
 
 export interface WriteApiOptions {
   /** Pool where ui_sessions live. */

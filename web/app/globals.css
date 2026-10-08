@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+/*
+ * Menlo / Wendy design tokens.
+ * Warm paper background, one green accent, quiet lines. Numbers in Geist Mono.
+ * Status colors carry meaning only: amber = needs you, red = decline, green = rise / done.
+ */
+:root {
+  --bg: #f8f7f4;
+  --surface: #ffffff;
+  --surface-2: #f2f1ed;
+  --ink: #1d1e20;
+  --ink-2: #44474b;
+  --muted: #7a7d80;
+  --faint: #a7a9ab;
+  --line: #e7e5e0;
+  --line-2: #efede9;
+  --accent: #2f7a55;
+  --accent-ink: #1f5a3e;
+  --accent-soft: #e3efe8;
+  --warn: #a76a12;
+  --warn-soft: #f7ecd9;
+  --bad: #b3412f;
+  --bad-soft: #f6e3df;
+  --good: #2f7a55;
+  --info: #3b5ea8;
+  --info-soft: #e5ebf6;
+  --shadow: 0 1px 2px rgba(20, 20, 20, 0.04), 0 8px 24px rgba(20, 20, 20, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131416;
+    --surface: #1b1d20;
+    --surface-2: #222428;
+    --ink: #ecebe7;
+    --ink-2: #c8c7c2;
+    --muted: #93959a;
+    --faint: #686b70;
+    --line: #2d3035;
+    --line-2: #26292d;
+    --accent: #6cc59a;
+    --accent-ink: #8fd9b3;
+    --accent-soft: rgba(108, 197, 154, 0.14);
+    --warn: #e7b066;
+    --warn-soft: rgba(231, 176, 102, 0.13);
+    --bad: #f08a78;
+    --bad-soft: rgba(240, 138, 120, 0.13);
+    --good: #6cc59a;
+    --info: #93adf0;
+    --info-soft: rgba(147, 173, 240, 0.13);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131416;
+  --surface: #1b1d20;
+  --surface-2: #222428;
+  --ink: #ecebe7;
+  --ink-2: #c8c7c2;
+  --muted: #93959a;
+  --faint: #686b70;
+  --line: #2d3035;
+  --line-2: #26292d;
+  --accent: #6cc59a;
+  --accent-ink: #8fd9b3;
+  --accent-soft: rgba(108, 197, 154, 0.14);
+  --warn: #e7b066;
+  --warn-soft: rgba(231, 176, 102, 0.13);
+  --bad: #f08a78;
+  --bad-soft: rgba(240, 138, 120, 0.13);
+  --good: #6cc59a;
+  --info: #93adf0;
+  --info-soft: rgba(147, 173, 240, 0.13);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-good: var(--good);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+body {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+}
+.num {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.eyebrow {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}

@@ -470,3 +470,32 @@ export async function radar(db: pg.Pool, principalIdParam: string | null, days =
   items.sort((a, b) => (a.day === b.day ? a.at.localeCompare(b.at) : a.day.localeCompare(b.day)));
   return { principal, from: now.toISOString(), to: end.toISOString(), today, items, overdue };
 }
+
+/** Websites: daily clicks/impressions series, latest windows and detected changes (stored data only). */
+export async function sites(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { sites: [] };
+  const props = (await db.query(`SELECT id, label, site_url, explicit_importance, last_synced_at FROM web_properties WHERE principal_id = $1 ORDER BY label`, [pid])).rows;
+  const out = [];
+  for (const p of props) {
+    const daily = (await db.query(`SELECT to_char(date,'YYYY-MM-DD') AS date, clicks, impressions, ctr, position FROM search_daily_totals WHERE property_id = $1 ORDER BY date`, [p.id])).rows;
+    const windows = (
+      await db.query(
+        `SELECT to_char(window_start,'YYYY-MM-DD') AS start, to_char(window_end,'YYYY-MM-DD') AS "end", clicks, impressions, ctr, position
+         FROM search_metric_windows WHERE property_id = $1 AND dimension = 'total' ORDER BY window_end DESC LIMIT 2`,
+        [p.id],
+      )
+    ).rows;
+    const changes = (
+      await db.query(
+        `SELECT e.id AS event_id, e.payload->'change' AS change, i.id AS insight_id, i.status, i.headline, (i.salience->>'score')::float AS score
+         FROM events e LEFT JOIN insights i ON i.event_id = e.id
+         WHERE e.principal_id = $1 AND e.event_type = 'SEARCH_PERFORMANCE_CHANGE' AND e.payload->>'property_id' = $2
+         ORDER BY e.received_at DESC LIMIT 20`,
+        [pid, p.id],
+      )
+    ).rows;
+    out.push({ ...p, daily, current: windows[0] ?? null, baseline: windows[1] ?? null, changes });
+  }
+  return { sites: out };
+}

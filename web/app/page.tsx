@@ -49,11 +49,8 @@ async function Today() {
   ];
   const reasoner = reasonerLabel(insights);
 
-  // Suggestions come from Wendy's own data (what she found, which sites she watches), never from a fixed list.
-  const suggestions = [
-    ...surfaced.slice(0, 2).map((i) => `Explique: ${stripRefs(i.headline)}`),
-    ...s.map((site) => `Como está o site ${site.label}?`),
-  ].slice(0, 5);
+  // Suggestions are about the principal (Wendy is a personal assistant), shown only when they apply.
+  const suggestions = [open.length ? "Quais são minhas tarefas?" : null, "O que você sabe sobre mim?"].filter((x): x is string => !!x);
 
   return (
     <>

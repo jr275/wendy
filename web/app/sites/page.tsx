@@ -90,8 +90,8 @@ async function Sites() {
         </div>
       </main>
       <SiteViewingTracker />
-      {/* Suggestions are built from the principal's own sites; "isso" follows the site on screen. */}
-      <WendySidebar suggestions={["Por que isso mudou na última semana?", ...all.map((x) => `Como está o site ${x.label}?`)]} />
+      {/* "isso" follows the site on screen. */}
+      <WendySidebar suggestions={["Por que isso mudou na última semana?"]} />
     </>
   );
 }

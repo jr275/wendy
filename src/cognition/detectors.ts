@@ -4,6 +4,7 @@
  *
  *   Person + Birthdate + Now            => PERSON_DATE_APPROACHING
  *   Commitment + Due + Status + Now     => COMMITMENT_DUE
+ *   Search Console windows (stored)     => SEARCH_PERFORMANCE_CHANGE (src/sensors/searchDetector.ts)
  *
  * Event keys make detection idempotent: re-running a detector never duplicates an event.
  */
@@ -12,6 +13,8 @@ import type { Person, Principal } from '../domain/types.js';
 import { ingestEvent } from '../events/ingest.js';
 import { PgCommitmentRepository, PgEntityRepository } from '../repositories/pg.js';
 import { DAY_MS, HOUR_MS } from '../util/clock.js';
+import { listWebProperties } from '../sensors/searchConsole.js';
+import { runSearchDetector } from '../sensors/searchDetector.js';
 
 export const DETECTOR_CONFIG = {
   personDateHorizonDays: 2,
@@ -91,6 +94,9 @@ export async function runDetectors(db: Db, principal: Principal, now: Date): Pro
     });
     if (!duplicate) emitted.push(event.id);
   }
+
+  // Website search performance (from stored Search Console windows; sync is a separate step).
+  emitted.push(...(await runSearchDetector(db, principal.id, await listWebProperties(db, principal.id), now)));
 
   return { emitted };
 }

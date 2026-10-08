@@ -39,6 +39,8 @@ interface Focus {
   extraRefs: { ref: EvidenceRef; at: Date | null; text: string; meta?: Record<string, unknown> }[];
   deadlines: { at: Date; basis: string }[];
   defaultExpiry: Date | null;
+  /** Set when the event is about something other than a person (e.g. a website). */
+  subject?: { importance: number | null; label: string };
 }
 
 export class StaleContextError extends Error {}
@@ -125,6 +127,40 @@ async function buildFocus(ctx: WendyContext, principal: Principal, event: WendyE
         defaultExpiry: new Date(now.getTime() + 3 * DAY_MS),
       };
     }
+    case 'SEARCH_PERFORMANCE_CHANGE': {
+      const prop = (await db.query<{ id: string; site_url: string; label: string; explicit_importance: number | null }>('SELECT id, site_url, label, explicit_importance FROM web_properties WHERE principal_id = $1 AND id = $2', [principal.id, String(p.property_id)])).rows[0];
+      if (!prop) return SKIP('web property no longer exists');
+      const ch = p.change as { kind: string; dimension: string; key: string; currentRowId: string; baselineRowId: string; changePct: number | null; positionDelta: number | null };
+      const rows = (
+        await db.query<{ id: string; window_start: string; window_end: string; dimension: string; key: string; clicks: number; impressions: number; ctr: number; position: number; fetched_at: Date }>(
+          `SELECT id, to_char(window_start,'YYYY-MM-DD') AS window_start, to_char(window_end,'YYYY-MM-DD') AS window_end, dimension, key, clicks, impressions, ctr, position, fetched_at
+           FROM search_metric_windows WHERE principal_id = $1 AND id = ANY($2::uuid[])`,
+          [principal.id, [ch.currentRowId, ch.baselineRowId]],
+        )
+      ).rows;
+      if (rows.length !== 2) return SKIP('search metric rows no longer exist (stale event)');
+      const render = (r: (typeof rows)[number]) =>
+        `Search Console, ${prop.label} (${prop.site_url}), ${r.dimension === 'total' ? 'whole site' : `${r.dimension}: ${r.key}`}, ${r.window_start} to ${r.window_end}: clicks ${r.clicks}, impressions ${r.impressions}, CTR ${(r.ctr * 100).toFixed(2)}%, average position ${r.position.toFixed(1)}`;
+      const days = (r: (typeof rows)[number]) => Math.round((Date.parse(r.window_end) - Date.parse(r.window_start)) / DAY_MS) + 1;
+      return {
+        sourceText: null,
+        sourceKind: 'STATE',
+        eventText: [
+          `SEARCH_PERFORMANCE_CHANGE (computed by detector from stored Search Console data; numbers below come only from the cited records)`,
+          `site: ${prop.label} (${prop.site_url})`,
+          `change: ${ch.kind} on ${ch.dimension === 'total' ? 'the whole site' : `${ch.dimension} "${ch.key}"`}`,
+          `clicks change vs baseline weekly average: ${ch.changePct === null ? 'n/a' : `${ch.changePct}%`}; average position change: ${ch.positionDelta === null ? 'n/a' : `${ch.positionDelta > 0 ? '+' : ''}${ch.positionDelta} (positive = worse)`}`,
+          `windows: current = last 7 final days, baseline = the 28 days before (weekly average = baseline / 4)`,
+          `Search Console reports only what Google measured; it does not say why. Any cause is a hypothesis.`,
+        ].join('\n'),
+        personIds: [],
+        mentions: [],
+        extraRefs: rows.map((r) => ({ ref: { kind: 'search_metric' as const, id: r.id }, at: new Date(`${r.window_end}T23:59:59Z`), text: `${render(r)} (${days(r)} days)`, meta: { window_end: r.window_end, dimension: r.dimension } })),
+        deadlines: [],
+        defaultExpiry: new Date(now.getTime() + 7 * DAY_MS),
+        subject: { importance: prop.explicit_importance, label: `o site ${prop.label}` },
+      };
+    }
     default:
       return SKIP(`no handler for event type ${event.event_type}`);
   }
@@ -189,6 +225,7 @@ const REF_TABLES: Partial<Record<EvidenceRef['kind'], string>> = {
   relationship: 'relationships',
   insight: 'insights',
   action: 'actions',
+  search_metric: 'search_metric_windows',
 };
 
 /** Inside the persisting transaction: every cited record must still exist for this principal. */
@@ -287,6 +324,7 @@ export async function processEvent(ctx: WendyContext, event: WendyEvent): Promis
   }
   const salience = computeSalience({
     relationship: relationshipInput,
+    subject: focus.subject ?? null,
     deadlines: [...focus.deadlines, ...meetingDeadlines(report, bundle, now)],
     now,
     priorSimilarInsights: bundle.registry.items().filter((i) => i.ref.kind === 'insight').length,

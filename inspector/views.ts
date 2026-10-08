@@ -33,6 +33,8 @@ const INSIGHT_CARD_SQL = `
   FROM insights i JOIN events e ON e.id = i.event_id`;
 
 const LABEL_SQL: Record<string, string> = {
+  search_metric: `SELECT m.id, concat('Search Console · ', wp.label, ' · ', CASE m.dimension WHEN 'total' THEN 'site todo' ELSE m.dimension || ' ' || m.key END, ' · ', to_char(m.window_start,'DD/MM'), '–', to_char(m.window_end,'DD/MM'), ': ', round(m.clicks::numeric), ' cliques') AS label
+                  FROM search_metric_windows m JOIN web_properties wp ON wp.id = m.property_id WHERE m.id = ANY($1::uuid[])`,
   person: `SELECT id, full_name AS label FROM people WHERE id = ANY($1::uuid[])`,
   message: `SELECT m.id, concat_ws(' · ', CASE WHEN m.direction = 'OUTBOUND' THEN 'E-mail seu' ELSE 'E-mail de ' || coalesce(p.full_name, m.from_address) END,
                     to_char(m.sent_at, 'DD/MM'), m.subject) AS label
@@ -367,11 +369,19 @@ export async function configuration(db: pg.Pool, principalIdParam: string | null
 /** Where the data came from: counts per provider and the latest import summary (no content). */
 export async function sources(db: pg.Pool, principalIdParam: string | null) {
   const pid = await resolvePrincipal(db, principalIdParam);
-  if (!pid) return { messages: [], meetings: [], lastImport: null };
+  if (!pid) return { messages: [], meetings: [], lastImport: null, webProperties: [] };
   const messages = (await db.query(`SELECT provider, count(*)::int AS n, max(sent_at) AS latest FROM messages WHERE principal_id = $1 GROUP BY provider ORDER BY n DESC`, [pid])).rows;
   const meetings = (await db.query(`SELECT provider, count(*)::int AS n FROM meetings WHERE principal_id = $1 GROUP BY provider ORDER BY n DESC`, [pid])).rows;
   const lastImport = (await db.query(`SELECT at, payload FROM audit_blocks WHERE principal_id = $1 AND event_type = 'IMPORT_COMPLETED' ORDER BY seq DESC LIMIT 1`, [pid])).rows[0] ?? null;
-  return { messages, meetings, lastImport };
+  const webProperties = (
+    await db.query(
+      `SELECT wp.label, wp.site_url, wp.explicit_importance, wp.last_synced_at,
+              (SELECT count(*) FROM events e WHERE e.principal_id = wp.principal_id AND e.event_type = 'SEARCH_PERFORMANCE_CHANGE' AND e.payload->>'property_id' = wp.id::text)::int AS changes
+       FROM web_properties wp WHERE wp.principal_id = $1 ORDER BY wp.label`,
+      [pid],
+    )
+  ).rows;
+  return { messages, meetings, lastImport, webProperties };
 }
 
 /**

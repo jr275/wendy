@@ -12,6 +12,7 @@
 | 3.6 API de escrita + interface | REAL (login por link único, cookie HttpOnly, CSRF, Origin, zod, auditoria; e-mail só na caixa local) |
 | Importador do Google Takeout (Gmail .mbox + Agenda .ics) | REAL (`npm run import`, com `--dry-run`): só leitura, exclusões aplicadas antes de gravar, nada vai ao Claude. Recorrências raras são contadas, não adivinhadas |
 | Medição da busca (base do 3.4) | PARTIAL: também mede nos seus dados reais, com perguntas suas (`npm run eval:retrieval:real`). No corpus sintético: `npm run eval:retrieval` mede o piso (22%) e o teto otimista (100%) num corpus sintético. A coluna com os termos reais do Claude (`-- --claude`) está **BLOCKED** |
+| Sensor do Google Search Console (fora do plano original, pedido do executivo) | REAL, só leitura: janelas de 7 contra 28 dias por site, página e busca, mais o total diário. O detector é determinístico, com limites em configuração; uma página fora da lista atual conta como "desconhecido", nunca como zero. Os números chegam ao raciocínio como evidência citável (`SC1`…), e a importância de cada site é definida pelo executivo (hoje ainda não definida). Primeira execução: 6 mudanças em Remax, Aeriva e Avaly, raciocinadas pelo Gemini (MVP) |
 | Testes live da Fase 2 | Escritos (`npm run test:live:phase2`), cada um em duas variantes (outra pessoa, outro assunto, outro idioma). **BLOCKED** sem saldo. O teste de promessa em e-mail fica como *todo* até o 3.3 existir |
 **Premissas** vêm de `WENDY_PRODUCT_DECISIONS.md` e ainda não foram confirmadas. Cada uma aparece marcada como **[P#]**.
 

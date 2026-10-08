@@ -361,7 +361,7 @@ const ICON = {
   shield: '<svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/></svg>',
   clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
 };
-const EVENT_TAG = { EMAIL_RECEIVED: ['e-mail', 'info'], COMMITMENT_DUE: ['compromisso', 'warn'], PERSON_DATE_APPROACHING: ['data pessoal', 'mint'], PRINCIPAL_NOTE: ['nota sua', ''], PRINCIPAL_QUESTION: ['pergunta', ''] };
+const EVENT_TAG = { EMAIL_RECEIVED: ['e-mail', 'info'], COMMITMENT_DUE: ['compromisso', 'warn'], PERSON_DATE_APPROACHING: ['data pessoal', 'mint'], PRINCIPAL_NOTE: ['nota sua', ''], PRINCIPAL_QUESTION: ['pergunta', ''], SEARCH_PERFORMANCE_CHANGE: ['site · busca no Google', 'info'] };
 const ACTION_STATE = {
   PROPOSED: ['proposta', 'grey'], STAGED: ['preparada', 'grey'], AWAITING_APPROVAL: ['aguardando você', 'warn'], APPROVED: ['aprovada', 'info'],
   EXECUTING: ['executando', 'info'], EXECUTED: ['executada', 'info'], VERIFIED: ['verificada', 'mint'], REJECTED: ['rejeitada', 'grey'],
@@ -999,7 +999,9 @@ async function viewIntegrations() {
   const importTile = `<div class="card tile"><div class="ic">${ICON.inbox}</div><h3>Exportação do Google (Takeout)</h3><p>${li
     ? `Última importação ${fmtDate(li.at)}: ${li.payload.mail?.stored ?? 0} e-mails e ${li.payload.calendar?.stored ?? 0} reuniões gravados, ${li.payload.people?.created ?? 0} pessoas criadas. Exclusões aplicadas antes de gravar.`
     : 'Importe seu histórico do Gmail (.mbox) e da Agenda (.ics), só leitura e sem OAuth. No terminal: <span class="mono">npm run import -- --dry-run …</span>'}</p><span class="pill ${li ? 'mint' : 'grey'}">${li ? 'importado' : 'pronto para importar'}</span></div>`;
-  h += `<div class="section-title"><h2>Conectado agora</h2></div><div class="grid3" style="margin-bottom:28px">${importTile}
+  const wp = src.webProperties ?? [];
+  const scTile = `<div class="card tile"><div class="ic">${ICON.signal}</div><h3>Google Search Console</h3><p>${wp.length ? `${wp.map((p) => esc(p.label)).join(', ')} · só leitura. ${wp.reduce((s, p) => s + p.changes, 0)} mudança(s) relevante(s) detectada(s)${wp[0]?.last_synced_at ? `; última sincronização ${fmtDate(wp[0].last_synced_at)}` : ''}. Importância dos sites: ${wp.map((p) => `${esc(p.label)} ${p.explicit_importance ?? 'não definida'}`).join(' · ')}.` : 'Desempenho dos sites no Google (cliques, impressões, posição). Só leitura.'}</p><span class="pill ${wp.length ? 'mint' : 'grey'}">${wp.length ? 'conectado' : 'não conectado'}</span></div>`;
+  h += `<div class="section-title"><h2>Conectado agora</h2></div><div class="grid3" style="margin-bottom:28px">${importTile}${scTile}
     <div class="card tile"><div class="ic">${ICON.inbox}</div><h3>Caixa de entrada de exemplo</h3><p>E-mails, reuniões e compromissos de fixtures rotuladas (DEV_FIXTURE).</p><span class="pill grey">desenvolvimento</span></div>
     <div class="card tile"><div class="ic">${ICON.box}</div><h3>Caixa de saída local</h3><p>E-mails aprovados ficam aqui. <b>Nada é entregue a ninguém.</b></p><span class="pill grey">desenvolvimento</span></div>
     <div class="card tile"><div class="ic">${ICON.bolt}</div><h3>Claude</h3><p>O raciocínio da Wendy foi feito para o claude-opus-5-5. Hoje está indisponível: sem saldo na API da Anthropic e cota do Opus negada no Google Cloud.</p><span class="pill warn">indisponível</span></div>

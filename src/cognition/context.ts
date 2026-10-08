@@ -35,6 +35,7 @@ export class EvidenceRegistry {
     relationship: 'R',
     insight: 'I',
     action: 'A',
+    search_metric: 'SC',
   };
 
   add(ref: EvidenceRef, at: Date | null, text: string, meta: Record<string, unknown> = {}): string {

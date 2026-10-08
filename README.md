@@ -32,6 +32,7 @@ credit balance). See `WENDY_PHASE_1_COMPLETION_REPORT.md`.
 | `npm run eval:retrieval` (`-- --claude`) | Recall@10 of the current search on the synthetic set → `WENDY_RETRIEVAL_EVAL.md` (Claude column needs credit) |
 | `npm run eval:retrieval:real -- --principal-email … [--claude]` | Recall@10 on your imported data with your questions (`config/retrieval-cases.json`, see the example); results go to git-ignored `eval-results/` |
 | `WENDY_REASONER=gemini` (no `.env`) | **MVP:** Gemini via Vertex raciocina no lugar do Claude, sempre rotulado "não é o Claude". O gate sempre usa o Claude |
+| `npm run search -- add\|list\|sync --principal-email … [--process]` | Google Search Console sensor (read-only): stores last-7-days vs prior-28 windows per site/page/query, runs the deterministic detector, and with `--process` reasons on the changes |
 | `npm run test:live:phase2` | Phase 2 live tests (real Claude; separate from the Phase 1 gate) |
 | `npm run inspector:sample` | Builds a `sample_test_double` schema for the UI using the **test double, not Claude** (clearly labeled in the UI) |
 | `npm run typecheck` | TypeScript check |

@@ -34,6 +34,8 @@ export interface SalienceInputs {
     /** Derived from persisted messages (relationshipMetrics); absent → reply_pressure does not apply. */
     replies?: { unansweredInbound: number; oldestUnansweredAt: Date | null; principalReplyHoursMedian: number | null };
   } | null;
+  /** For events about something other than a person (e.g. a website): its principal-set importance. */
+  subject?: { importance: number | null; label: string } | null;
   deadlines: { at: Date; basis: string }[];
   now: Date;
   priorSimilarInsights: number;
@@ -78,7 +80,13 @@ export function computeSalience(input: SalienceInputs): SalienceResult {
   const v = input.validation;
   const factors: Factor[] = [];
 
-  factors.push(
+  if (input.subject) {
+    factors.push(
+      input.subject.importance != null
+        ? { name: 'importance', value: input.subject.importance, basis: `importância definida pelo executivo para ${input.subject.label}` }
+        : { name: 'importance', value: 0.3, basis: `${input.subject.label}: importância ainda não definida pelo executivo` },
+    );
+  } else factors.push(
     input.relationship?.explicitImportance != null
       ? { name: 'importance', value: input.relationship.explicitImportance, basis: 'importância definida pelo executivo para esta pessoa' }
       : { name: 'importance', value: input.relationship ? 0.3 : 0.1, basis: input.relationship ? 'relação registrada, importância não definida' : 'pessoa desconhecida ou sem relação registrada' },
@@ -91,7 +99,9 @@ export function computeSalience(input: SalienceInputs): SalienceResult {
   );
 
   factors.push(
-    input.relationship
+    input.subject
+      ? { name: 'relationship_relevance', value: null, basis: 'evento sobre um site, não sobre uma pessoa' }
+      : input.relationship
       ? {
           name: 'relationship_relevance',
           value: relationshipRelevance(input.relationship.interactions90d, input.relationship.lastInteractionAt, input.now),

@@ -17,7 +17,7 @@ export const TERMINAL_ACTION_STATES: readonly ActionState[] = ['VERIFIED', 'REJE
 
 export type ClaimKind = 'FACT' | 'INFERENCE' | 'HYPOTHESIS' | 'ANTICIPATION' | 'RECOMMENDATION';
 
-export type EvidenceKind = 'event' | 'message' | 'meeting' | 'commitment' | 'memory' | 'person' | 'relationship' | 'insight' | 'action';
+export type EvidenceKind = 'event' | 'message' | 'meeting' | 'commitment' | 'memory' | 'person' | 'relationship' | 'insight' | 'action' | 'search_metric';
 
 export interface EvidenceRef {
   kind: EvidenceKind;
@@ -110,7 +110,7 @@ export interface Memory {
   created_at: Date;
 }
 
-export type EventType = 'EMAIL_RECEIVED' | 'COMMITMENT_DUE' | 'PERSON_DATE_APPROACHING' | 'PRINCIPAL_NOTE' | 'PRINCIPAL_QUESTION';
+export type EventType = 'EMAIL_RECEIVED' | 'COMMITMENT_DUE' | 'PERSON_DATE_APPROACHING' | 'PRINCIPAL_NOTE' | 'PRINCIPAL_QUESTION' | 'SEARCH_PERFORMANCE_CHANGE';
 
 export interface WendyEvent {
   id: string;

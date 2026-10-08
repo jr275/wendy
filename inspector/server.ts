@@ -106,6 +106,7 @@ const SUMMARY_SQL: Record<string, string> = {
   memory: `SELECT id, content AS title, concat_ws(' · ', kind, 'por ' || written_by, status, 'conf ' || confidence) AS detail FROM memories WHERE id = ANY($1::uuid[])`,
   event: `SELECT id, event_type AS title, to_char(occurred_at, 'YYYY-MM-DD HH24:MI') AS detail FROM events WHERE id = ANY($1::uuid[])`,
   insight: `SELECT id, coalesce(headline, '(sem headline)') AS title, status AS detail FROM insights WHERE id = ANY($1::uuid[])`,
+  search_metric: `SELECT m.id, concat(wp.label, ' · ', CASE m.dimension WHEN 'total' THEN 'site todo' ELSE m.dimension || ' ' || m.key END) AS title, concat(to_char(m.window_start,'YYYY-MM-DD'), ' a ', to_char(m.window_end,'YYYY-MM-DD'), ' · cliques ', round(m.clicks::numeric), ' · impressões ', round(m.impressions::numeric), ' · posição ', round(m.position::numeric,1)) AS detail FROM search_metric_windows m JOIN web_properties wp ON wp.id = m.property_id WHERE m.id = ANY($1::uuid[])`,
   relationship: `SELECT id, kind AS title, 'importância ' || coalesce(explicit_importance::text, 'não definida') AS detail FROM relationships WHERE id = ANY($1::uuid[])`,
 };
 

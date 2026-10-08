@@ -19,6 +19,7 @@ const outFile = `gate-results/${stamp}.md`;
 const lines: string[] = [`# Gate run ${new Date().toISOString()}`, ''];
 const write = () => fs.writeFileSync(outFile, lines.join('\n') + '\n');
 
+process.env.WENDY_REASONER = 'claude'; // the gate never runs on the MVP Gemini override
 const provider = claudeProvider();
 lines.push(`Provider: **${provider}**${provider === 'vertex' ? ` (project ${process.env.GOOGLE_CLOUD_PROJECT ?? '?'}, region ${process.env.CLOUD_ML_REGION ?? 'global'})` : ''}`, '');
 try {
@@ -35,7 +36,8 @@ try {
 
 function run(title: string, cmd: string, args: string[]) {
   console.log(`\n=== ${title} ===`);
-  const r = spawnSync(cmd, args, { encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024, env: process.env });
+  // The gate always measures Claude: the MVP Gemini override (WENDY_REASONER) never applies here.
+  const r = spawnSync(cmd, args, { encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, WENDY_REASONER: 'claude' } });
   const output = `${r.stdout ?? ''}${r.stderr ?? ''}`;
   process.stdout.write(output.slice(-4000));
   lines.push(`## ${title}: exit ${r.status}`, '', '```', output.slice(-20000), '```', '');

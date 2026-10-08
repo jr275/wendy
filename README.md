@@ -31,6 +31,7 @@ credit balance). See `WENDY_PHASE_1_COMPLETION_REPORT.md`.
 | `npm run import -- --principal-email … --mbox … --ics …` | Import a Google Takeout export (read-only, exclusions in `config/import-exclusions.json`, `--dry-run` first; nothing goes to Claude) |
 | `npm run eval:retrieval` (`-- --claude`) | Recall@10 of the current search on the synthetic set → `WENDY_RETRIEVAL_EVAL.md` (Claude column needs credit) |
 | `npm run eval:retrieval:real -- --principal-email … [--claude]` | Recall@10 on your imported data with your questions (`config/retrieval-cases.json`, see the example); results go to git-ignored `eval-results/` |
+| `WENDY_REASONER=gemini` (no `.env`) | **MVP:** Gemini via Vertex raciocina no lugar do Claude, sempre rotulado "não é o Claude". O gate sempre usa o Claude |
 | `npm run test:live:phase2` | Phase 2 live tests (real Claude; separate from the Phase 1 gate) |
 | `npm run inspector:sample` | Builds a `sample_test_double` schema for the UI using the **test double, not Claude** (clearly labeled in the UI) |
 | `npm run typecheck` | TypeScript check |

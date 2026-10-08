@@ -343,4 +343,22 @@ Se um teste live falhar, considerar estas mudanças antes de concluir que o núc
 
 ---
 
+## Mudança de regra para o MVP — 2026-10-07 (decisão do executivo)
+
+O Claude ficou indisponível pelos dois caminhos:
+- **API da Anthropic:** sem saldo (`credit balance is too low`).
+- **Google Cloud Vertex AI:** o projeto `gen-lang-client-0623035444` ("revizia333") tem o Claude Opus 5.5 ativado, mas o Google **negou automaticamente** a cota do Opus, inclusive o pedido mínimo de 5 pedidos/min.
+
+Por decisão explícita do executivo ("não é produção, é MVP"):
+
+- **Gemini liberado só para desenvolvimento.** A Wendy pode raciocinar com o **Gemini** (`gemini-3.1-pro-preview`, via Vertex, mesmo projeto) para o desenvolvimento do MVP (`WENDY_REASONER=gemini`).
+- **Sempre identificado.** Cada chamada é registrada com o nome do modelo Gemini, e a interface mostra "não é o Claude" em cada insight, na auditoria e nos avisos.
+- **O gate não muda.** Ele continua exigindo o **Claude real**: o `npm run gate` e os testes live usam sempre o cliente do Claude, nunca o Gemini. Este relatório continua **NOT READY FOR PHASE 2** até o gate rodar com o Claude.
+- **Primeiro resultado com o Gemini (demo, cenário A):**
+  - O ciclo completo funcionou: entendimento, contexto conectado (reunião, histórico, compromisso), antecipação, recomendação, briefing e rascunho aguardando aprovação.
+  - Saída sempre no formato exigido.
+  - **Defeito observado:** resolveu "tomorrow's meeting" como um prazo de 2h atrás, quando a reunião é daqui a 26h. Isso inflou o fator de prazo da prioridade. Fica para comparar com o Claude.
+
+---
+
 NOT READY FOR PHASE 2

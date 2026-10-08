@@ -422,6 +422,8 @@ async function doWrite(path, body, okMsg) {
 const schemaInfo = () => state.schemas.find((s) => s.schema === state.schema);
 function sampleNotice() {
   const s = schemaInfo();
+  if (s && s.other_model_calls > 0)
+    return `<div class="notice">⚠ <div><b>Raciocínio do ${esc(s.other_models)} — não é o Claude.</b> Modo MVP: enquanto o Claude não está disponível, a Wendy usa este modelo. Evidências, validação e aprovações são as mesmas; a qualidade do raciocínio pode ser diferente, e nada disso conta para o gate da Fase 1.</div></div>`;
   if (s && s.test_double_calls > 0 && s.real_calls === 0)
     return `<div class="notice">⚠ <div><b>Dados de exemplo.</b> Tudo nesta fonte foi raciocinado pelo <b>substituto de teste</b>, não pelo Claude. Serve para ver o fluxo e a mecânica (evidências, validação, prioridade, ações) — não a inteligência da Wendy.</div></div>`;
   if (s && s.test_double_calls > 0) return `<div class="notice">⚠ <div>Esta fonte mistura raciocínio real do Claude e do substituto de teste. Cada item indica qual foi usado.</div></div>`;
@@ -548,7 +550,7 @@ function playCard(i, n) {
   return `<a class="card play" href="#/insight/${esc(i.id)}">
     <div class="rank ${n === 1 ? 'first' : ''}">${String(n).padStart(2, '0')}</div>
     <div>
-      <div class="tags"><span class="tag ${tcls}">${esc(tag)}</span><span class="dots">${confDots(avgConf)}</span><span>${conf(avgConf)}</span><span>· prioridade ${i.score.toFixed(2)}</span>${i.test_double ? '<span class="tag warn">substituto de teste</span>' : ''}</div>
+      <div class="tags"><span class="tag ${tcls}">${esc(tag)}</span><span class="dots">${confDots(avgConf)}</span><span>${conf(avgConf)}</span><span>· prioridade ${i.score.toFixed(2)}</span>${i.test_double ? '<span class="tag warn">substituto de teste</span>' : ''}${i.other_model ? `<span class="tag warn">${esc(i.other_model)} · não é o Claude</span>` : ''}</div>
       <h3>${esc(i.headline)}</h3>
       ${lead ? `<div class="lead">${ICON.trend}<span>${esc(lead.statement)}</span></div>` : ''}
       ${i.narrative ? `<div class="body">${esc(stripRefs(i.narrative))}</div>` : ''}
@@ -580,12 +582,14 @@ async function viewInsight(id) {
   const byOrd = Object.fromEntries(claims.map((c) => [c.ordinal, c]));
   evidenceIndex = Object.fromEntries(facts.map((f) => [f.label, f]));
   const isDouble = calls.some((c) => c.model === 'TEST_DOUBLE');
+  const otherModel = calls.find((c) => c.model !== 'TEST_DOUBLE' && !String(c.model).startsWith('claude-'))?.model;
   const [tag, tcls] = EVENT_TAG[event.event_type] ?? [event.event_type, ''];
   const st = ins.status === 'SURFACED' ? ['apresentado', 'mint'] : ins.status === 'SUPPRESSED' ? ['registrado sem interromper', ''] : ['descartado pela validação', 'bad'];
   const right = `<span class="tag ${tcls}">${esc(tag)}</span> <span class="tag ${st[1]}">${st[0]}</span>`;
   let h = head(esc(ins.headline ?? 'Insight'), `${fmtDate(ins.created_at)} · prioridade ${Number(ins.salience.score).toFixed(2)} · ${valid.filter((c) => c.produced_by === 'CLAUDE').length} afirmações validadas`, right, '#/hoje');
   h += `<div class="canvas"><div class="wrap">`;
   if (isDouble) h += `<div class="notice">⚠ <div>Raciocínio deste insight produzido pelo <b>substituto de teste</b>, não pelo Claude.</div></div>`;
+  if (otherModel) h += `<div class="notice">⚠ <div>Raciocínio deste insight produzido pelo <b>${esc(otherModel)}</b> (modo MVP) — <b>não é o Claude</b>.</div></div>`;
   const pending = actions.find((a) => a.state === 'AWAITING_APPROVAL');
   h += `<div class="card review"><div class="l"><span class="spark">${ICON.spark}</span><div><div class="eyebrow">Revisar proposta</div><div style="font-weight:600">${pending ? `${esc(ACTION_NAME[pending.action_type])} aguardando sua decisão` : actions.length ? 'Nada pendente — ações já resolvidas pela política' : 'Nenhuma ação proposta'}</div></div></div>
     <div class="acts">
@@ -998,7 +1002,8 @@ async function viewIntegrations() {
   h += `<div class="section-title"><h2>Conectado agora</h2></div><div class="grid3" style="margin-bottom:28px">${importTile}
     <div class="card tile"><div class="ic">${ICON.inbox}</div><h3>Caixa de entrada de exemplo</h3><p>E-mails, reuniões e compromissos de fixtures rotuladas (DEV_FIXTURE).</p><span class="pill grey">desenvolvimento</span></div>
     <div class="card tile"><div class="ic">${ICON.box}</div><h3>Caixa de saída local</h3><p>E-mails aprovados ficam aqui. <b>Nada é entregue a ninguém.</b></p><span class="pill grey">desenvolvimento</span></div>
-    <div class="card tile"><div class="ic">${ICON.bolt}</div><h3>Claude</h3><p>Raciocínio da Wendy (claude-opus-5-5). Bloqueado: organização sem saldo de API.</p><span class="pill warn">aguardando saldo de API</span></div></div>`;
+    <div class="card tile"><div class="ic">${ICON.bolt}</div><h3>Claude</h3><p>O raciocínio da Wendy foi feito para o claude-opus-5-5. Hoje está indisponível: sem saldo na API da Anthropic e cota do Opus negada no Google Cloud.</p><span class="pill warn">indisponível</span></div>
+    <div class="card tile"><div class="ic">${ICON.bolt}</div><h3>Gemini (MVP)</h3><p>gemini-3.1-pro-preview via Google Cloud, no lugar do Claude durante o MVP. Tudo que ele raciocina é marcado como "não é o Claude" e não conta para o gate.</p><span class="pill mint">em uso no MVP</span></div></div>`;
   h += `<div class="section-title"><h2>Próximos sensores</h2><span class="muted small">Só depois do Cognitive Core aprovado com o Claude real</span></div><div class="grid3">${planned.map(([n, d, ic, s]) => `<div class="card tile locked"><div class="ic">${ic}</div><h3>${n}</h3><p>${d}</p><span class="pill grey">${s}</span></div>`).join('')}</div>`;
   return h + '</div></div>';
 }
@@ -1054,14 +1059,15 @@ async function viewConfig() {
 /* ---------- AUDITORIA ---------- */
 async function viewAudit() {
   const [led, calls] = await Promise.all([api('/api/ledger'), api('/api/model-calls')]);
-  const real = calls.filter((c) => c.model !== 'TEST_DOUBLE').length;
+  const real = calls.filter((c) => String(c.model).startsWith('claude-')).length;
+  const other = calls.filter((c) => c.model !== 'TEST_DOUBLE' && !String(c.model).startsWith('claude-')).length;
   let h = head('Auditoria', 'Integridade do registro, chamadas ao modelo e raciocínio técnico', `<a class="btn" href="/tecnico#schema=${esc(state.schema)}">Visão técnica completa ${ICON.arrow}</a>`);
   h += `<div class="canvas"><div class="wrap">`;
   h += `<div class="kpis" style="margin-top:0"><div class="kpi"><div class="v" style="color:${led.integrity.valid ? 'var(--mint)' : 'var(--bad)'}">${led.integrity.valid ? 'Íntegro' : 'Falha'}</div><div class="l">ledger de auditoria</div><div class="s">${led.integrity.valid ? `${led.integrity.blockCount} blocos verificados` : esc(led.integrity.error)}</div></div>
-    <div class="kpi"><div class="v">${calls.length}</div><div class="l">chamadas ao modelo</div><div class="s">${real} reais · ${calls.length - real} substituto de teste</div></div>
+    <div class="kpi"><div class="v">${calls.length}</div><div class="l">chamadas ao modelo</div><div class="s">${real} Claude · ${other} outro modelo (MVP) · ${calls.length - real - other} substituto de teste</div></div>
     <div class="kpi"><div class="v">${calls.filter((c) => c.error).length}</div><div class="l">chamadas com erro</div></div>
     <div class="kpi"><div class="v">${calls.reduce((s, c) => s + (c.usage?.input_tokens ?? 0) + (c.usage?.output_tokens ?? 0), 0).toLocaleString('pt-BR')}</div><div class="l">tokens usados</div><div class="s">somente chamadas reais</div></div></div>`;
-  h += `<div class="card" style="margin-bottom:22px"><div class="toolbar"><b>Chamadas ao modelo</b></div>${calls.length ? `<table><thead><tr><th>Etapa</th><th>Modelo</th><th>ID da API</th><th class="num">Evidências enviadas</th><th class="num">Quando</th></tr></thead><tbody>${calls.slice(0, 50).map((c) => `<tr><td>${esc(c.purpose)}</td><td>${c.model === 'TEST_DOUBLE' ? '<span class="pill warn">substituto de teste</span>' : esc(c.served_by_model || c.model)}${c.error ? ` <span class="pill bad">erro</span>` : ''}</td><td class="mono muted">${esc(c.api_message_id ?? '—')}</td><td class="num">${esc(c.evidence_sent)}</td><td class="num muted">${fmtDate(c.started_at)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Nenhuma chamada.</div>'}</div>`;
+  h += `<div class="card" style="margin-bottom:22px"><div class="toolbar"><b>Chamadas ao modelo</b></div>${calls.length ? `<table><thead><tr><th>Etapa</th><th>Modelo</th><th>ID da API</th><th class="num">Evidências enviadas</th><th class="num">Quando</th></tr></thead><tbody>${calls.slice(0, 50).map((c) => `<tr><td>${esc(c.purpose)}</td><td>${c.model === 'TEST_DOUBLE' ? '<span class="pill warn">substituto de teste</span>' : String(c.model).startsWith('claude-') ? esc(c.served_by_model || c.model) : `<span class="pill warn">${esc(c.served_by_model || c.model)} · não é o Claude</span>`}${c.error ? ` <span class="pill bad">erro</span>` : ''}</td><td class="mono muted">${esc(c.api_message_id ?? '—')}</td><td class="num">${esc(c.evidence_sent)}</td><td class="num muted">${fmtDate(c.started_at)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Nenhuma chamada.</div>'}</div>`;
   h += `<div class="card"><div class="toolbar"><b>Ledger · últimos blocos</b><span class="muted small">cada mudança de estado relevante, encadeada por hash</span></div><table><thead><tr><th class="num" style="width:60px">#</th><th>Evento</th><th>Ator</th><th>Hash</th><th class="num">Quando</th></tr></thead><tbody>${led.blocks.slice(0, 40).map((b) => `<tr><td class="num muted">${b.seq}</td><td>${esc(b.event_type)}</td><td class="muted">${esc(b.actor)}</td><td class="mono muted">${esc(b.hash.slice(0, 16))}…</td><td class="num muted">${fmtDate(b.at)}</td></tr>`).join('')}</tbody></table></div>`;
   return h + '</div></div>';
 }

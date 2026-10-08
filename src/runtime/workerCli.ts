@@ -1,4 +1,4 @@
-import { ClaudeReasoningClient } from '../cognition/llm.js';
+import { createReasoner, reasonerKind } from '../cognition/reasoner.js';
 import { databaseUrl, loadEnv } from '../config.js';
 import { createPool, migrate } from '../db/db.js';
 import { DevMailboxProvider } from '../providers/devMailbox.js';
@@ -9,8 +9,9 @@ import { startWorker } from './worker.js';
 loadEnv();
 const db = createPool(databaseUrl());
 await migrate(db);
-const ctx = createContext({ db, reasoner: new ClaudeReasoningClient(db), clock: systemClock, emailProvider: new DevMailboxProvider(db) });
+const ctx = createContext({ db, reasoner: createReasoner(db), clock: systemClock, emailProvider: new DevMailboxProvider(db) });
 
+if (reasonerKind() === 'gemini') console.log('⚠ Reasoner: GEMINI (MVP) — not Claude.');
 const worker = startWorker(
   ctx,
   Number(process.env.WENDY_WORKER_INTERVAL_MS ?? 30_000),

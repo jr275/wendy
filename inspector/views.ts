@@ -21,6 +21,7 @@ const INSIGHT_CARD_SQL = `
          (i.salience->>'score')::float AS score, i.salience->'explanation' AS explanation,
          e.event_type, e.provenance->>'origin' AS origin,
          EXISTS (SELECT 1 FROM model_calls mc WHERE mc.id = ANY(i.model_call_ids) AND mc.model = 'TEST_DOUBLE') AS test_double,
+         (SELECT min(mc.model) FROM model_calls mc WHERE mc.id = ANY(i.model_call_ids) AND mc.model <> 'TEST_DOUBLE' AND mc.model NOT LIKE 'claude-%') AS other_model,
          (SELECT json_agg(json_build_object('kind', c.kind, 'label', c.label, 'statement', c.statement, 'confidence', c.confidence) ORDER BY c.ordinal)
             FROM claims c WHERE c.insight_id = i.id AND c.validation_status = 'VALID' AND c.produced_by = 'CLAUDE') AS claims,
          (SELECT json_agg(json_build_object('handle', h.key, 'kind', h.value->>'kind', 'id', h.value->>'id'))

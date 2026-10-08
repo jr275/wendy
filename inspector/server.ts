@@ -52,7 +52,9 @@ async function listSchemas() {
         (SELECT count(*) FROM events)::int AS events,
         (SELECT count(*) FROM insights)::int AS insights,
         (SELECT count(*) FROM model_calls WHERE model = 'TEST_DOUBLE')::int AS test_double_calls,
-        (SELECT count(*) FROM model_calls WHERE model <> 'TEST_DOUBLE')::int AS real_calls`)
+        (SELECT count(*) FROM model_calls WHERE model LIKE 'claude-%')::int AS real_calls,
+        (SELECT count(*) FROM model_calls WHERE model <> 'TEST_DOUBLE' AND model NOT LIKE 'claude-%')::int AS other_model_calls,
+        (SELECT string_agg(DISTINCT model, ', ') FROM model_calls WHERE model <> 'TEST_DOUBLE' AND model NOT LIKE 'claude-%') AS other_models`)
     ).rows[0];
     out.push({ schema, ...c });
   }

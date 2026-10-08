@@ -61,6 +61,7 @@ export interface Today {
   prepared?: { id: string; action_type: string; state: string; insight_id: string; title: string | null; subject: string | null }[];
   needsYou?: NeedsYou[];
   pendingMemories?: { id: string; content: string; full_name: string | null; subject_person_id: string | null }[];
+  pendingMemoryCount?: number;
   pendingCommitments?: { id: string; description: string; due_at: string; full_name: string }[];
   memoriesToReview?: { id: string; content: string; full_name: string | null }[];
   openConflicts?: number;
@@ -188,4 +189,34 @@ export interface Task {
 
 export async function tasks(principalId: string): Promise<Task[]> {
   return (await get<{ tasks: Task[] }>("/api/tasks", { principal: principalId })).tasks;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant" | "tool";
+  content?: string;
+  toolCalls?: { id: string; type: "function"; function: { name: string; arguments: string } }[];
+  toolCallId?: string;
+}
+
+export async function chatHistory(principalId: string): Promise<ChatMessage[]> {
+  return (await get<{ messages: ChatMessage[] }>("/api/chat", { principal: principalId })).messages;
+}
+
+export interface MemoryItem {
+  id: string;
+  kind: "PREFERENCE" | "FACT";
+  content: string;
+  status: "PROPOSED" | "ACTIVE";
+  written_by: "PRINCIPAL" | "WENDY" | "SYSTEM";
+  created_at: string;
+  last_confirmed_at: string | null;
+  subject_person_id: string | null;
+  full_name: string | null;
+  evidence_kinds: string[] | null;
+  freshness: { weight: number; needsReview: boolean; ageDays: number };
+}
+
+export async function memories(principalId: string): Promise<MemoryItem[]> {
+  return (await get<{ memories: MemoryItem[] }>("/api/memories", { principal: principalId })).memories;
 }

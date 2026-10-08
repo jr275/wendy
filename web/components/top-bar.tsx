@@ -11,7 +11,7 @@ export function TopBar({ reasoner, wide = false }: { reasoner: string | null; wi
           <span className="grid h-7 w-7 place-items-center rounded-full bg-accent" aria-hidden>
             <span className="h-2.5 w-2.5 rounded-full bg-surface" />
           </span>
-          <span className="font-semibold tracking-tight">Wendy</span>
+          <span className="hidden font-semibold tracking-tight sm:inline">Wendy</span>
         </Link>
         <span className="ml-1 hidden h-5 w-px bg-line sm:ml-2 sm:block" aria-hidden />
         <Nav />

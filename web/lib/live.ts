@@ -6,3 +6,4 @@ export async function fetchExecution(id: string): Promise<ExecutionView | null> 
   const p = await principal();
   return p ? execution(id, p.id) : null;
 }
+

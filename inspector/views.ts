@@ -131,7 +131,8 @@ export async function today(db: pg.Pool, principalIdParam: string | null) {
       [pid],
     )
   ).rows;
-  return { principal, kpis, insights, prepared, needsYou, pendingMemories, openConflicts, pendingCommitments, memoriesToReview: toReview };
+  const pendingMemoryCount = (await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM memories WHERE principal_id = $1 AND status = 'PROPOSED'`, [pid])).rows[0]!.n;
+  return { principal, kpis, insights, prepared, needsYou, pendingMemories, pendingMemoryCount, openConflicts, pendingCommitments, memoriesToReview: toReview };
 }
 
 export async function insightDetail(db: pg.Pool, id: string) {
@@ -523,4 +524,30 @@ export async function tasks(db: pg.Pool, principalIdParam: string | null) {
   if (!pid) return { tasks: [] };
   const { listTasks } = await import('../src/tasks/taskService.js');
   return { tasks: await listTasks(db, pid) };
+}
+
+/** The continuous conversation with Wendy (restored by the chat on load). */
+export async function chat(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { messages: [] };
+  const { chatHistory } = await import('../src/agent/chatLog.js');
+  return { messages: await chatHistory(db, pid) };
+}
+
+/** What Wendy knows: proposals to confirm and active memories, with freshness. */
+export async function memoryOverview(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { memories: [] };
+  const { memoryFreshness } = await import('../src/memory/freshness.js');
+  const rows = (
+    await db.query(
+      `SELECT m.id, m.kind, m.content, m.status, m.written_by, m.created_at, m.last_confirmed_at, m.subject_person_id, p.full_name,
+              (SELECT array_agg(DISTINCT e->>'kind') FROM jsonb_array_elements(m.evidence) e) AS evidence_kinds
+         FROM memories m LEFT JOIN people p ON p.id = m.subject_person_id
+        WHERE m.principal_id = $1 AND m.status IN ('PROPOSED', 'ACTIVE') AND m.kind IN ('PREFERENCE', 'FACT')
+        ORDER BY m.status DESC, m.created_at DESC LIMIT 300`,
+      [pid],
+    )
+  ).rows;
+  return { memories: rows.map((m) => ({ ...m, freshness: memoryFreshness(m, new Date()) })) };
 }

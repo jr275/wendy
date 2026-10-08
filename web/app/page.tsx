@@ -39,8 +39,13 @@ async function Today() {
   const needs = [
     ...(t.needsYou ?? []).map((a) => ({ key: `a-${a.id}`, tone: "warn" as const, title: `${ACTION_LABEL[a.action_type] ?? a.action_type} aguardando sua aprovação`, detail: [a.subject, a.recipients?.length ? `para ${a.recipients.join(", ")}` : null].filter(Boolean).join(" · "), href: `/insight/${a.insight_id}` })),
     ...(t.pendingCommitments ?? []).map((c) => ({ key: `c-${c.id}`, tone: "warn" as const, title: `Confirmar compromisso com ${c.full_name}`, detail: c.description, href: `${INSPECTOR}/#/pessoas` })),
-    ...(t.pendingMemories ?? []).map((m) => ({ key: `m-${m.id}`, tone: "info" as const, title: `Confirmar memória${m.full_name ? ` sobre ${m.full_name}` : ""}`, detail: m.content, href: `${INSPECTOR}/#/pessoas/${m.subject_person_id ?? ""}` })),
-    ...(t.memoriesToReview ?? []).map((m) => ({ key: `r-${m.id}`, tone: "info" as const, title: `Isto ainda vale${m.full_name ? ` sobre ${m.full_name}` : ""}?`, detail: m.content, href: `${INSPECTOR}/#/pessoas` })),
+    // Memories are reviewed on the Memória page (with their source and quote), not one by one here.
+    ...(t.pendingMemoryCount
+      ? [{ key: "memories", tone: "info" as const, title: `${t.pendingMemoryCount} memória${t.pendingMemoryCount === 1 ? "" : "s"} para confirmar`, detail: "A Wendy anotou coisas sobre você; confirme o que estiver certo.", href: "/memoria" }]
+      : []),
+    ...((t.memoriesToReview ?? []).length
+      ? [{ key: "review", tone: "info" as const, title: "Isto ainda vale?", detail: `${(t.memoriesToReview ?? []).length} memória(s) antiga(s) para rever`, href: "/memoria" }]
+      : []),
   ];
   const reasoner = reasonerLabel(insights);
 

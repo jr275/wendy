@@ -110,6 +110,9 @@ function SiteCompact({ s, onOpen }: { s: SitePayload; onOpen?: () => void }) {
   );
 }
 
+/** One continuous conversation with Wendy (an explicit thread makes the chat replay it on open). */
+const THREAD = "main";
+
 const LABELS = {
   welcomeMessageText: "O que você quer saber hoje?",
   chatInputPlaceholder: "Pergunte à Wendy…",
@@ -240,7 +243,7 @@ export function WendyChat({ suggestions }: { suggestions: string[] }) {
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       <StepBadge step={step} />
-      <CopilotChat agentId="wendy" className="h-full min-h-0" labels={LABELS} />
+      <CopilotChat agentId="wendy" threadId={THREAD} className="h-full min-h-0" labels={LABELS} />
     </div>
   );
 }
@@ -265,6 +268,7 @@ export function WendySidebar({ suggestions }: { suggestions: string[] }) {
       <StepBadge step={step} />
       <CopilotSidebar
         agentId="wendy"
+        threadId={THREAD}
         open={choice ?? wide}
         onOpenChange={setChoice}
         width={420}

@@ -17,6 +17,7 @@ import { DevMailboxProvider } from '../providers/devMailbox.js';
 import { createContext } from '../runtime/context.js';
 import { systemClock } from '../util/clock.js';
 import { createSkillRuntime } from '../skills/index.js';
+import { messageRecorder, saveMessages, userMessages } from './chatLog.js';
 import { runWendyAgent } from './run.js';
 import { performWrite, WRITE_PATHS, writeErrorStatus, type WritePath } from '../../inspector/writeApi.js';
 
@@ -96,13 +97,22 @@ http
     }
     const enc = new EventEncoder({ accept: req.headers.accept });
     res.writeHead(200, { 'Content-Type': enc.getContentType(), 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-    const send = (e: BaseEvent) => res.write(enc.encode(e));
+    // Keep the conversation: the principal's messages, and what this run says (folded from its events).
+    const recorder = messageRecorder();
+    const send = (e: BaseEvent) => {
+      recorder.record(e as BaseEvent & Record<string, unknown>);
+      res.write(enc.encode(e));
+    };
+    let pid: string | null = null;
     try {
-      await runWendyAgent({ ctx, db, principalId: await principalId(), skills }, parsed.data as RunAgentInput, send);
+      pid = await principalId();
+      await saveMessages(db, pid, userMessages(parsed.data as RunAgentInput), new Date());
+      await runWendyAgent({ ctx, db, principalId: pid, skills }, parsed.data as RunAgentInput, send);
     } catch (e) {
       console.error('[agent run error]', e);
       send({ type: EventType.RUN_ERROR, message: (e as Error).message } as BaseEvent);
     }
+    if (pid) await saveMessages(db, pid, recorder.messages, new Date()).catch((e) => console.error('[chat log error]', e));
     res.end();
   })
   .listen(PORT, '127.0.0.1', () => console.log(`Wendy AG-UI agent on http://127.0.0.1:${PORT}/agui (reasoner: ${process.env.WENDY_REASONER ?? 'claude'})`));

@@ -13,6 +13,20 @@ export interface SiteCard {
   baselineWeekly: { clicks: number; impressions: number } | null;
   movers: { dimension: 'page' | 'query'; key: string; deltaClicks: number; deltaImpressions: number }[];
   direction: 'DROP' | 'RISE' | null;
+  /** Where the last window's clicks came from: top pages + the rest (sums to the window total). */
+  topPages: { key: string; clicks: number }[];
+}
+
+/** Top pages by clicks in one window, plus "rest" so the parts add up to the site total. */
+export async function topPages(q: Queryable, propertyId: string, windowEnd: string, totalClicks: number, limit = 4): Promise<{ key: string; clicks: number }[]> {
+  const rows = (
+    await q.query<{ key: string; clicks: number }>(
+      `SELECT key, clicks FROM search_metric_windows WHERE property_id = $1 AND dimension = 'page' AND window_end = $2 AND clicks > 0 ORDER BY clicks DESC, key LIMIT $3`,
+      [propertyId, windowEnd, limit],
+    )
+  ).rows;
+  const rest = totalClicks - rows.reduce((a, r) => a + r.clicks, 0);
+  return rest > 0 ? [...rows, { key: '', clicks: rest }] : rows;
 }
 
 export async function siteCard(q: Queryable, principalId: string, propertyId: string): Promise<SiteCard | null> {
@@ -31,5 +45,6 @@ export async function siteCard(q: Queryable, principalId: string, propertyId: st
   const baselineWeekly = baseline ? { clicks: Math.round((baseline.clicks / 4) * 10) / 10, impressions: Math.round(baseline.impressions / 4) } : null;
   const direction = current && baselineWeekly ? (current.clicks < baselineWeekly.clicks ? 'DROP' : 'RISE') : null;
   const movers = current && baseline && direction ? (await siteChangeContributors(q, p.id, current.end, baseline.end, direction, 5)).map(({ dimension, key, deltaClicks, deltaImpressions }) => ({ dimension, key, deltaClicks, deltaImpressions })) : [];
-  return { propertyId: p.id, label: p.label, siteUrl: p.site_url, importance: p.explicit_importance, daily, current, baseline, baselineWeekly, movers, direction };
+  const pages = current ? await topPages(q, p.id, current.end, current.clicks) : [];
+  return { propertyId: p.id, label: p.label, siteUrl: p.site_url, importance: p.explicit_importance, daily, current, baseline, baselineWeekly, movers, direction, topPages: pages };
 }

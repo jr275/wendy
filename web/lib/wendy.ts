@@ -99,6 +99,7 @@ export interface Site {
   changes: SiteChange[];
   direction: "DROP" | "RISE" | null;
   movers: { dimension: "page" | "query"; key: string; deltaClicks: number; deltaImpressions: number }[];
+  topPages?: { key: string; clicks: number }[];
 }
 
 export async function sites(principalId: string) {

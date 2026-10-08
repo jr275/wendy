@@ -504,7 +504,9 @@ export async function sites(db: pg.Pool, principalIdParam: string | null) {
     const direction = cur && base ? (cur.clicks < base.clicks / 4 ? 'DROP' : 'RISE') : null;
     const { siteChangeContributors } = await import('../src/sensors/searchDetector.js');
     const movers = cur && base && direction ? (await siteChangeContributors(db, p.id, cur.end, base.end, direction, 5)).map(({ dimension, key, deltaClicks, deltaImpressions }) => ({ dimension, key, deltaClicks, deltaImpressions })) : [];
-    out.push({ ...p, daily, current: cur ?? null, baseline: base ?? null, direction, movers, changes });
+    const { topPages } = await import('../src/agent/siteCard.js');
+    const pages = cur ? await topPages(db, p.id, cur.end, cur.clicks) : [];
+    out.push({ ...p, daily, current: cur ?? null, baseline: base ?? null, direction, movers, changes, topPages: pages });
   }
   return { sites: out };
 }

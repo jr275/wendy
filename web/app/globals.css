@@ -33,6 +33,12 @@
     radial-gradient(circle at 22% 85%, rgba(197, 159, 255, 0.55) 15%, transparent 50%), radial-gradient(circle at 84% 80%, rgba(255, 207, 109, 0.5) 25%, transparent 60%),
     radial-gradient(circle at 50% 30%, rgba(254, 185, 131, 0.5) 20%, transparent 70%);
   --bloom-opacity: 0.7;
+  /* Chart categorical slots (validated: dataviz validator, light surface) + neutral "other". */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-other: #c7c7cc;
 }
 
 :root[data-theme="dark"] {
@@ -57,6 +63,11 @@
   --info-soft: rgba(147, 173, 240, 0.13);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   --bloom-opacity: 0.22;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-other: #48484a;
   color-scheme: dark;
 }
 

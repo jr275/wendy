@@ -35,6 +35,7 @@ function toPayload(s: Site): SitePayload {
     baselineWeekly: s.baseline ? { clicks: Math.round((s.baseline.clicks / 4) * 10) / 10, impressions: Math.round(s.baseline.impressions / 4) } : null,
     movers: s.movers,
     direction: s.direction,
+    topPages: s.topPages,
   };
 }
 

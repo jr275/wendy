@@ -358,6 +358,11 @@ Por decisão explícita do executivo ("não é produção, é MVP"):
   - O ciclo completo funcionou: entendimento, contexto conectado (reunião, histórico, compromisso), antecipação, recomendação, briefing e rascunho aguardando aprovação.
   - Saída sempre no formato exigido.
   - **Defeito observado:** resolveu "tomorrow's meeting" como um prazo de 2h atrás, quando a reunião é daqui a 26h. Isso inflou o fator de prazo da prioridade. Fica para comparar com o Claude.
+- **Segundo resultado com o Gemini (demo, cenário B):** outra pessoa, outra empresa, outro assunto, em português.
+  - Mesmo comportamento: conectou o e-mail à revisão de sábado, à promessa do parecer e à nota do regulador ainda sem resposta.
+  - Antecipou o bloqueio da expansão.
+  - Preparou o briefing em português e deixou o e-mail aguardando aprovação.
+  - Desta vez o prazo foi resolvido corretamente ("antes da revisão de sábado", 45h à frente). O erro de data do cenário A não se repetiu: é inconsistente, não sistemático.
 
 ---
 

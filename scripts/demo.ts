@@ -1,6 +1,6 @@
 /**
  * "First wow" demo: a new email arrives; nobody asks anything; Wendy runs one cycle and surfaces
- * what she found. Uses DEV FIXTURES in an isolated `demo` schema of the dev database and the configured
+ * what she found. Uses DEV FIXTURES in an isolated `demo_<scenario>` schema of the dev database and the configured
  * reasoner: real Claude by default; WENDY_REASONER=gemini runs it with Gemini (MVP, labeled as not Claude).
  *   npm run demo            (scenario A)
  *   npm run demo -- b       (scenario B)
@@ -18,9 +18,10 @@ import { buildWorld, SCENARIO_A, SCENARIO_B, urgentEmail } from '../fixtures/wor
 loadEnv();
 const scenario = process.argv[2] === 'b' ? SCENARIO_B : SCENARIO_A;
 const admin = createPool(databaseUrl());
-await admin.query('DROP SCHEMA IF EXISTS demo CASCADE; CREATE SCHEMA demo');
+const schema = `demo_${scenario.key}`; // one schema per scenario, so both can be compared side by side
+await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE; CREATE SCHEMA ${schema}`);
 await admin.end();
-const db = createPool(databaseUrl(), 'demo');
+const db = createPool(databaseUrl(), schema);
 await migrate(db);
 
 const now = new Date();

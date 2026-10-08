@@ -48,6 +48,12 @@ export function summarizeRun(v: ExecutionView): string {
               : '';
       return [head, tail].filter(Boolean).join('\n\n');
     }
+    case 'learn-about-me': {
+      const n = (o.proposed as unknown[] | undefined)?.length ?? 0;
+      const sensitive = (o.droppedSensitive as number) ?? 0;
+      const head = n ? `Separei ${n} coisa${n === 1 ? '' : 's'} sobre você, cada uma com a frase de onde veio. Confirme o que estiver certo; nada vale até você confirmar.` : 'Não encontrei nada sobre você que eu consiga citar com segurança nessa fonte.';
+      return sensitive ? `${head}\n\nDeixei de fora ${sensitive} ponto${sensitive === 1 ? '' : 's'} sensíve${sensitive === 1 ? 'l' : 'is'} (saúde, família, dinheiro…). Só guardo esse tipo de coisa se você pedir.` : head;
+    }
     default:
       return `"${v.skillName}" concluída.`;
   }

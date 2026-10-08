@@ -37,6 +37,7 @@ mensagem → intenção (modelo escolhe 1 id do registry, ou "none") → valida�
 | `document-analysis` | documents.read | LOW | só `~/Wendy/Documentos`; cita trechos (D1…); txt, md, pdf |
 | `task-management` | tasks.* | MEDIUM | criar pede aprovação; concluir é automático; apagar sempre pede |
 | `research-and-plan` | — (compõe as duas acima) | MEDIUM | tarefas só a partir de afirmações válidas; criação pede aprovação |
+| `learn-about-me` (S3) | documents.read, web.fetch, memory.propose, memory.proposals | LOW | propõe memórias sobre o João a partir de uma fonte dele; cada uma com citação literal verificada pelo código; temas sensíveis nunca são gravados; nada vale até ele confirmar |
 
 ## Permissões
 
@@ -85,6 +86,16 @@ queda é retomada no passo em que estava, sem refazer os anteriores.
 (aprovar, recusar, DENY, destrutivo), mínimo privilégio, composição, retentativa, recuperação após
 queda, injeção de prompt, SSRF, pasta de documentos, PDF. Modelo: dublê roteirizado (não é o Claude);
 rede: falsa.
+
+## Memória "sobre você" (S3, primeira fatia)
+
+- A fonte (documento da pasta ou link) é lida e dividida em trechos; o modelo propõe itens com
+  `quote` + trecho; o **código** só aceita o item se a citação existir literalmente naquele trecho.
+- `sensitive = true` (saúde, remédios, conflitos de família, dinheiro, vida íntima, disputas legais)
+  → descartado e só contado; nunca é gravado.
+- Gravação: `memory.propose` (WRITE, automática por padrão porque proposta não vale nada até ser
+  confirmada) cria memórias `PROPOSED`, com a fonte, a data e a citação no texto e o trecho + a ação na
+  evidência. O João confirma ou descarta cada uma no cartão (MemoryService, auditado).
 
 ## Próximas fases
 

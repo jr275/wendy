@@ -3,7 +3,11 @@
  * retries, crash recovery and prompt-injection containment. The model is a scripted test double
  * (NOT Claude); web search and HTTP are fakes — no network.
  */
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { MemoryService } from '../../src/memory/memoryService.js';
 import { z } from 'zod';
 import { ActionService, PolicyService } from '../../src/actions/actions.js';
 import type { Db } from '../../src/db/db.js';
@@ -58,11 +62,11 @@ function fakeSearch(urls: string[], failFirst = 0): WebSearchProvider & { calls:
   };
 }
 
-function setup(scripts: Record<string, Script>, opts: { search?: WebSearchProvider; hooks?: NonNullable<Parameters<typeof createSkillRuntime>[1]>['hooks']; leaseMs?: number; db?: Db } = {}) {
+function setup(scripts: Record<string, Script>, opts: { search?: WebSearchProvider; hooks?: NonNullable<Parameters<typeof createSkillRuntime>[1]>['hooks']; leaseMs?: number; db?: Db; documentsRoot?: string } = {}) {
   const d = opts.db ?? db;
   const reasoner = new ScriptedReasoner(d, scripts);
   const ctx = createContext({ db: d, reasoner, clock, emailProvider: new DevMailboxProvider(d) });
-  const toolbox = new Toolbox({ search: () => opts.search ?? fakeSearch(Object.keys(PAGES).slice(0, 2)), hop: fakeHop, documentsRoot: '/nonexistent' });
+  const toolbox = new Toolbox({ search: () => opts.search ?? fakeSearch(Object.keys(PAGES).slice(0, 2)), hop: fakeHop, documentsRoot: opts.documentsRoot ?? '/nonexistent' });
   const s = createSkillRuntime(ctx, { toolbox, hooks: opts.hooks, leaseMs: opts.leaseMs, sleep: async () => {} });
   return { ...s, reasoner, ctx };
 }
@@ -336,5 +340,39 @@ describe('composition: research-and-plan', () => {
     await new ActionService(db).approve(principalId, child.wait.id, clock.now());
     await runtime.runReady();
     expect((await runtime.get(id))!).toMatchObject({ status: 'completed', output: { proposedTasks: 2, droppedTasks: 1, tasks: { status: 'done', items: [{ title: 'Agendar a renovação do passaporte' }] } } });
+  });
+});
+
+describe('S3: learn-about-me', () => {
+  it('keeps only verbatim-quoted, non-sensitive items as PROPOSED memories; only the principal activates them', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'wendy-me-'));
+    await fs.writeFile(
+      path.join(root, 'artigo.md'),
+      'Meus slots são de 45 minutos, bloqueados exclusivamente para ficar ligado nos e-mails e mensagens.\n\nTomo remédio para ansiedade todos os dias.\n\nTreino jiu-jitsu desde muito novo.',
+    );
+    const extract: Script = () => ({
+      items: [
+        { statement: 'P responde e-mails em blocos de 45 minutos.', kind: 'PREFERENCE', category: 'work_style', quote: 'Meus slots são de 45 minutos', passage: 'D1', sensitive: false },
+        { statement: 'P toma remédio.', kind: 'FACT', category: 'background', quote: 'Tomo remédio para ansiedade todos os dias', passage: 'D1', sensitive: true },
+        { statement: 'P mora em Paris.', kind: 'FACT', category: 'background', quote: 'Moro em Paris há muitos anos', passage: 'D1', sensitive: false },
+      ],
+    });
+    const { runtime } = setup({ 'skill:learn-about-me:extract': extract }, { documentsRoot: root });
+    const id = await runtime.start(principalId, 'learn-about-me', { path: 'artigo.md', sourceDate: '19/09/2025' }, { kind: 'test' });
+    await runtime.advance(id);
+    const out = (await runtime.get(id))!.output as { proposed: { memoryId: string; statement: string }[]; droppedSensitive: number; droppedUnquoted: number };
+    expect(out.droppedSensitive).toBe(1);
+    expect(out.droppedUnquoted).toBe(1);
+    expect(out.proposed.map((p) => p.statement)).toEqual(['P responde e-mails em blocos de 45 minutos.']);
+
+    const mem = (await db.query('SELECT status, content, written_by, evidence FROM memories WHERE id = $1', [out.proposed[0]!.memoryId])).rows[0];
+    expect(mem).toMatchObject({ status: 'PROPOSED', written_by: 'WENDY' });
+    expect(mem.content).toContain('"Meus slots são de 45 minutos"');
+    expect(mem.content).toContain('19/09/2025');
+    expect(mem.evidence.map((e: { kind: string }) => e.kind).sort()).toEqual(['action', 'document']);
+    expect((await db.query(`SELECT count(*)::int n FROM memories WHERE content LIKE '%remédio%'`)).rows[0].n).toBe(0); // sensitive never stored
+
+    await new MemoryService(db).confirm(principalId, out.proposed[0]!.memoryId, clock.now());
+    expect((await db.query('SELECT status FROM memories WHERE id = $1', [out.proposed[0]!.memoryId])).rows[0].status).toBe('ACTIVE');
   });
 });

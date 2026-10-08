@@ -4,6 +4,7 @@ import type { WendyContext } from '../runtime/context.js';
 import { Toolbox, type ToolboxDeps } from '../tools/index.js';
 import { GeminiWebSearch } from '../tools/web.js';
 import { documentAnalysis } from './builtin/documentAnalysis.js';
+import { learnAboutMe } from './builtin/learnAboutMe.js';
 import { researchAndPlan } from './builtin/researchAndPlan.js';
 import { taskManagement } from './builtin/taskManagement.js';
 import { webResearch } from './builtin/webResearch.js';
@@ -12,7 +13,7 @@ import { SkillRuntime, type RuntimeDeps } from './runtime.js';
 
 /** Built-in skills, dependencies first. */
 export function builtinRegistry(): SkillRegistry {
-  return new SkillRegistry().register(webResearch).register(documentAnalysis).register(taskManagement).register(researchAndPlan);
+  return new SkillRegistry().register(webResearch).register(documentAnalysis).register(taskManagement).register(researchAndPlan).register(learnAboutMe);
 }
 
 export function defaultToolbox(ctx: Pick<WendyContext, 'db'>, overrides: Partial<ToolboxDeps> = {}): Toolbox {

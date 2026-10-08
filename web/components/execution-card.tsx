@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
-import { approveAction, rejectAction } from "@/lib/actions";
+import { approveAction, confirmMemory, rejectAction, retractMemory } from "@/lib/actions";
 import { fetchExecution } from "@/lib/live";
 import type { ExecutionView } from "@/lib/wendy";
 
@@ -124,11 +124,61 @@ function Findings({ o }: { o: Analysis }) {
   );
 }
 
+const CATEGORY_PT: Record<string, string> = { work_style: "Como trabalha", preferences: "Preferência", values: "Valores", routines: "Rotina", background: "Trajetória", people: "Pessoas", projects: "Projetos" };
+
+/** One memory proposal: the principal confirms or discards it; nothing is active before that. */
+function Proposal({ p }: { p: { memoryId: string | null; statement: string; quote: string; category: string } }) {
+  const [state, setState] = useState<"proposed" | "confirmed" | "discarded">("proposed");
+  const [busy, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const act = (fn: () => Promise<{ ok: boolean; error?: string }>, next: "confirmed" | "discarded") =>
+    start(async () => {
+      setError(null);
+      const r = await fn();
+      if (r.ok) setState(next);
+      else setError(r.error ?? "erro");
+    });
+  return (
+    <li className={`rounded-xl border p-3 ${state === "confirmed" ? "border-accent/40 bg-accent-soft/40" : state === "discarded" ? "border-line-2 opacity-50" : "border-line-2 bg-surface-2/50"}`}>
+      <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] text-muted">{CATEGORY_PT[p.category] ?? p.category}</span>
+      <p className="mt-1.5 text-sm">{p.statement}</p>
+      <p className="mt-1 text-xs italic text-muted">“{p.quote}”</p>
+      {p.memoryId && state === "proposed" ? (
+        <div className="mt-2 flex gap-2">
+          <button type="button" disabled={busy} onClick={() => act(() => confirmMemory(p.memoryId!), "confirmed")} className="rounded-full bg-accent px-3 py-1 text-xs font-medium text-bg disabled:opacity-50">
+            Confirmar
+          </button>
+          <button type="button" disabled={busy} onClick={() => act(() => retractMemory(p.memoryId!, null), "discarded")} className="rounded-full border border-line px-3 py-1 text-xs text-ink-2 disabled:opacity-50">
+            Descartar
+          </button>
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-muted">{state === "confirmed" ? "Confirmado — a Wendy passa a usar isso." : state === "discarded" ? "Descartado." : ""}</p>
+      )}
+      {error ? <p className="mt-1 text-xs text-bad">{error}</p> : null}
+    </li>
+  );
+}
+
 function Result({ v }: { v: ExecutionView }) {
   const o = (v.output ?? {}) as Record<string, unknown>;
   if (v.status === "failed") return <p className="text-sm text-bad">{v.error?.message}</p>;
   if (v.status !== "completed") return null;
   if (v.skillId === "web-research" || v.skillId === "document-analysis") return <Findings o={o as unknown as Analysis} />;
+  if (v.skillId === "learn-about-me") {
+    const proposed = (o.proposed as { memoryId: string | null; statement: string; quote: string; category: string }[]) ?? [];
+    return (
+      <div>
+        <ul className="grid gap-2">{proposed.map((p, i) => <Proposal key={p.memoryId ?? i} p={p} />)}</ul>
+        <p className="mt-2 text-xs text-faint">
+          Fonte: {(o.source as { title: string | null })?.title ?? "—"}
+          {(o.source as { date: string | null })?.date ? ` · ${(o.source as { date: string }).date}` : ""}
+          {o.droppedSensitive ? ` · ${o.droppedSensitive} ponto(s) sensível(is) deixado(s) de fora` : ""}
+          {o.droppedUnquoted ? ` · ${o.droppedUnquoted} sem citação exata descartado(s)` : ""}
+        </p>
+      </div>
+    );
+  }
   if (v.skillId === "task-management") {
     const tasks = (o.tasks as { title: string }[]) ?? [];
     return (

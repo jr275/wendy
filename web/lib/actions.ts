@@ -42,3 +42,9 @@ export async function rejectAction(actionId: string, reason: string | null) {
 export async function setSiteImportance(propertyId: string, importance: number | null) {
   return write("site/importance", { propertyId, importance });
 }
+export async function confirmMemory(memoryId: string) {
+  return write("memory/confirm", { memoryId });
+}
+export async function retractMemory(memoryId: string, reason: string | null) {
+  return write("memory/retract", { memoryId, reason });
+}

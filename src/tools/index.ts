@@ -5,6 +5,7 @@
 import type { HopFn, Resolver } from './net.js';
 import { documentTools, defaultDocumentsRoot } from './documents.js';
 import { isToolName, TOOL_SPECS, type ToolName } from './specs.js';
+import { memoryTools } from './memory.js';
 import { taskTools } from './tasks.js';
 import { ToolError, type AnyReadTool, type AnyToolEffect } from './types.js';
 import { webTools, type WebSearchProvider } from './web.js';
@@ -29,7 +30,7 @@ export class Toolbox {
       },
       search: (p, q, m) => (provider ??= deps.search()).search(p, q, m),
     };
-    const all = { ...webTools({ search, hop: deps.hop, resolve: deps.resolve }), ...documentTools({ root: deps.documentsRoot ?? defaultDocumentsRoot() }), ...taskTools() };
+    const all = { ...webTools({ search, hop: deps.hop, resolve: deps.resolve }), ...documentTools({ root: deps.documentsRoot ?? defaultDocumentsRoot() }), ...taskTools(), ...memoryTools() };
     for (const [name, t] of Object.entries(all)) {
       if (!isToolName(name)) throw new Error(`tool ${name} has no spec`);
       if ('run' in t) this.reads.set(name, t as AnyReadTool);

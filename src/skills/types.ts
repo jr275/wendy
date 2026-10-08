@@ -94,6 +94,8 @@ export interface StepContext {
   sources(ids: string[]): Promise<CapturedSource[]>;
   /** The principal's language (for model output). */
   language(): Promise<string>;
+  /** Who Wendy works for (display name and language). */
+  principal(): Promise<{ displayName: string; locale: string }>;
   reason<T>(req: Omit<ReasoningRequest<T>, 'principalId'>): Promise<ReasoningResult<T>>;
 }
 

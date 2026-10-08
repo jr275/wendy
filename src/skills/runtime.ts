@@ -314,6 +314,11 @@ export class SkillRuntime {
 
       language: async () => (await db.query<{ locale: string }>('SELECT locale FROM principals WHERE id = $1', [exec.principal_id])).rows[0]?.locale ?? 'pt-BR',
 
+      principal: async () => {
+        const p = (await db.query<{ display_name: string; locale: string }>('SELECT display_name, locale FROM principals WHERE id = $1', [exec.principal_id])).rows[0];
+        return { displayName: p?.display_name ?? 'the principal', locale: p?.locale ?? 'pt-BR' };
+      },
+
       reason: async (req) => {
         const r = await reasoner.generate({ ...req, principalId: exec.principal_id, purpose: `skill:${skill.id}:${req.purpose}` });
         await this.event(db, exec.id, 'model.called', req.purpose, { modelCallId: r.modelCallId, model: r.model });

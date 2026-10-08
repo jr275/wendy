@@ -28,6 +28,9 @@ export const TOOL_SPECS = {
   'tasks.create': { name: 'tasks.create', description: 'Create tasks for the principal.', category: 'WRITE', risk: 'LOW', defaultMode: 'REQUIRE_APPROVAL', label: 'Criar tarefas' },
   'tasks.complete': { name: 'tasks.complete', description: 'Mark one task as done.', category: 'WRITE', risk: 'LOW', defaultMode: 'AUTO', label: 'Concluir tarefa' },
   'tasks.delete': { name: 'tasks.delete', description: 'Delete one task (kept in history as DELETED).', category: 'DESTRUCTIVE', risk: 'MEDIUM', label: 'Apagar tarefa' },
+  'memory.proposals': { name: 'memory.proposals', description: 'List the memory proposals created by one action (id, content, status).', category: 'READ', risk: 'LOW', label: 'Ver propostas de memória' },
+  // Proposals are inert until the principal confirms each one, so writing them runs by default.
+  'memory.propose': { name: 'memory.propose', description: 'Record memory PROPOSALS about the principal (inactive until the principal confirms each).', category: 'WRITE', risk: 'LOW', defaultMode: 'AUTO', label: 'Propor memórias' },
 } as const satisfies Record<string, ToolSpec>;
 
 export type ToolName = keyof typeof TOOL_SPECS;

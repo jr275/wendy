@@ -11,11 +11,11 @@
   --surface-2: #f2f1ed;
   --ink: #1d1e20;
   --ink-2: #44474b;
-  --muted: #7a7d80;
+  --subtle: #7a7d80;
   --faint: #a7a9ab;
   --line: #e7e5e0;
   --line-2: #efede9;
-  --accent: #2f7a55;
+  --brand: #2f7a55;
   --accent-ink: #1f5a3e;
   --accent-soft: #e3efe8;
   --warn: #a76a12;
@@ -35,11 +35,11 @@
     --surface-2: #222428;
     --ink: #ecebe7;
     --ink-2: #c8c7c2;
-    --muted: #93959a;
+    --subtle: #93959a;
     --faint: #686b70;
     --line: #2d3035;
     --line-2: #26292d;
-    --accent: #6cc59a;
+    --brand: #6cc59a;
     --accent-ink: #8fd9b3;
     --accent-soft: rgba(108, 197, 154, 0.14);
     --warn: #e7b066;
@@ -59,11 +59,11 @@
   --surface-2: #222428;
   --ink: #ecebe7;
   --ink-2: #c8c7c2;
-  --muted: #93959a;
+  --subtle: #93959a;
   --faint: #686b70;
   --line: #2d3035;
   --line-2: #26292d;
-  --accent: #6cc59a;
+  --brand: #6cc59a;
   --accent-ink: #8fd9b3;
   --accent-soft: rgba(108, 197, 154, 0.14);
   --warn: #e7b066;
@@ -83,11 +83,11 @@
   --color-surface-2: var(--surface-2);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
-  --color-muted: var(--muted);
+  --color-muted: var(--subtle);
   --color-faint: var(--faint);
   --color-line: var(--line);
   --color-line-2: var(--line-2);
-  --color-accent: var(--accent);
+  --color-accent: var(--brand);
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
   --color-warn: var(--warn);
@@ -125,10 +125,39 @@ body {
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--subtle);
 }
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
   border-radius: 6px;
+}
+
+/*
+ * CopilotKit chat in Wendy's palette. Its shadcn tokens are mapped onto ours, so the chat
+ * follows light/dark with the rest of the app instead of carrying its own grays.
+ */
+:root [data-copilotkit],
+:root.dark [data-copilotkit] {
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--bg);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--subtle);
+  --accent: var(--surface-2);
+  --accent-foreground: var(--ink);
+  --destructive: var(--bad);
+  --destructive-foreground: var(--bad);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--brand);
+  --radius: 20px;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }

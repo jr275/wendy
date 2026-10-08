@@ -44,7 +44,8 @@ async function collect(reasoner: ScriptedReasoner, q: string) {
     if (e.type === 'TOOL_CALL_START') names[e.toolCallId as string] = e.toolCallName as string;
     if (e.type === 'TOOL_CALL_ARGS') tools[names[e.toolCallId as string]!] = JSON.parse(e.delta as string);
   }
-  return { types: events.map((e) => e.type), tools };
+  const text = events.filter((e) => e.type === 'TEXT_MESSAGE_CONTENT').map((e) => e.delta as string).join('');
+  return { types: events.map((e) => e.type as string), tools, text };
 }
 
 describe('Wendy AG-UI agent run', () => {
@@ -66,7 +67,10 @@ describe('Wendy AG-UI agent run', () => {
         };
       },
     });
-    const { types, tools } = await collect(reasoner, 'Por que os cliques da Aeriva caíram?');
+    const { types, tools, text } = await collect(reasoner, 'Por que os cliques da Aeriva caíram?');
+    // the answer is read first, without the validator's markers; proof and data cards follow
+    expect(types.indexOf('TEXT_MESSAGE_START')).toBeLessThan(types.indexOf('TOOL_CALL_START'));
+    expect(text).toBe('Os cliques caíram. Talvez sazonalidade.');
     expect(types[0]).toBe('RUN_STARTED');
     expect(types.at(-1)).toBe('RUN_FINISHED');
     expect(types).toContain('STEP_STARTED');

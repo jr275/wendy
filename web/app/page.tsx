@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { AskShell } from "@/components/ask-shell";
+import { Workspace } from "@/components/workspace";
+import { WorkspaceProvider } from "@/components/workspace-context";
 import { Sparkline } from "@/components/sparkline";
 import { TopBar } from "@/components/top-bar";
 import { ACTION_LABEL, EVENT_LABEL, dateLong, firstName, greeting, intPt, pct, stripRefs } from "@/lib/format";
@@ -50,9 +51,10 @@ async function Today() {
 
   return (
     <>
-      <TopBar reasoner={reasoner} />
-      <AskShell suggestions={suggestions}>
-      <main className="mx-auto max-w-5xl px-4 pb-48 pt-10 sm:px-6 sm:pt-14">
+      <TopBar reasoner={reasoner} wide />
+      <WorkspaceProvider>
+      <Workspace suggestions={suggestions}>
+      <main className="mx-auto max-w-5xl px-4 pb-24 pt-10 sm:px-6 sm:pt-14">
         <p className="eyebrow">{dateLong(now, p.timezone)} · Hoje</p>
         <h1 className="mt-4 text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
           {greeting(now, p.timezone)}, {firstName(p.display_name)}.
@@ -107,7 +109,8 @@ async function Today() {
           </Section>
         ) : null}
       </main>
-      </AskShell>
+      </Workspace>
+      </WorkspaceProvider>
     </>
   );
 }

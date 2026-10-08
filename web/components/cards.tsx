@@ -39,16 +39,17 @@ const strip = (s: string) => s.replace(/\s*\[(?:C|E|P|M|MT|MEM|SC|I|A|R)\d+\]/g,
 const n = (x: number) => Math.round(x).toLocaleString("pt-BR");
 const dm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
-export function AnswerCard({ a }: { a: AnswerPayload }) {
+/** `proofOnly` hides the answer text when the chat already shows it right above. */
+export function AnswerCard({ a, proofOnly = false }: { a: AnswerPayload; proofOnly?: boolean }) {
   const [open, setOpen] = useState<string | null>(null);
   const byHandle = new Map(a.evidence.map((e) => [e.handle, e]));
   return (
     <article className="card p-6 sm:p-8">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="eyebrow">Resposta</span>
+        <span className="eyebrow">{proofOnly ? "Como a Wendy verificou" : "Resposta"}</span>
         {a.notClaude ? <span className="rounded-full bg-warn-soft px-2 py-0.5 text-xs text-warn">{a.models.join(", ")} · não é o Claude</span> : null}
       </div>
-      {(() => {
+      {proofOnly ? null : (() => {
         // Lead with the first sentence; the rest at reading size.
         const text = strip(a.answer) || "Não encontrei evidência suficiente para responder com segurança.";
         const cut = text.search(/[.!?](\s|$)/);
@@ -61,11 +62,11 @@ export function AnswerCard({ a }: { a: AnswerPayload }) {
           </>
         );
       })()}
-      {!a.answerValid ? <p className="mt-2 text-sm text-warn">O texto livre não passou na validação; acima estão só as afirmações comprovadas.</p> : null}
+      {!a.answerValid && !proofOnly ? <p className="mt-2 text-sm text-warn">O texto livre não passou na validação; acima estão só as afirmações comprovadas.</p> : null}
 
       {a.claims.length ? (
-        <section className="mt-8">
-          <h3 className="eyebrow">Por que eu digo isso</h3>
+        <section className={proofOnly ? "mt-4" : "mt-8"}>
+          {proofOnly ? null : <h3 className="eyebrow">Por que eu digo isso</h3>}
           <ul className="mt-3 grid gap-3">
             {a.claims.map((c) => (
               <li key={c.label} className="rounded-2xl border border-line-2 bg-surface-2/50 p-4">
@@ -152,7 +153,7 @@ function SiteChart({ s }: { s: SitePayload }) {
   const cur = band(s.current?.start, s.current?.end);
   // Red only for a drop as large as the detector's alarm threshold (−20%); smaller moves stay neutral.
   const alarm = s.current && s.baselineWeekly ? (s.current.clicks - s.baselineWeekly.clicks) / s.baselineWeekly.clicks <= -0.2 : false;
-  const tone = alarm ? "var(--bad)" : "var(--accent)";
+  const tone = alarm ? "var(--bad)" : "var(--brand)";
   return (
     <figure className="mt-6">
       <svg viewBox={`0 0 ${w} ${h}`} className="h-40 w-full" preserveAspectRatio="none" role="img" aria-label={`Cliques diários de ${s.label}`}>

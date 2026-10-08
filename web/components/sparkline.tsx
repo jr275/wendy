@@ -5,7 +5,7 @@ export function Sparkline({ values, tone = "accent", height = 44, label }: { val
   const max = Math.max(...values, 1);
   const pts = values.map((v, i) => [(i / (values.length - 1)) * w, height - 2 - (v / max) * (height - 6)] as const);
   const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
-  const color = tone === "bad" ? "var(--bad)" : tone === "muted" ? "var(--faint)" : "var(--accent)";
+  const color = tone === "bad" ? "var(--bad)" : tone === "muted" ? "var(--faint)" : "var(--brand)";
   return (
     <svg viewBox={`0 0 ${w} ${height}`} className="w-full" style={{ height }} role="img" aria-label={label} preserveAspectRatio="none">
       <path d={`${line} L${w} ${height} L0 ${height} Z`} fill={color} opacity={0.1} />

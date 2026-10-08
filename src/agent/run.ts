@@ -7,7 +7,7 @@
  *   - tool call `show_answer`: validated answer, valid claims with their sources, conflicts, gaps, and
  *     which model reasoned (flagged when it is not Claude)
  *   - tool call `show_site` for each website whose Search Console records were cited (built by code)
- *   - a short assistant text message
+ * The answer text comes first (claim markers removed), so a chat reads answer → proof → data.
  */
 import crypto from 'node:crypto';
 import { contentToText, EventType, type BaseEvent, type RunAgentInput } from '@ag-ui/core';
@@ -22,6 +22,16 @@ function lastUserText(input: RunAgentInput): string {
   const m = [...input.messages].reverse().find((x) => x.role === 'user');
   if (!m) return '';
   return typeof m.content === 'string' ? m.content : contentToText(m.content as never);
+}
+
+/** Claim/evidence markers like [C1] or [SC2] are for the validator; the chat shows them as cards instead. */
+const withoutMarkers = (s: string) => s.replace(/\s*\[(?:C|E|P|M|MT|MEM|SC|I|A|R)\d+\]/g, '').trim();
+
+function emitText(send: Send, text: string) {
+  const messageId = crypto.randomUUID();
+  send({ type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant' } as BaseEvent);
+  send({ type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta: text } as BaseEvent);
+  send({ type: EventType.TEXT_MESSAGE_END, messageId } as BaseEvent);
 }
 
 function emitTool(send: Send, name: string, args: unknown) {
@@ -47,6 +57,15 @@ export async function runWendyAgent(deps: { ctx: WendyContext; db: Db; principal
   send({ type: EventType.STEP_FINISHED, stepName: 'raciocinando' } as BaseEvent);
 
   send({ type: EventType.STEP_STARTED, stepName: 'montando' } as BaseEvent);
+  const text = withoutMarkers(ans.answer);
+  emitText(
+    send,
+    !text
+      ? 'Não encontrei evidência suficiente para responder com segurança.'
+      : ans.answerValid
+        ? text
+        : `${text}\n\n_Este texto não passou inteiro na validação — confie só nas afirmações comprovadas abaixo._`,
+  );
   const models = (await db.query<{ model: string }>('SELECT DISTINCT model FROM model_calls WHERE id = ANY($1::uuid[])', [ans.modelCallIds])).rows.map((r) => r.model);
   const valid = ans.claims.filter((c) => c.valid && c.producedBy !== 'CODE');
   emitTool(send, 'show_answer', {
@@ -72,10 +91,5 @@ export async function runWendyAgent(deps: { ctx: WendyContext; db: Db; principal
     if (s) emitTool(send, 'show_site', s);
   }
   send({ type: EventType.STEP_FINISHED, stepName: 'montando' } as BaseEvent);
-
-  const mid = crypto.randomUUID();
-  send({ type: EventType.TEXT_MESSAGE_START, messageId: mid, role: 'assistant' } as BaseEvent);
-  send({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: mid, delta: ans.answer || 'Não encontrei evidência suficiente para responder.' } as BaseEvent);
-  send({ type: EventType.TEXT_MESSAGE_END, messageId: mid } as BaseEvent);
   send({ type: EventType.RUN_FINISHED, threadId, runId } as BaseEvent);
 }

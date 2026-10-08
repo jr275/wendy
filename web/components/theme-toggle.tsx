@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
 type Theme = "light" | "dark";
 const listeners = new Set<() => void>();
@@ -14,18 +14,9 @@ const subscribe = (fn: () => void) => {
 };
 const current = (): Theme => (document.documentElement.dataset.theme as Theme | undefined) ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 
-/** Light/dark switch. Server snapshot is null, so markup matches until the browser knows the theme. */
+/** Light/dark switch. The saved theme is applied before paint by the boot script in the root layout. */
 export function ThemeToggle() {
   const theme = useSyncExternalStore<Theme | null>(subscribe, current, () => null);
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("wendy.theme") as Theme | null;
-      if (saved) {
-        document.documentElement.dataset.theme = saved;
-        listeners.forEach((l) => l());
-      }
-    } catch {}
-  }, []);
   const next: Theme = theme === "dark" ? "light" : "dark";
   return (
     <button
@@ -38,7 +29,7 @@ export function ThemeToggle() {
         } catch {}
         listeners.forEach((l) => l());
       }}
-      className="min-w-[72px] rounded-full border border-line px-3 py-1.5 text-xs text-ink-2 hover:bg-surface-2"
+      className="shrink-0 rounded-full border border-line px-2.5 py-1.5 text-xs text-ink-2 hover:bg-surface-2 sm:min-w-[72px] sm:px-3"
       aria-label={theme === null ? "Tema" : `Mudar para tema ${next === "dark" ? "escuro" : "claro"}`}
     >
       {theme === null ? "Tema" : next === "dark" ? "Escuro" : "Claro"}

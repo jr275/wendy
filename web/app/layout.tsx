@@ -21,10 +21,10 @@ export const metadata: Metadata = {
 };
 
 /**
- * Runs before first paint: applies the saved theme and mirrors it as the `dark` class,
- * which CopilotKit's chat styles key on. Follows the system setting when nothing is saved.
+ * Runs before first paint: light by default; dark only when the principal picked it.
+ * Mirrors the choice as the `dark` class, which CopilotKit's chat styles key on.
  */
-const THEME_BOOT = `(function(){try{var d=document.documentElement,s=localStorage.getItem("wendy.theme"),m=window.matchMedia("(prefers-color-scheme: dark)");if(s)d.dataset.theme=s;var a=function(){var t=d.dataset.theme||(m.matches?"dark":"light");d.classList.toggle("dark",t==="dark")};a();m.addEventListener("change",a);new MutationObserver(a).observe(d,{attributes:true,attributeFilter:["data-theme"]})}catch(e){}})();`;
+const THEME_BOOT = `(function(){try{var d=document.documentElement,s=localStorage.getItem("wendy.theme.v2");if(s==="dark")d.dataset.theme="dark";var a=function(){d.classList.toggle("dark",d.dataset.theme==="dark")};a();new MutationObserver(a).observe(d,{attributes:true,attributeFilter:["data-theme"]})}catch(e){}})();`;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

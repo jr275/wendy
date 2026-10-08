@@ -6,6 +6,7 @@
  * Status colors carry meaning only: amber = needs you, red = decline, green = rise / done.
  */
 :root {
+  color-scheme: light;
   --bg: #f8f7f4;
   --surface: #ffffff;
   --surface-2: #f2f1ed;
@@ -28,31 +29,6 @@
   --shadow: 0 1px 2px rgba(20, 20, 20, 0.04), 0 8px 24px rgba(20, 20, 20, 0.04);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #131416;
-    --surface: #1b1d20;
-    --surface-2: #222428;
-    --ink: #ecebe7;
-    --ink-2: #c8c7c2;
-    --subtle: #93959a;
-    --faint: #686b70;
-    --line: #2d3035;
-    --line-2: #26292d;
-    --brand: #6cc59a;
-    --accent-ink: #8fd9b3;
-    --accent-soft: rgba(108, 197, 154, 0.14);
-    --warn: #e7b066;
-    --warn-soft: rgba(231, 176, 102, 0.13);
-    --bad: #f08a78;
-    --bad-soft: rgba(240, 138, 120, 0.13);
-    --good: #6cc59a;
-    --info: #93adf0;
-    --info-soft: rgba(147, 173, 240, 0.13);
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    color-scheme: dark;
-  }
-}
 :root[data-theme="dark"] {
   --bg: #131416;
   --surface: #1b1d20;

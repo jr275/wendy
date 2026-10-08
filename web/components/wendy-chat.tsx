@@ -164,7 +164,7 @@ export function WendyChat({ suggestions }: { suggestions: string[] }) {
         className="h-full min-h-0"
         labels={{
           welcomeMessageText: "O que você quer saber hoje?",
-          chatInputPlaceholder: "Pergunte sobre pessoas, compromissos ou seus sites…",
+          chatInputPlaceholder: "Pergunte à Wendy…",
           chatDisclaimerText: "Cada afirmação é validada contra registros reais · nada é enviado sem sua aprovação",
           assistantMessageToolbarCopyMessageLabel: "Copiar",
           userMessageToolbarCopyMessageLabel: "Copiar",

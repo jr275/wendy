@@ -44,6 +44,11 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
+/** Null outside the Hoje workspace (e.g. in the sidebar chat on other pages). */
+export function useOptionalWorkspace(): Workspace | null {
+  return useContext(Ctx);
+}
+
 export function useWorkspace(): Workspace {
   const w = useContext(Ctx);
   if (!w) throw new Error("useWorkspace outside WorkspaceProvider");

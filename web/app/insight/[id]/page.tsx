@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ApprovalCard } from "@/components/approval";
 import { Lead } from "@/components/lead";
+import { ShareViewing } from "@/components/share-viewing";
+import { WendySidebar } from "@/components/wendy-chat";
 import { TopBar } from "@/components/top-bar";
 import { EVENT_LABEL, stripRefs } from "@/lib/format";
 import { insight as getInsight, type DetailAction, type DetailClaim, type InsightDetail } from "@/lib/wendy";
@@ -53,6 +55,8 @@ const LAYERS: { kinds: DetailClaim["kind"][]; title: string; hint: string; tone:
   { kinds: ["HYPOTHESIS", "ANTICIPATION"], title: "Hipóteses e antecipações", hint: "o que pode estar acontecendo ou vir a acontecer", tone: "bg-warn-soft text-warn" },
   { kinds: ["RECOMMENDATION"], title: "Recomendações", hint: "o que fazer", tone: "bg-accent-soft text-accent-ink" },
 ];
+
+const short = (t: string) => (t.length > 36 ? `${t.slice(0, 35).trimEnd()}…` : t);
 
 async function InsightView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -184,6 +188,8 @@ async function InsightView({ params }: { params: Promise<{ id: string }> }) {
           </aside>
         </div>
       </main>
+      <ShareViewing viewing={{ kind: "insight", id, label: `Insight · ${short(stripRefs(i.headline) || "sem título")}` }} />
+      <WendySidebar suggestions={["Explique isso com mais detalhe", "O que eu devo fazer sobre isso?", "O que a Wendy ainda não sabe aqui?"]} />
     </>
   );
 }

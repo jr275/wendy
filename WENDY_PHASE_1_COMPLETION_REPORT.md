@@ -340,6 +340,7 @@ Com autorização do executivo, a parte determinística da Fase 2 foi feita **em
 - **Compromissos PROPOSED** existem como estado, mas nada os cria ainda (a extração depende do Claude). Eles são excluídos da busca e dos detectores.
 
 - **Prompts `core-v2`** (2026-10-08): o insight e a resposta pedem **todos** os campos lidos pelo executivo no idioma dele. Antes eram só a manchete, a narrativa e a resposta; as afirmações, justificativas e lacunas vinham em inglês. Não muda regras de evidência nem de validação.
+- **Prompts `core-v3`** (2026-10-08): uma pergunta pode trazer o que o executivo estava vendo na tela (estado compartilhado da UI). A UI manda só tipo e id; o código resolve no banco, restrito ao executivo, e ignora ids que não são dele. Isso entra como linha "On screen" (para entender "isso"/"este site") e como termos extras de busca. **Não é evidência**: o validador continua aceitando só handles de evidência.
 
 Se um teste live falhar, considerar estas mudanças antes de concluir que o núcleo da Fase 1 regrediu.
 

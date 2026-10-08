@@ -10,7 +10,7 @@ export const MODELS = {
   reasoning: 'claude-opus-5-5',
 } as const;
 
-export const PROMPT_VERSION = 'core-v2'; // v2: every principal-facing field in the principal's language
+export const PROMPT_VERSION = 'core-v3'; // v2: principal's language everywhere; v3: on-screen context for questions (not evidence)
 
 /**
  * Salience weights. These are policy constants (how much each factor counts), not per-item scores.

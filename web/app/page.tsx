@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { ShareViewing } from "@/components/share-viewing";
 import { Workspace } from "@/components/workspace";
 import { WorkspaceProvider } from "@/components/workspace-context";
 import { Sparkline } from "@/components/sparkline";
@@ -109,6 +110,7 @@ async function Today() {
           </Section>
         ) : null}
       </main>
+        <ShareViewing viewing={{ kind: "today", label: "Hoje" }} />
       </Workspace>
       </WorkspaceProvider>
     </>

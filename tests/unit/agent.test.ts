@@ -14,6 +14,8 @@ import { emptyUnderstanding, handlesIn, ScriptedReasoner } from '../helpers/scri
 let t: Awaited<ReturnType<typeof createTestDb>>;
 let db: Db;
 let principalId: string;
+let propertyId: string;
+let foreignPropertyId: string;
 const now = new Date('2026-10-08T12:00:00Z');
 
 beforeAll(async () => {
@@ -21,6 +23,9 @@ beforeAll(async () => {
   db = t.db;
   principalId = await createPrincipal(db, { displayName: 'P', primaryEmail: 'p@example.test', timezone: 'UTC', locale: 'pt-BR' });
   const prop = await addWebProperty(db, principalId, { siteUrl: 'https://www.aeriva.test/', label: 'Aeriva', source: 'TEST' });
+  propertyId = prop;
+  const other = await createPrincipal(db, { displayName: 'Q', primaryEmail: 'q@example.test', timezone: 'UTC', locale: 'pt-BR' });
+  foreignPropertyId = await addWebProperty(db, other, { siteUrl: 'https://www.other.test/', label: 'Outro', source: 'TEST' });
   const put = (start: string, end: string, clicks: number, impressions: number) =>
     db.query(
       `INSERT INTO search_metric_windows(id, principal_id, property_id, window_start, window_end, dimension, key, clicks, impressions, ctr, position, row_limit, fetched_at)
@@ -32,12 +37,12 @@ beforeAll(async () => {
 });
 afterAll(() => t.drop());
 
-const input = (q: string): RunAgentInput => ({ threadId: 't', runId: 'r', state: {}, messages: [{ id: 'm', role: 'user', content: q }], tools: [], context: [], forwardedProps: {} }) as RunAgentInput;
+const input = (q: string, state: Record<string, unknown> = {}): RunAgentInput => ({ threadId: 't', runId: 'r', state, messages: [{ id: 'm', role: 'user', content: q }], tools: [], context: [], forwardedProps: {} }) as RunAgentInput;
 
-async function collect(reasoner: ScriptedReasoner, q: string) {
+async function collect(reasoner: ScriptedReasoner, q: string, state: Record<string, unknown> = {}) {
   const events: (BaseEvent & Record<string, unknown>)[] = [];
   const ctx = createContext({ db, reasoner, clock: fixedClock(now), emailProvider: new DevMailboxProvider(db) });
-  await runWendyAgent({ ctx, db, principalId }, input(q), (e) => events.push(e as BaseEvent & Record<string, unknown>));
+  await runWendyAgent({ ctx, db, principalId }, input(q, state), (e) => events.push(e as BaseEvent & Record<string, unknown>));
   const tools: Record<string, unknown> = {};
   const names: Record<string, string> = {};
   for (const e of events) {
@@ -82,6 +87,47 @@ describe('Wendy AG-UI agent run', () => {
     expect(answer.notClaude).toBe(true); // the test double is not Claude, and the UI is told so
     const site = tools.show_site as { label: string; baselineWeekly: { clicks: number }; current: { clicks: number }; direction: string };
     expect(site).toMatchObject({ label: 'Aeriva', baselineWeekly: { clicks: 202.8 }, current: { clicks: 142 }, direction: 'DROP' });
+  });
+
+  it('shared state: "isso" on a site screen retrieves that site; the screen line is context, not evidence', async () => {
+    let answerUser = '';
+    const reasoner = new ScriptedReasoner(db, {
+      'understand-question': () => emptyUnderstanding(), // the question names nothing
+      answer: (req) => {
+        answerUser = req.user;
+        const sc = handlesIn(req.user, 'SC');
+        return {
+          answer: 'Caiu [C1].',
+          claims: [{ id: 'C1', kind: 'INFERENCE', statement: 'Os cliques caíram.', confidence: 0.9, evidence: sc, derived_from: [], about_people: [] }],
+          used_evidence: sc,
+          conflicts: [],
+          information_gaps: [],
+        };
+      },
+    });
+    const { tools } = await collect(reasoner, 'Por que isso caiu?', { viewing: { kind: 'site', id: propertyId } });
+    expect(answerUser).toMatch(/On screen: the website "Aeriva"/);
+    expect(handlesIn(answerUser, 'SC').length).toBeGreaterThan(0);
+    expect((tools.show_site as { label: string }).label).toBe('Aeriva');
+    const q = (await db.query(`SELECT payload FROM events WHERE event_type = 'PRINCIPAL_QUESTION' AND payload->>'text' = 'Por que isso caiu?'`)).rows[0];
+    expect(q.payload.on_screen).toMatch(/Aeriva/);
+  });
+
+  it("shared state: another principal's site id, or junk, is ignored", async () => {
+    for (const state of [{ viewing: { kind: 'site', id: foreignPropertyId } }, { viewing: { kind: 'site', id: 'not-a-uuid' } }, { viewing: 'x' }]) {
+      let answerUser = '';
+      const reasoner = new ScriptedReasoner(db, {
+        'understand-question': () => emptyUnderstanding(),
+        answer: (req) => {
+          answerUser = req.user;
+          return { answer: 'Não sei.', claims: [], used_evidence: [], conflicts: [], information_gaps: ['Sem dados.'] };
+        },
+      });
+      await collect(reasoner, 'Por que isso caiu?', state);
+      expect(answerUser).not.toMatch(/On screen/);
+      expect(answerUser).not.toMatch(/Outro/);
+      expect(handlesIn(answerUser, 'SC')).toEqual([]);
+    }
   });
 
   it('an empty question ends with RUN_ERROR and calls no model', async () => {

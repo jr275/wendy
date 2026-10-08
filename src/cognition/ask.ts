@@ -28,7 +28,13 @@ export interface AnswerResult {
   eventId: string;
 }
 
-export async function answerQuestion(ctx: WendyContext, principalId: string, question: string): Promise<AnswerResult> {
+/** What the principal had on screen while asking, already resolved by code (see src/agent/viewing.ts). */
+export interface ScreenContext {
+  description: string;
+  searchTerms: string[];
+}
+
+export async function answerQuestion(ctx: WendyContext, principalId: string, question: string, screen?: ScreenContext | null): Promise<AnswerResult> {
   const { db, repos } = ctx;
   const now = ctx.clock.now();
   const principal = await repos.entities.getPrincipal(db, principalId);
@@ -43,7 +49,7 @@ export async function answerQuestion(ctx: WendyContext, principalId: string, que
     occurredAt: now,
     actor: { kind: 'PRINCIPAL' },
     entityRefs: [],
-    payload: { text: question },
+    payload: screen ? { text: question, on_screen: screen.description } : { text: question },
     confidence: 1,
     provenance: { origin: 'PRINCIPAL' },
     initialStatus: 'PROCESSED',
@@ -53,7 +59,7 @@ export async function answerQuestion(ctx: WendyContext, principalId: string, que
     purpose: 'understand-question',
     principalId,
     system: UNDERSTAND_SYSTEM,
-    user: `Principal: ${principal.display_name}, time zone ${principal.timezone}.\nText timestamp: ${describeTime(now, principal.timezone)}\nText type: question from the principal\n\n<text>\n${question}\n</text>`,
+    user: `Principal: ${principal.display_name}, time zone ${principal.timezone}.\nText timestamp: ${describeTime(now, principal.timezone)}\nText type: question from the principal${screen ? `\nOn screen while asking: ${screen.description}` : ''}\n\n<text>\n${question}\n</text>`,
     schema: UnderstandingSchema,
     effort: 'low',
     evidenceRefs: [{ kind: 'event', id: event.id }],
@@ -67,7 +73,7 @@ export async function answerQuestion(ctx: WendyContext, principalId: string, que
     now,
     asOf: now,
     focusPersonIds: [...resolution.resolved.map((r) => r.personId), ...resolution.ambiguous.flatMap((a) => a.candidateIds)],
-    searchTerms: understanding.topics.flatMap((t) => [t.label, ...t.search_terms]),
+    searchTerms: [...understanding.topics.flatMap((t) => [t.label, ...t.search_terms]), ...(screen?.searchTerms ?? [])],
     eventText: `Question from the principal at ${now.toISOString()}: ${question}`,
     sourceText: question,
   });
@@ -80,6 +86,7 @@ export async function answerQuestion(ctx: WendyContext, principalId: string, que
       `Principal: ${principal.display_name}. Principal's language: ${principal.locale}.`,
       `Current time: ${describeTime(now, principal.timezone)}`,
       `Question [${bundle.eventHandle}]: ${question}`,
+      screen ? `On screen: ${screen.description}` : '',
       resolution.ambiguous.length ? `Ambiguous names: ${resolution.ambiguous.map((a) => a.mention.name).join(', ')}` : '',
       '',
       'Evidence:',

@@ -53,6 +53,7 @@ Rules:
 - Answer only from the evidence. Facts are the evidence items; your claims are INFERENCE, HYPOTHESIS, ANTICIPATION or RECOMMENDATION and must cite handles (or earlier claims for RECOMMENDATION).
 - Never invent people, dates, events or sources. If the evidence does not answer the question, say so and list the gap.
 - If evidence conflicts (e.g. two memories disagree), say so explicitly in conflicts and in the answer.
+- An "On screen" line, when present, says what the principal was looking at while asking. Use it only to know what "this", "isso", "este site" refers to. It is not evidence: cite only evidence handles.
 - Write everything in the principal's language: the answer, claim statements, conflicts and information gaps. Cite claim ids in brackets in the answer, e.g. [C1].`;
 
 export function describeTime(now: Date, timeZone: string): string {

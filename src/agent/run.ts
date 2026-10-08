@@ -7,6 +7,7 @@
  *   - tool call `show_answer`: validated answer, valid claims with their sources, conflicts, gaps, and
  *     which model reasoned (flagged when it is not Claude)
  *   - tool call `show_site` for each website whose Search Console records were cited (built by code)
+ * Reads `state.viewing` (what the principal has on screen) as context for "isso"/"este site".
  * The answer text comes first (claim markers removed), so a chat reads answer → proof → data.
  */
 import crypto from 'node:crypto';
@@ -15,6 +16,7 @@ import { answerQuestion } from '../cognition/ask.js';
 import type { Db } from '../db/db.js';
 import type { WendyContext } from '../runtime/context.js';
 import { siteCard } from './siteCard.js';
+import { resolveViewing } from './viewing.js';
 
 export type Send = (e: BaseEvent) => void;
 
@@ -52,8 +54,10 @@ export async function runWendyAgent(deps: { ctx: WendyContext; db: Db; principal
     return;
   }
 
+  // Shared state: the UI says what is on screen; code resolves it (scoped to the principal) or ignores it.
+  const viewing = await resolveViewing(db, principalId, (input.state as { viewing?: unknown } | undefined)?.viewing);
   send({ type: EventType.STEP_STARTED, stepName: 'raciocinando' } as BaseEvent);
-  const ans = await answerQuestion(ctx, principalId, question);
+  const ans = await answerQuestion(ctx, principalId, question, viewing);
   send({ type: EventType.STEP_FINISHED, stepName: 'raciocinando' } as BaseEvent);
 
   send({ type: EventType.STEP_STARTED, stepName: 'montando' } as BaseEvent);

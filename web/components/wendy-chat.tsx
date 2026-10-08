@@ -1,10 +1,11 @@
 "use client";
-import { CopilotChat, useAgent, useConfigureSuggestions, useRenderTool } from "@copilotkit/react-core/v2";
-import { useEffect, useState } from "react";
+import { CopilotChat, CopilotSidebar, UseAgentUpdate, useAgent, useConfigureSuggestions, useRenderTool } from "@copilotkit/react-core/v2";
+import Link from "next/link";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { z } from "zod";
 import { AnswerCard, SiteCard, type AnswerPayload, type SitePayload } from "./cards";
 import { Sparkline } from "./sparkline";
-import { useWorkspace, type FocusCard } from "./workspace-context";
+import { useOptionalWorkspace, type FocusCard } from "./workspace-context";
 
 /**
  * The conversation with Wendy, on CopilotKit's chat.
@@ -19,8 +20,8 @@ const STEPS: Record<string, string> = {
 
 /** Hands a newly arrived card to the panel once. */
 function Arrived({ card }: { card: FocusCard }) {
-  const { arrived } = useWorkspace();
-  useEffect(() => arrived(card), [arrived, card]);
+  const arrived = useOptionalWorkspace()?.arrived;
+  useEffect(() => arrived?.(card), [arrived, card]);
   return null;
 }
 
@@ -33,7 +34,8 @@ function Pending({ label }: { label: string }) {
   );
 }
 
-function ProofCompact({ a, onOpen }: { a: AnswerPayload; onOpen: () => void }) {
+function ProofCompact({ a, onOpen }: { a: AnswerPayload; onOpen?: () => void }) {
+  const [expanded, setExpanded] = useState(false);
   const kinds = a.claims.reduce<Record<string, number>>((m, c) => ((m[c.kind] = (m[c.kind] ?? 0) + 1), m), {});
   const KIND_PT: Record<string, [string, string]> = { INFERENCE: ["conclusão", "conclusões"], HYPOTHESIS: ["hipótese", "hipóteses"], ANTICIPATION: ["antecipação", "antecipações"], RECOMMENDATION: ["recomendação", "recomendações"] };
   return (
@@ -54,18 +56,24 @@ function ProofCompact({ a, onOpen }: { a: AnswerPayload; onOpen: () => void }) {
           {a.gaps.length ? ` · ${a.gaps.length} lacuna${a.gaps.length === 1 ? "" : "s"}` : ""}
         </p>
       ) : null}
-      <button type="button" onClick={onOpen} className="mt-3 text-sm font-medium text-accent-ink hover:underline">
-        Ver raciocínio e fontes →
+      <button type="button" onClick={onOpen ?? (() => setExpanded((x) => !x))} aria-expanded={onOpen ? undefined : expanded} className="mt-3 text-sm font-medium text-accent-ink hover:underline">
+        {onOpen ? "Ver raciocínio e fontes →" : expanded ? "Esconder raciocínio" : "Ver raciocínio e fontes"}
       </button>
+      {expanded ? (
+        <div className="mt-3 [&_.card]:border-0 [&_.card]:p-0 [&_.card]:shadow-none">
+          <AnswerCard a={a} proofOnly />
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function SiteCompact({ s, onOpen }: { s: SitePayload; onOpen: () => void }) {
+function SiteCompact({ s, onOpen }: { s: SitePayload; onOpen?: () => void }) {
   const change = s.current && s.baselineWeekly?.clicks ? ((s.current.clicks - s.baselineWeekly.clicks) / s.baselineWeekly.clicks) * 100 : null;
   const alarm = change !== null && change <= -20;
   return (
-    <button type="button" onClick={onOpen} className="my-2 block w-full rounded-2xl border border-line bg-surface p-4 text-left transition-colors hover:border-accent">
+    onOpen ? (
+      <button type="button" onClick={onOpen} className="my-2 block w-full rounded-2xl border border-line bg-surface p-4 text-left transition-colors hover:border-accent">
       <div className="flex items-baseline justify-between gap-2">
         <span className="font-medium">{s.label}</span>
         <span className="eyebrow">Search Console</span>
@@ -78,12 +86,47 @@ function SiteCompact({ s, onOpen }: { s: SitePayload; onOpen: () => void }) {
         <Sparkline values={s.daily.slice(-35).map((d) => d.clicks)} tone={alarm ? "bad" : "accent"} height={36} label={`Cliques diários de ${s.label}`} />
       </div>
       <span className="mt-2 block text-sm font-medium text-accent-ink">Abrir no painel →</span>
-    </button>
+      </button>
+    ) : (
+      <Link href="/sites" className="my-2 block w-full rounded-2xl border border-line bg-surface p-4 text-left transition-colors hover:border-accent">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-medium">{s.label}</span>
+        <span className="eyebrow">Search Console</span>
+      </div>
+      <p className="mt-1 text-sm">
+        <span className="num text-lg font-semibold">{s.current ? n(s.current.clicks) : "—"}</span> <span className="text-muted">cliques em 7 dias</span>
+        {change !== null ? <span className={`num ml-2 ${alarm ? "text-bad" : "text-muted"}`}>{`${change > 0 ? "+" : ""}${change.toFixed(1)}%`}</span> : null}
+      </p>
+      <div className="mt-2">
+        <Sparkline values={s.daily.slice(-35).map((d) => d.clicks)} tone={alarm ? "bad" : "accent"} height={36} label={`Cliques diários de ${s.label}`} />
+      </div>
+      <span className="mt-2 block text-sm font-medium text-accent-ink">Ver em Sites →</span>
+      </Link>
+    )
   );
 }
 
-export function WendyChat({ suggestions }: { suggestions: string[] }) {
-  const { mode, open } = useWorkspace();
+const LABELS = {
+  welcomeMessageText: "O que você quer saber hoje?",
+  chatInputPlaceholder: "Pergunte à Wendy…",
+  chatDisclaimerText: "Cada afirmação é validada contra registros reais · nada é enviado sem sua aprovação",
+  assistantMessageToolbarCopyMessageLabel: "Copiar",
+  userMessageToolbarCopyMessageLabel: "Copiar",
+  userMessageToolbarEditMessageLabel: "Editar",
+  chatInputToolbarAddButtonLabel: "Adicionar",
+  modalHeaderTitle: "Wendy",
+  chatToggleOpenLabel: "Abrir conversa com a Wendy",
+  chatToggleCloseLabel: "Fechar conversa",
+};
+
+/**
+ * Everything both chat shells share: Wendy's card renderers, data-derived suggestions and the run step.
+ * In the Hoje workspace cards can open in the panel; elsewhere (sidebar) they expand in place.
+ */
+function useWendyChat(suggestions: string[]) {
+  const ws = useOptionalWorkspace();
+  const full = ws?.mode === "conversa";
+  const open = ws?.open;
   const { agent } = useAgent({ agentId: "wendy" });
   const [step, setStep] = useState<string | null>(null);
 
@@ -96,7 +139,7 @@ export function WendyChat({ suggestions }: { suggestions: string[] }) {
     return () => sub.unsubscribe();
   }, [agent]);
 
-  // Suggestions come from Wendy's own data (what she surfaced, which sites she watches); no model writes them.
+  // Suggestions come from Wendy's own data (what she surfaced, which sites she watches, what is on screen); no model writes them.
   useConfigureSuggestions({ suggestions: suggestions.map((s) => ({ title: s.length > 44 ? `${s.slice(0, 43).trimEnd()}…` : s, message: s })), available: "always", consumerAgentId: "wendy" }, [suggestions.join("|")]);
 
   useRenderTool(
@@ -110,18 +153,18 @@ export function WendyChat({ suggestions }: { suggestions: string[] }) {
         return (
           <>
             <Arrived card={card} />
-            {mode === "conversa" ? (
+            {full ? (
               <div className="my-3">
                 <AnswerCard a={parameters} proofOnly />
               </div>
             ) : (
-              <ProofCompact a={parameters} onOpen={() => open(card)} />
+              <ProofCompact a={parameters} onOpen={open ? () => open(card) : undefined} />
             )}
           </>
         );
       },
     },
-    [mode, open],
+    [full, open],
   );
 
   useRenderTool(
@@ -135,43 +178,95 @@ export function WendyChat({ suggestions }: { suggestions: string[] }) {
         return (
           <>
             <Arrived card={card} />
-            {mode === "conversa" ? (
+            {full ? (
               <div className="my-3">
                 <SiteCard s={parameters} />
               </div>
             ) : (
-              <SiteCompact s={parameters} onOpen={() => open(card)} />
+              <SiteCompact s={parameters} onOpen={open ? () => open(card) : undefined} />
             )}
           </>
         );
       },
     },
-    [mode, open],
+    [full, open],
   );
 
+  return step;
+}
+
+function StepBadge({ step }: { step: string | null }) {
+  if (!step) return null;
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-4" role="status" aria-live="polite">
+      <span className="flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-ink-2 shadow-sm">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" aria-hidden />
+        {STEPS[step] ?? step}… pode levar até um minuto
+      </span>
+    </div>
+  );
+}
+
+/** Shows back what the page shared with Wendy (agent state), so "isso" is never a guess for the principal either. */
+export function SeeingChip() {
+  const { agent } = useAgent({ agentId: "wendy", updates: [UseAgentUpdate.OnStateChanged] });
+  const label = (agent.state as { viewing?: { label?: string } } | undefined)?.viewing?.label;
+  if (!label) return null;
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5 truncate rounded-full bg-accent-soft px-2.5 py-1 text-xs text-accent-ink" title="O que a Wendy considera quando você diz “isso”">
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
+      <span className="truncate">Vendo: {label}</span>
+    </span>
+  );
+}
+
+export function WendyChat({ suggestions }: { suggestions: string[] }) {
+  const step = useWendyChat(suggestions);
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      {step ? (
-        <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-4" role="status" aria-live="polite">
-          <span className="flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-ink-2 shadow-sm">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" aria-hidden />
-            {STEPS[step] ?? step}… pode levar até um minuto
-          </span>
-        </div>
-      ) : null}
-      <CopilotChat
+      <StepBadge step={step} />
+      <CopilotChat agentId="wendy" className="h-full min-h-0" labels={LABELS} />
+    </div>
+  );
+}
+
+const WIDE = "(min-width: 1280px)";
+const subscribeWide = (fn: () => void) => {
+  const mq = window.matchMedia(WIDE);
+  mq.addEventListener("change", fn);
+  return () => mq.removeEventListener("change", fn);
+};
+
+/**
+ * The same conversation as a right-hand sidebar on the other pages (it carries over as you navigate).
+ * Opens by itself only where it fits beside the page; on smaller screens it waits for the button.
+ */
+export function WendySidebar({ suggestions }: { suggestions: string[] }) {
+  const step = useWendyChat(suggestions);
+  const wide = useSyncExternalStore(subscribeWide, () => window.matchMedia(WIDE).matches, () => false);
+  const [choice, setChoice] = useState<boolean | null>(null);
+  return (
+    <>
+      <StepBadge step={step} />
+      <CopilotSidebar
         agentId="wendy"
-        className="h-full min-h-0"
-        labels={{
-          welcomeMessageText: "O que você quer saber hoje?",
-          chatInputPlaceholder: "Pergunte à Wendy…",
-          chatDisclaimerText: "Cada afirmação é validada contra registros reais · nada é enviado sem sua aprovação",
-          assistantMessageToolbarCopyMessageLabel: "Copiar",
-          userMessageToolbarCopyMessageLabel: "Copiar",
-          userMessageToolbarEditMessageLabel: "Editar",
-          chatInputToolbarAddButtonLabel: "Adicionar",
+        open={choice ?? wide}
+        onOpenChange={setChoice}
+        width={420}
+        labels={LABELS}
+        header={{
+          title: "Wendy",
+          children: ({ titleContent, closeButton }) => (
+            <div className="flex items-center gap-3 border-b border-line px-4 py-3">
+              {titleContent}
+              <span className="flex min-w-0 max-w-[65%] shrink-0 justify-end">
+                <SeeingChip />
+              </span>
+              {closeButton}
+            </div>
+          ),
         }}
       />
-    </div>
+    </>
   );
 }

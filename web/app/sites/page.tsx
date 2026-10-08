@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { SiteCard, type SitePayload } from "@/components/cards";
 import { ImportanceControl } from "@/components/importance";
+import { SiteViewingTracker } from "@/components/share-viewing";
+import { WendySidebar } from "@/components/wendy-chat";
 import { TopBar } from "@/components/top-bar";
 import { stripRefs } from "@/lib/format";
 import { principal as getPrincipal, sites as getSites, today as getToday, reasonerLabel, type Site } from "@/lib/wendy";
@@ -54,7 +56,7 @@ async function Sites() {
         </p>
         <div className="mt-12 grid gap-16">
           {all.map((s) => (
-            <section key={s.id} aria-label={s.label} className="grid gap-4">
+            <section key={s.id} aria-label={s.label} data-site-id={s.id} data-site-label={s.label} className="grid scroll-mt-20 gap-4">
               <SiteCard s={toPayload(s)} />
               <div className="grid gap-4 md:grid-cols-[minmax(17rem,1fr)_minmax(0,2fr)]">
                 <div className="card p-6">
@@ -87,6 +89,9 @@ async function Sites() {
           ))}
         </div>
       </main>
+      <SiteViewingTracker />
+      {/* Suggestions are built from the principal's own sites; "isso" follows the site on screen. */}
+      <WendySidebar suggestions={["Por que isso mudou na última semana?", ...all.map((x) => `Como está o site ${x.label}?`)]} />
     </>
   );
 }

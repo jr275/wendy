@@ -5,7 +5,7 @@ import { ThemeToggle } from "./theme-toggle";
 /** Brand + honesty label (which model reasons) + theme. */
 export function TopBar({ reasoner, wide = false }: { reasoner: string | null; wide?: boolean }) {
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-bg/85 backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-line/60 bg-bg/60 backdrop-blur-xl backdrop-saturate-150">
       <div className={`mx-auto flex h-14 items-center gap-2 px-4 sm:gap-3 sm:px-6 ${wide ? "" : "max-w-5xl"}`}>
         <Link href="/" className="flex items-center gap-3" aria-label="Wendy — Hoje">
           <span className="grid h-7 w-7 place-items-center rounded-full bg-accent" aria-hidden>

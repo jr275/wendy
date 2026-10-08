@@ -55,7 +55,7 @@ export function Workspace({ suggestions, children }: { suggestions: string[]; ch
     <div className="flex h-[calc(100dvh-3.5rem-1px)] min-h-0">
       <section
         aria-label="Conversa com a Wendy"
-        className={painel ? "hidden w-[400px] shrink-0 flex-col border-r border-line bg-bg lg:flex xl:w-[440px]" : "flex min-w-0 flex-1 flex-col"}
+        className={painel ? "hidden w-[400px] shrink-0 flex-col border-r border-line/70 bg-surface/55 backdrop-blur-xl lg:flex xl:w-[440px]" : "flex min-w-0 flex-1 flex-col"}
       >
         <div className="flex items-center justify-between gap-3 px-4 pt-3">
           <span className="flex min-w-0 items-center gap-2">

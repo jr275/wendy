@@ -2,20 +2,21 @@
 
 /*
  * Wendy design tokens.
- * Warm paper background, one green accent, quiet lines. Numbers in Geist Mono.
+ * Cool neutral background with a soft pastel "bloom" at the top of each screen (Apple Card–like),
+ * white cards on top, one green accent, quiet lines. Numbers in Geist Mono.
  * Status colors carry meaning only: amber = needs you, red = decline, green = rise / done.
  */
 :root {
   color-scheme: light;
-  --bg: #f8f7f4;
+  --bg: #f5f5f7;
   --surface: #ffffff;
-  --surface-2: #f2f1ed;
-  --ink: #1d1e20;
-  --ink-2: #44474b;
-  --subtle: #7a7d80;
-  --faint: #a7a9ab;
-  --line: #e7e5e0;
-  --line-2: #efede9;
+  --surface-2: #f0f0f3;
+  --ink: #1d1d1f;
+  --ink-2: #424245;
+  --subtle: #6e6e73;
+  --faint: #a1a1a6;
+  --line: #e3e3e8;
+  --line-2: #ececf0;
   --brand: #2f7a55;
   --accent-ink: #1f5a3e;
   --accent-soft: #e3efe8;
@@ -26,19 +27,24 @@
   --good: #2f7a55;
   --info: #3b5ea8;
   --info-soft: #e5ebf6;
-  --shadow: 0 1px 2px rgba(20, 20, 20, 0.04), 0 8px 24px rgba(20, 20, 20, 0.04);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 30px rgba(0, 0, 0, 0.05);
+  /* Pastel bloom: pink, lavender, peach, amber, yellow-green. */
+  --bloom: radial-gradient(circle at 15% 40%, rgba(255, 149, 255, 0.55) 2%, transparent 36%), radial-gradient(at 97% 30%, rgba(218, 228, 104, 0.5) 6%, transparent 24%),
+    radial-gradient(circle at 22% 85%, rgba(197, 159, 255, 0.55) 15%, transparent 50%), radial-gradient(circle at 84% 80%, rgba(255, 207, 109, 0.5) 25%, transparent 60%),
+    radial-gradient(circle at 50% 30%, rgba(254, 185, 131, 0.5) 20%, transparent 70%);
+  --bloom-opacity: 0.7;
 }
 
 :root[data-theme="dark"] {
-  --bg: #131416;
-  --surface: #1b1d20;
-  --surface-2: #222428;
-  --ink: #ecebe7;
-  --ink-2: #c8c7c2;
-  --subtle: #93959a;
-  --faint: #686b70;
-  --line: #2d3035;
-  --line-2: #26292d;
+  --bg: #0b0b0d;
+  --surface: #1c1c1e;
+  --surface-2: #26262a;
+  --ink: #f5f5f7;
+  --ink-2: #d2d2d7;
+  --subtle: #a1a1a6;
+  --faint: #6e6e73;
+  --line: #333338;
+  --line-2: #2a2a2e;
   --brand: #6cc59a;
   --accent-ink: #8fd9b3;
   --accent-soft: rgba(108, 197, 154, 0.14);
@@ -49,7 +55,8 @@
   --good: #6cc59a;
   --info: #93adf0;
   --info-soft: rgba(147, 173, 240, 0.13);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --bloom-opacity: 0.22;
   color-scheme: dark;
 }
 
@@ -77,10 +84,28 @@
   --font-mono: var(--font-geist-mono);
 }
 
-html,
-body {
+html {
   background: var(--bg);
   color: var(--ink);
+}
+body {
+  color: var(--ink);
+  position: relative;
+  isolation: isolate;
+}
+/* The bloom sits behind the top of every screen and fades out as it goes down (it scrolls away). */
+body::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: min(900px, 110vh);
+  z-index: -1;
+  pointer-events: none;
+  background: var(--bloom);
+  opacity: var(--bloom-opacity);
+  filter: blur(40px) saturate(1.1);
+  -webkit-mask-image: linear-gradient(to bottom, #000 35%, transparent);
+  mask-image: linear-gradient(to bottom, #000 35%, transparent);
 }
 body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
@@ -115,7 +140,7 @@ body {
  */
 :root [data-copilotkit],
 :root.dark [data-copilotkit] {
-  --background: var(--bg);
+  --background: var(--surface);
   --foreground: var(--ink);
   --card: var(--surface);
   --card-foreground: var(--ink);
@@ -136,4 +161,11 @@ body {
   --ring: var(--brand);
   --radius: 20px;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* The chat itself is transparent so the screen's background (and its bloom) shows through;
+   its pills, input and cards keep a white surface. */
+.copilotKitChat,
+.copilotKitChat div[data-copilotkit]:not(.copilotKitInput) {
+  background: transparent !important;
 }

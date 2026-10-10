@@ -7,10 +7,18 @@ import { z } from 'zod';
 import type { ReasoningClient } from '../cognition/llm.js';
 import type { Db } from '../db/db.js';
 import type { Toolbox } from '../tools/index.js';
+import { MoodDraftSchema, validateMood, type MoodPresentation } from '../mood/mood.js';
 import { INTENT_SYSTEM } from './prompts.js';
 import type { SkillRegistry } from './registry.js';
 
-export type Intent = { kind: 'skill'; skillId: string; input: unknown; reason: string; modelCallId: string } | { kind: 'none'; reason: string; modelCallId: string | null };
+export type Intent = ({ kind: 'skill'; skillId: string; input: unknown; reason: string; modelCallId: string } | { kind: 'none'; reason: string; modelCallId: string | null }) & {
+  /** Apparent mood of this request, validated by code (null = neutral). Presentation only. */
+  mood?: MoodPresentation | null;
+  /** The request only states a feeling (needs a validated mood): Wendy replies with care instead of searching her records. */
+  emotionalOnly?: boolean;
+  /** A bare emotion word: Wendy asks which it is instead of guessing. */
+  feelingUnclear?: boolean;
+};
 
 export async function discoverIntent(
   deps: { db: Db; registry: SkillRegistry; toolbox: Toolbox; reasoner: ReasoningClient },
@@ -37,6 +45,10 @@ export async function discoverIntent(
     skill: z.enum(['none', ...candidates.map((c) => c.id)] as [string, ...string[]]),
     input_json: z.string().describe('JSON object with the chosen skill input; "{}" for none'),
     reason: z.string(),
+    // Presentation only: an invalid reading is dropped (null), it must never fail the whole request.
+    mood: MoodDraftSchema.nullable().optional().catch(null),
+    emotional_only: z.boolean().optional().catch(false),
+    feeling_unclear: z.boolean().optional().catch(false),
   });
 
   const r = await deps.reasoner.generate({
@@ -65,16 +77,17 @@ export async function discoverIntent(
   });
 
   const { skill, input_json, reason } = r.output;
-  if (skill === 'none') return { kind: 'none', reason, modelCallId: r.modelCallId };
+  const mood = validateMood(r.output.mood, req.request, req.now);
+  if (skill === 'none') return { kind: 'none', reason, modelCallId: r.modelCallId, mood, emotionalOnly: !!mood && r.output.emotional_only === true, feelingUnclear: r.output.feeling_unclear === true && r.output.emotional_only !== true };
   const def = deps.registry.get(skill);
-  if (!def || !deps.registry.isEnabled(skill)) return { kind: 'none', reason: `unknown skill ${skill}`, modelCallId: r.modelCallId };
+  if (!def || !deps.registry.isEnabled(skill)) return { kind: 'none', reason: `unknown skill ${skill}`, modelCallId: r.modelCallId, mood };
   let raw: unknown;
   try {
     raw = JSON.parse(input_json);
   } catch {
-    return { kind: 'none', reason: `input for ${skill} was not JSON`, modelCallId: r.modelCallId };
+    return { kind: 'none', reason: `input for ${skill} was not JSON`, modelCallId: r.modelCallId, mood };
   }
   const parsed = def.inputs.safeParse(raw);
-  if (!parsed.success) return { kind: 'none', reason: `input for ${skill} is invalid: ${parsed.error.issues.map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}`, modelCallId: r.modelCallId };
-  return { kind: 'skill', skillId: skill, input: parsed.data, reason, modelCallId: r.modelCallId };
+  if (!parsed.success) return { kind: 'none', reason: `input for ${skill} is invalid: ${parsed.error.issues.map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}`, modelCallId: r.modelCallId, mood };
+  return { kind: 'skill', skillId: skill, input: parsed.data, reason, modelCallId: r.modelCallId, mood };
 }

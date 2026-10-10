@@ -1,34 +1,12 @@
 /**
- * TEST DOUBLE — NOT CLAUDE. Used only by deterministic tests of pipeline *mechanics* (idempotency,
+ * TEST DOUBLE — NOT CLAUDE (implementation in src/cognition/scripted.ts). Used only by deterministic tests of pipeline *mechanics* (idempotency,
  * persistence, validation, concurrency). It returns outputs scripted by each test, and its model
  * calls are recorded as model 'TEST_DOUBLE' so they can never be mistaken for real reasoning.
  * Every claim about cognition (understanding, anticipation, memory use) is tested live against Claude.
  */
-import type { Db } from '../../src/db/db.js';
-import { finishModelCall, recordModelCall, type ReasoningClient, type ReasoningRequest, type ReasoningResult } from '../../src/cognition/llm.js';
 import type { Reasoning, Understanding } from '../../src/cognition/schemas.js';
-import { newId } from '../../src/util/hash.js';
 
-export type Script = (req: ReasoningRequest<unknown>) => unknown;
-
-export class ScriptedReasoner implements ReasoningClient {
-  calls: { purpose: string; user: string }[] = [];
-  constructor(
-    private readonly db: Db,
-    private readonly scripts: Record<string, Script>,
-  ) {}
-
-  async generate<T>(req: ReasoningRequest<T>): Promise<ReasoningResult<T>> {
-    this.calls.push({ purpose: req.purpose, user: req.user });
-    const id = newId();
-    await recordModelCall(this.db, { id, principalId: req.principalId, purpose: req.purpose, model: 'TEST_DOUBLE', input: { user: req.user }, evidenceRefs: req.evidenceRefs, startedAt: new Date() });
-    const script = this.scripts[req.purpose];
-    if (!script) throw new Error(`no script for purpose ${req.purpose}`);
-    const output = req.schema.parse(script(req as ReasoningRequest<unknown>));
-    await finishModelCall(this.db, id, { output, servedBy: 'TEST_DOUBLE' });
-    return { output, modelCallId: id, model: 'TEST_DOUBLE' };
-  }
-}
+export { ScriptedReasoner, type Script } from '../../src/cognition/scripted.js';
 
 /** Handles listed in the evidence section of a prompt, e.g. ["E1","P1","M1",...]. */
 export function handlesIn(user: string, prefix?: string): string[] {

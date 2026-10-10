@@ -7,13 +7,14 @@ import { documentAnalysis } from './builtin/documentAnalysis.js';
 import { learnAboutMe } from './builtin/learnAboutMe.js';
 import { researchAndPlan } from './builtin/researchAndPlan.js';
 import { taskManagement } from './builtin/taskManagement.js';
+import { voiceConcierge } from './builtin/voiceConcierge.js';
 import { webResearch } from './builtin/webResearch.js';
 import { SkillRegistry } from './registry.js';
 import { SkillRuntime, type RuntimeDeps } from './runtime.js';
 
 /** Built-in skills, dependencies first. */
 export function builtinRegistry(): SkillRegistry {
-  return new SkillRegistry().register(webResearch).register(documentAnalysis).register(taskManagement).register(researchAndPlan).register(learnAboutMe);
+  return new SkillRegistry().register(webResearch).register(documentAnalysis).register(taskManagement).register(researchAndPlan).register(learnAboutMe).register(voiceConcierge);
 }
 
 export function defaultToolbox(ctx: Pick<WendyContext, 'db'>, overrides: Partial<ToolboxDeps> = {}): Toolbox {

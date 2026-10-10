@@ -50,6 +50,7 @@ export async function runCycle(ctx: WendyContext, opts: { inFlightStaleMs?: numb
 
   report.reconciled = await ctx.executor.reconcileInFlight(new Date(Date.now() - (opts.inFlightStaleMs ?? WORKER_CONFIG.inFlightStaleMs)));
   report.executed = await ctx.executor.runPending();
+  await ctx.executor.settleAsync(); // long-running effects (e.g. calls) that may have finished
   if (ctx.skills) report.skills = await ctx.skills.runReady();
   return report;
 }

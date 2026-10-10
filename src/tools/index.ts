@@ -9,6 +9,11 @@ import { memoryTools } from './memory.js';
 import { taskTools } from './tasks.js';
 import { ToolError, type AnyReadTool, type AnyToolEffect } from './types.js';
 import { webTools, type WebSearchProvider } from './web.js';
+import { voiceTools, type VoiceToolDeps } from './voice.js';
+import { systemClock } from '../util/clock.js';
+import { voiceConfig } from '../voice/config.js';
+import { VoicePolicy } from '../voice/policy.js';
+import { createVoiceProvider } from '../voice/provider.js';
 
 export interface ToolboxDeps {
   /** Lazily created, so nothing reaches Vertex unless a search actually runs. */
@@ -16,6 +21,12 @@ export interface ToolboxDeps {
   documentsRoot?: string;
   hop?: HopFn;
   resolve?: Resolver;
+  /** Telephony (default: VOICE_PROVIDER from the environment; no real provider exists yet). */
+  voice?: VoiceToolDeps;
+}
+
+export function defaultVoiceDeps(): VoiceToolDeps {
+  return { provider: () => createVoiceProvider(), policy: new VoicePolicy(voiceConfig()), clock: systemClock };
 }
 
 export class Toolbox {
@@ -30,7 +41,7 @@ export class Toolbox {
       },
       search: (p, q, m) => (provider ??= deps.search()).search(p, q, m),
     };
-    const all = { ...webTools({ search, hop: deps.hop, resolve: deps.resolve }), ...documentTools({ root: deps.documentsRoot ?? defaultDocumentsRoot() }), ...taskTools(), ...memoryTools() };
+    const all = { ...webTools({ search, hop: deps.hop, resolve: deps.resolve }), ...documentTools({ root: deps.documentsRoot ?? defaultDocumentsRoot() }), ...taskTools(), ...memoryTools(), ...voiceTools(deps.voice ?? defaultVoiceDeps()) };
     for (const [name, t] of Object.entries(all)) {
       if (!isToolName(name)) throw new Error(`tool ${name} has no spec`);
       if ('run' in t) this.reads.set(name, t as AnyReadTool);

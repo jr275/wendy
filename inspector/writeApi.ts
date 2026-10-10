@@ -24,6 +24,7 @@ import { MemoryService, MemoryTransitionError } from '../src/memory/memoryServic
 import { PeopleService } from '../src/people/peopleService.js';
 import { setSiteImportance } from '../src/sensors/searchConsole.js';
 import { DevMailboxProvider } from '../src/providers/devMailbox.js';
+import { cancelExecution } from '../src/skills/cancel.js';
 import { effectsToolbox } from '../src/tools/index.js';
 import { newId, sha256 } from '../src/util/hash.js';
 
@@ -58,6 +59,10 @@ const ROUTES = {
   '/api/write/action/reject': route(z.object({ principalId: uuid, actionId: uuid, reason: z.string().max(2000).nullable().optional() }), async (db, b, at) => ({
     state: (await new ActionService(db).reject(b.principalId, b.actionId, b.reason ?? null, at)).state,
   })),
+  // Cancels a skill run the principal started (never an approved effect: see src/skills/cancel.ts).
+  '/api/write/execution/cancel': route(z.object({ principalId: uuid, executionId: uuid, reason: z.string().max(500).nullable().optional() }), async (db, b, at) =>
+    cancelExecution(db, b.principalId, b.executionId, b.reason ?? 'cancelled by the principal', at),
+  ),
   '/api/write/memory/confirm': route(z.object({ principalId: uuid, memoryId: uuid }), async (db, b, at) => {
     await new MemoryService(db).confirm(b.principalId, b.memoryId, at);
     return { status: 'ACTIVE' };

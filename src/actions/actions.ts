@@ -220,7 +220,7 @@ export class ActionService {
   constructor(private readonly db: Db) {}
 
   /** Principal approves (optionally with edited content → new version). Exactly one execution is created. */
-  async approve(principalId: string, actionId: string, now: Date, editedContent?: Record<string, unknown>): Promise<ActionRow> {
+  async approve(principalId: string, actionId: string, now: Date, editedContent?: Record<string, unknown>, note?: string): Promise<ActionRow> {
     const result = await withTx(this.db, async (tx): Promise<ActionRow | { expiredAt: Date }> => {
       let action = await lockAction(tx, actionId, principalId);
       if (action.state !== 'AWAITING_APPROVAL') throw new IllegalTransitionError(`Action ${actionId} is ${action.state}; only AWAITING_APPROVAL can be approved`);
@@ -241,7 +241,7 @@ export class ActionService {
         ]);
         action = (await tx.query<ActionRow>('UPDATE actions SET current_version = $2 WHERE id = $1 RETURNING *', [action.id, version])).rows[0]!;
       }
-      action = await transition(tx, action, 'APPROVED', 'PRINCIPAL', editedContent ? 'approved with edits' : 'approved');
+      action = await transition(tx, action, 'APPROVED', 'PRINCIPAL', note ?? (editedContent ? 'approved with edits' : 'approved'));
       await createExecution(tx, action);
       await this.recordOutcome(tx, action, editedContent ? 'APPROVED_WITH_EDITS' : 'APPROVED', null, now);
       return action;

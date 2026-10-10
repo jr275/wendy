@@ -13,9 +13,10 @@
  *    (waiting_child) until the child finishes, and the runtime drives the child first.
  *  - Every move is a structured event in skill_execution_events (skill.*, tool.*, permission.*, model.*).
  */
-import { proposeAction, type ActionRow } from '../actions/actions.js';
+import { ActionService, proposeAction, type ActionRow } from '../actions/actions.js';
 import type { ActionExecutor } from '../actions/executor.js';
 import { ReasoningUnavailableError, type ReasoningClient } from '../cognition/llm.js';
+import { quoteInSource } from '../cognition/validator.js';
 import { withTx, type Db, type Queryable } from '../db/db.js';
 import type { Clock } from '../util/clock.js';
 import { newId } from '../util/hash.js';
@@ -23,6 +24,8 @@ import type { Toolbox } from '../tools/index.js';
 import { getSources } from '../tools/sources.js';
 import { TOOL_SPECS, type ToolName } from '../tools/specs.js';
 import { ToolError } from '../tools/types.js';
+import { cancelExecution, type CancelResult } from './cancel.js';
+import { appendExecutionEvent } from './events.js';
 import type { SkillRegistry } from './registry.js';
 import { SkillError, type ChildOutcome, type EffectOutcome, type ExecutionError, type SkillDefinition, type StepContext, type StepResult } from './types.js';
 
@@ -114,17 +117,9 @@ export class SkillRuntime {
     return (await q.query<ExecutionRow>('SELECT * FROM skill_executions WHERE id = $1', [id])).rows[0] ?? null;
   }
 
-  async cancel(principalId: string, id: string, reason: string): Promise<void> {
-    await withTx(this.deps.db, async (tx) => {
-      const r = (await tx.query<ExecutionRow>('SELECT * FROM skill_executions WHERE id = $1 AND principal_id = $2 FOR UPDATE', [id, principalId])).rows[0];
-      if (!r || TERMINAL.includes(r.status)) return;
-      await tx.query(`UPDATE skill_executions SET status = 'cancelled', error = $2, locked_until = NULL, updated_at = $3, completed_at = $3 WHERE id = $1`, [
-        id,
-        JSON.stringify({ code: 'REJECTED', message: reason, step: null, retryable: false } satisfies ExecutionError),
-        this.deps.clock.now(),
-      ]);
-      await this.event(tx, id, 'skill.cancelled', r.skill_id, { reason });
-    });
+  /** Cancels a run at the principal's request (safe rules in cancel.ts: never an approved effect). */
+  async cancel(principalId: string, id: string, reason: string): Promise<CancelResult> {
+    return cancelExecution(this.deps.db, principalId, id, reason, this.deps.clock.now());
   }
 
   /**
@@ -134,6 +129,7 @@ export class SkillRuntime {
    */
   async runReady(limit = 20): Promise<string[]> {
     await this.deps.executor.runPending();
+    await this.deps.executor.settleAsync(); // long-running effects (calls) that may have finished
     const now = this.deps.clock.now();
     const rows = (
       await this.deps.db.query<{ id: string }>(
@@ -200,7 +196,9 @@ export class SkillRuntime {
         return true;
       }
       // wait_child: drive the child now; if it finishes, re-run this step to read its result.
-      exec = await this.park(exec, 'waiting_child', { kind: 'child', id: result.childId }, ctx.state);
+      const parked = await this.park(exec, 'waiting_child', { kind: 'child', id: result.childId }, ctx.state);
+      if (!parked) return true; // cancelled (or taken over) while the step ran
+      exec = parked;
       this.driving.add(exec.id);
       try {
         await this.advance(result.childId);
@@ -242,6 +240,21 @@ export class SkillRuntime {
     }
   }
 
+  /**
+   * The principal's own words in the message that started this run approve an EXTERNAL effect.
+   * Checked here, not by the skill: the message must be that run's trigger, written by the principal,
+   * and contain the quote verbatim. Destructive and payment effects never take this path.
+   */
+  private async principalPreApproval(exec: ExecutionRow, tool: ToolName, action: ActionRow, a: { messageId: string; quote: string }): Promise<{ ok: true; note: string } | { ok: false; reason: string }> {
+    if (TOOL_SPECS[tool].category !== 'EXTERNAL') return { ok: false, reason: `${TOOL_SPECS[tool].category} effects always wait for the principal` };
+    // The principal's standing policy wins over their words in one message: "always ask" means a card.
+    if (action.policy_decision?.rule === 'principal policy: always ask') return { ok: false, reason: 'principal policy: always ask' };
+    if (exec.trigger?.messageId !== a.messageId || a.quote.trim().length < 3) return { ok: false, reason: 'not the message that started this run' };
+    const msg = (await this.deps.db.query<{ content: string | null }>(`SELECT content FROM chat_messages WHERE principal_id = $1 AND id = $2 AND role = 'user'`, [exec.principal_id, a.messageId])).rows[0];
+    if (!msg?.content || !quoteInSource(a.quote, msg.content)) return { ok: false, reason: 'quote not found in the principal\'s message' };
+    return { ok: true, note: `authorized by the principal in their message: "${a.quote.slice(0, 200)}"` };
+  }
+
   private stepContext(exec: ExecutionRow, skill: SkillDefinition): StepContext {
     const { db, toolbox, reasoner, clock } = this.deps;
     const state: Record<string, unknown> = structuredClone(exec.state ?? {});
@@ -256,6 +269,7 @@ export class SkillRuntime {
       skillId: skill.id,
       now: clock.now(),
       input: exec.input,
+      trigger: exec.trigger ?? {},
       state,
 
       read: async (tool, input) => {
@@ -275,7 +289,7 @@ export class SkillRuntime {
         }
       },
 
-      effect: async (key, tool, content) => {
+      effect: async (key, tool, content, opts) => {
         requireTool(tool);
         const t = toolbox.effect(tool);
         if (!t) throw new SkillError('NOT_ALLOWED', `${tool} has no effect`);
@@ -283,10 +297,21 @@ export class SkillRuntime {
         if (!parsed.success) throw new SkillError('INVALID_INPUT', `${tool}: ${parsed.error.issues.map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}`);
         let action = await this.actionFor(exec.id, key);
         if (!action) {
-          action = await withTx(db, (tx) =>
-            proposeAction(tx, { principalId: exec.principal_id, insightId: null, type: tool, targetPersonId: null, content: parsed.data, expiresAt: null, skill: { executionId: exec.id, stepKey: key } }),
-          );
+          // Proposed only while this run is still live, under the run's row lock: a cancel that came
+          // first prevents the action; one that comes after finds it (and cancels or refuses).
+          action = await withTx(db, async (tx) => {
+            const live = await tx.query(`SELECT 1 FROM skill_executions WHERE id = $1 AND status = 'running' AND lease_owner = $2 AND attempts = $3 FOR UPDATE`, [exec.id, this.owner, exec.attempts]);
+            if (!live.rowCount) throw new SkillError('REJECTED', 'this run is no longer active (cancelled)');
+            return proposeAction(tx, { principalId: exec.principal_id, insightId: null, type: tool, targetPersonId: null, content: parsed.data, expiresAt: null, skill: { executionId: exec.id, stepKey: key } });
+          });
           await this.event(db, exec.id, 'permission.requested', tool, { actionId: action.id, decision: action.policy_decision, category: TOOL_SPECS[tool].category });
+          if (action.state === 'AWAITING_APPROVAL' && opts?.principalApproval) {
+            const pre = await this.principalPreApproval(exec, tool, action, opts.principalApproval);
+            if (pre.ok) {
+              action = await new ActionService(db).approve(exec.principal_id, action.id, clock.now(), undefined, pre.note);
+              await this.event(db, exec.id, 'permission.granted', tool, { actionId: action.id, by: 'principal_message', messageId: opts.principalApproval.messageId, quote: opts.principalApproval.quote });
+            } else await this.event(db, exec.id, 'permission.preapproval_declined', tool, { actionId: action.id, reason: pre.reason });
+          }
         }
         if (action.state === 'APPROVED') {
           await this.deps.executor.runPending();
@@ -319,6 +344,8 @@ export class SkillRuntime {
         return { displayName: p?.display_name ?? 'the principal', locale: p?.locale ?? 'pt-BR' };
       },
 
+      record: (type, name, data) => this.event(db, exec.id, type, name, data),
+
       reason: async (req) => {
         const r = await reasoner.generate({ ...req, principalId: exec.principal_id, purpose: `skill:${skill.id}:${req.purpose}` });
         await this.event(db, exec.id, 'model.called', req.purpose, { modelCallId: r.modelCallId, model: r.model });
@@ -341,7 +368,7 @@ export class SkillRuntime {
       await this.eventOnce(executionId, type, tool, { actionId: a.id, state: a.state, reason: a.rejection_reason ?? a.failure ?? a.policy_decision?.rule ?? null });
       return { status: 'refused', actionId: a.id, state: a.state, reason: a.rejection_reason ?? a.failure ?? (a.state === 'CANCELLED' ? a.policy_decision?.rule ?? null : null) };
     }
-    return { status: 'pending', actionId: a.id };
+    return { status: 'pending', actionId: a.id, approved: !['PROPOSED', 'STAGED', 'AWAITING_APPROVAL'].includes(a.state) };
   }
 
   // ── persistence ──────────────────────────────────────────────────────────────
@@ -378,23 +405,32 @@ export class SkillRuntime {
     );
   }
 
-  private async park(exec: ExecutionRow, status: 'waiting_permission' | 'waiting_child', wait: NonNullable<ExecutionRow['wait']>, state: Record<string, unknown>): Promise<ExecutionRow> {
+  /**
+   * Parks the run while it waits. Like commitStep, only while this process still holds it: a run
+   * cancelled meanwhile stays cancelled (null), never resurrected by the step that was executing.
+   */
+  private async park(exec: ExecutionRow, status: 'waiting_permission' | 'waiting_child', wait: NonNullable<ExecutionRow['wait']>, state: Record<string, unknown>): Promise<ExecutionRow | null> {
     const row = (
       await this.deps.db.query<ExecutionRow>(
-        `UPDATE skill_executions SET status = $2, wait = $3, state = $4, locked_until = NULL, updated_at = $5 WHERE id = $1 RETURNING *`,
-        [exec.id, status, JSON.stringify(wait), JSON.stringify(state), this.deps.clock.now()],
+        `UPDATE skill_executions SET status = $2, wait = $3, state = $4, locked_until = NULL, updated_at = $5
+          WHERE id = $1 AND status = 'running' AND lease_owner = $6 AND attempts = $7 RETURNING *`,
+        [exec.id, status, JSON.stringify(wait), JSON.stringify(state), this.deps.clock.now(), this.owner, exec.attempts],
       )
-    ).rows[0]!;
+    ).rows[0];
+    if (!row) return null;
     await this.eventOnce(exec.id, status === 'waiting_permission' ? 'skill.waiting_permission' : 'skill.waiting_child', wait.id, wait);
     return row;
   }
 
   private async finish(exec: ExecutionRow, status: 'completed' | 'failed', output: unknown, error: ExecutionError | null, state?: Record<string, unknown>): Promise<void> {
     const now = this.deps.clock.now();
-    await this.deps.db.query(
-      `UPDATE skill_executions SET status = $2, output = $3, error = $4, state = coalesce($5, state), locked_until = NULL, wait = NULL, updated_at = $6, completed_at = $6 WHERE id = $1`,
-      [exec.id, status, output === null || output === undefined ? null : JSON.stringify(output), error ? JSON.stringify(error) : null, state ? JSON.stringify(state) : null, now],
+    // Only while this process holds the run: a cancelled run is never turned into completed/failed.
+    const done = await this.deps.db.query(
+      `UPDATE skill_executions SET status = $2, output = $3, error = $4, state = coalesce($5, state), locked_until = NULL, wait = NULL, updated_at = $6, completed_at = $6
+        WHERE id = $1 AND status = 'running' AND lease_owner = $7 AND attempts = $8`,
+      [exec.id, status, output === null || output === undefined ? null : JSON.stringify(output), error ? JSON.stringify(error) : null, state ? JSON.stringify(state) : null, now, this.owner, exec.attempts],
     );
+    if (!done.rowCount) return;
     await this.event(this.deps.db, exec.id, status === 'completed' ? 'skill.completed' : 'skill.failed', exec.skill_id, status === 'completed' ? { output: clip(output) } : { error });
     // A parent parked on this run can continue now.
     if (exec.parent_id) {
@@ -407,11 +443,7 @@ export class SkillRuntime {
   private readonly driving = new Set<string>();
 
   private async event(q: Queryable, executionId: string, type: string, name: string | null, data: unknown): Promise<void> {
-    await q.query(
-      `INSERT INTO skill_execution_events(execution_id, seq, type, name, data, at)
-       VALUES ($1, (SELECT coalesce(max(seq), 0) + 1 FROM skill_execution_events WHERE execution_id = $1), $2, $3, $4, $5)`,
-      [executionId, type, name, JSON.stringify(data ?? {}), this.deps.clock.now()],
-    );
+    await appendExecutionEvent(q, executionId, type, name, data, this.deps.clock.now());
   }
 
   /** Same event at most once per run and subject (re-runs of a step do not repeat it). */

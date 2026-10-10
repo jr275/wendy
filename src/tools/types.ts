@@ -41,6 +41,11 @@ export interface ToolEffect<I> {
   perform(ctx: ToolContext & { actionId: string }, input: I): Promise<{ providerRef: string }>;
   readBack(ctx: ToolContext & { actionId: string }, input: I): Promise<{ providerRef: string; observed: Record<string, unknown> } | null>;
   expected(input: I): Record<string, unknown>;
+  /**
+   * Long-running effects only (e.g. a phone call): after perform, the effect keeps going. The executor
+   * calls settle until it says 'done', and only then verifies. Effects without settle are unchanged.
+   */
+  settle?(ctx: ToolContext & { actionId: string }, input: I): Promise<'done' | 'pending'>;
 }
 
 export type AnyReadTool = ReadTool<any, unknown>; // eslint-disable-line @typescript-eslint/no-explicit-any

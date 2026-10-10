@@ -66,7 +66,8 @@ export interface StepDefinition {
 }
 
 export type EffectOutcome =
-  | { status: 'pending'; actionId: string }
+  /** approved: the principal (or policy) said yes and the effect is still running (e.g. a call in progress). */
+  | { status: 'pending'; actionId: string; approved?: boolean }
   | { status: 'done'; actionId: string }
   | { status: 'refused'; actionId: string; state: Extract<ActionState, 'REJECTED' | 'EXPIRED' | 'CANCELLED' | 'FAILED'>; reason: string | null };
 
@@ -82,11 +83,18 @@ export interface StepContext {
   skillId: string;
   now: Date;
   input: unknown;
+  /** What started this run (e.g. { kind: 'chat', question, messageId }). */
+  trigger: Record<string, unknown>;
   /** Step-owned state, persisted after every step (survives restarts). */
   state: Record<string, unknown>;
   read(tool: ToolName, input: unknown): Promise<unknown>;
-  /** Requests an effect. Idempotent per key: a re-run step gets the same action back. */
-  effect(key: string, tool: ToolName, content: Record<string, unknown>): Promise<EffectOutcome>;
+  /**
+   * Requests an effect. Idempotent per key: a re-run step gets the same action back.
+   * `principalApproval`: the principal already authorized it in the message that started this run;
+   * the runtime checks the quote is in that message and approves (EXTERNAL effects only — never
+   * destructive or payment ones, which always wait for the principal).
+   */
+  effect(key: string, tool: ToolName, content: Record<string, unknown>, opts?: { principalApproval?: { messageId: string; quote: string } }): Promise<EffectOutcome>;
   /** Starts (or finds, by key) a child run of a declared dependency. */
   startChild(key: string, skillId: string, input: unknown): Promise<string>;
   child(childId: string): Promise<ChildOutcome>;
@@ -97,7 +105,15 @@ export interface StepContext {
   /** Who Wendy works for (display name and language). */
   principal(): Promise<{ displayName: string; locale: string }>;
   reason<T>(req: Omit<ReasoningRequest<T>, 'principalId'>): Promise<ReasoningResult<T>>;
+  /** Appends a worker event to this run's log (e.g. the classified outcome of a call). Not for provider data. */
+  record(type: RecordedEvent, name: string, data: Record<string, unknown>): Promise<void>;
 }
+
+/** Worker events a step may record (observability; never provider data). */
+export type RecordedEvent =
+  | `call.${'validating' | 'outcome'}`
+  | `mandate.${'created' | 'validated' | 'confirmation_required' | 'approved' | 'blocked'}`
+  | `phone.${'resolution_started' | 'resolved' | 'resolution_failed'}`;
 
 export type ExecutionErrorCode =
   | 'INVALID_INPUT'

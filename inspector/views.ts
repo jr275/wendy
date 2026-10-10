@@ -520,6 +520,15 @@ export async function execution(db: pg.Pool, principalIdParam: string | null, id
   return executionView(db, builtinRegistry(), pid, id);
 }
 
+/** Latest skill runs of the principal (the concierge desk's active / recent tasks). */
+export async function executions(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { executions: [] };
+  const { builtinRegistry } = await import('../src/skills/index.js');
+  const { recentExecutions } = await import('../src/skills/view.js');
+  return { executions: await recentExecutions(db, builtinRegistry(), pid) };
+}
+
 /** Open tasks of the principal. */
 export async function tasks(db: pg.Pool, principalIdParam: string | null) {
   const pid = await resolvePrincipal(db, principalIdParam);

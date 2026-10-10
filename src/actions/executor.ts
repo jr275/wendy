@@ -41,6 +41,8 @@ interface Effect {
   perform(principalId: string, key: string, actionId: string, content: Record<string, unknown>): Promise<{ providerRef: string }>;
   readBack(principalId: string, key: string, actionId: string): Promise<{ providerRef: string; observed: Record<string, unknown> } | null>;
   expected(content: Record<string, unknown>): Record<string, unknown>;
+  /** Long-running effects: 'pending' until the effect has finished; verification waits for 'done'. */
+  settle?(principalId: string, actionId: string, content: Record<string, unknown>): Promise<'done' | 'pending'>;
 }
 
 function emailEffect(provider: EmailProvider): Effect {
@@ -93,6 +95,7 @@ function toolEffect(db: Db, toolbox: Toolbox, action: ActionRow): Effect {
       return tool.readBack(ctx(actionId), parse(content));
     },
     expected: (c) => tool.expected(parse(c)),
+    ...(tool.settle ? { settle: (_p: string, actionId: string, c: Record<string, unknown>) => tool.settle!(ctx(actionId), parse(c)) } : {}),
   };
 }
 
@@ -165,7 +168,38 @@ export class ActionExecutor {
     }
     await this.hooks.afterProviderAccepted?.(action.id);
     await this.recordSuccess(execution, action, providerRef, effect);
+    if (effect.settle && (await effect.settle(action.principal_id, action.id, content)) === 'pending') return; // verified later by settleAsync
     await this.verify(execution.id);
+  }
+
+  /**
+   * Long-running effects that were started but not verified yet: ask each whether it has finished,
+   * and verify the ones that have. Effects without `settle` never get here (they verify at once).
+   */
+  async settleAsync(): Promise<string[]> {
+    const rows = (
+      await this.db.query<{ execution_id: string; action_id: string }>(
+        `SELECT e.id AS execution_id, a.id AS action_id FROM action_executions e JOIN actions a ON a.id = e.action_id
+          WHERE e.status = 'SUCCEEDED' AND e.verification IS NULL AND a.state = 'EXECUTED'`,
+      )
+    ).rows;
+    const settled: string[] = [];
+    for (const r of rows) {
+      const action = (await this.db.query<ActionRow>('SELECT * FROM actions WHERE id = $1', [r.action_id])).rows[0]!;
+      let effect: Effect;
+      try {
+        effect = this.effectFor(action);
+      } catch {
+        continue;
+      }
+      if (!effect.settle) continue;
+      const { content } = await getActionContent(this.db, action.id, action.current_version);
+      if ((await effect.settle(action.principal_id, action.id, content)) === 'done') {
+        await this.verify(r.execution_id);
+        settled.push(action.id);
+      }
+    }
+    return settled;
   }
 
   private async recordSuccess(execution: ExecutionRow, action: ActionRow, providerRef: string, effect: Effect): Promise<void> {

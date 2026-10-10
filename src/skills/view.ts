@@ -1,8 +1,11 @@
 /** Read model of one skill run (and its children) for the UI. Read-only, scoped to the principal. */
 import type { Queryable } from '../db/db.js';
 import { toolSpec } from '../tools/specs.js';
+import { summarizeMandate } from '../voice/mandate.js';
+import type { VoiceMandate } from '../voice/types.js';
 import type { SkillRegistry } from './registry.js';
 import type { ExecutionRow } from './runtime.js';
+import { loadVoiceView, type VoiceView } from './voiceView.js';
 
 export interface ExecutionView {
   id: string;
@@ -19,6 +22,8 @@ export interface ExecutionView {
   approvals: { actionId: string; tool: string; label: string; category: string; state: string; content: Record<string, unknown>; items: string[] }[];
   models: string[];
   children: ExecutionView[];
+  /** voice-concierge runs: the call as the UI presents it, derived from this run's events (voiceView.ts). */
+  voice?: VoiceView;
 }
 
 export async function executionView(q: Queryable, registry: SkillRegistry, principalId: string, id: string, depth = 0): Promise<ExecutionView | null> {
@@ -41,7 +46,9 @@ export async function executionView(q: Queryable, registry: SkillRegistry, princ
   for (const a of rows) {
     const spec = toolSpec(a.action_type);
     const c = a.content as { tasks?: { title: string }[]; taskId?: string };
-    const items = c.tasks
+    const items = a.action_type === 'voice.call'
+      ? summarizeMandate(a.content as unknown as VoiceMandate)
+      : c.tasks
       ? c.tasks.map((t) => t.title)
       : c.taskId
         ? (await q.query<{ title: string }>('SELECT title FROM tasks WHERE id = $1 AND principal_id = $2', [c.taskId, principalId])).rows.map((r) => r.title)
@@ -70,7 +77,14 @@ export async function executionView(q: Queryable, registry: SkillRegistry, princ
     approvals,
     models: [...new Set([...models, ...children.flatMap((c) => c.models)])],
     children,
+    ...(e.skill_id === 'voice-concierge' ? { voice: await loadVoiceView(q, e.id, rows, e.state) } : {}),
   };
+}
+
+/** The principal's latest top-level runs (newest first), for the concierge desk. */
+export async function recentExecutions(q: Queryable, registry: SkillRegistry, principalId: string, limit = 8): Promise<ExecutionView[]> {
+  const ids = (await q.query<{ id: string }>(`SELECT id FROM skill_executions WHERE principal_id = $1 AND parent_id IS NULL ORDER BY created_at DESC, id LIMIT $2`, [principalId, limit])).rows;
+  return (await Promise.all(ids.map((r) => executionView(q, registry, principalId, r.id)))).filter((v): v is ExecutionView => !!v);
 }
 
 /** Every approval still waiting anywhere in a run tree. */

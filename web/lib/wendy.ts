@@ -1,4 +1,5 @@
 import "server-only";
+import { connection } from "next/server";
 
 /**
  * Server-side access to Wendy's read API (the existing inspector server, read-only at the DB level).
@@ -8,7 +9,39 @@ const API = process.env.WENDY_API_URL ?? "http://127.0.0.1:3457";
 const SCHEMA = process.env.WENDY_SCHEMA ?? "public";
 const PRINCIPAL_EMAIL = process.env.WENDY_PRINCIPAL_EMAIL ?? "";
 
+/**
+ * Demonstration mode (WENDY_DEMO=1), for showing the interface where Wendy's API does not exist
+ * (a preview host such as v0). Nothing is fetched and nothing is invented: it answers with an
+ * obviously fictional principal and EMPTY lists, and the top bar says so. Off unless the variable is "1".
+ */
+export const DEMO = process.env.WENDY_DEMO === "1";
+const DEMO_PRINCIPAL = { id: "demo", display_name: "Visitante", primary_email: "demo@example.invalid", timezone: "America/Sao_Paulo" };
+function demo(path: string): unknown {
+  switch (path) {
+    case "/api/principals":
+      return [DEMO_PRINCIPAL];
+    case "/api/today":
+      return { principal: DEMO_PRINCIPAL, insights: [], needsYou: [], pendingMemoryCount: 0, pendingCommitments: [], memoriesToReview: [], openConflicts: 0 };
+    case "/api/sites":
+      return { sites: [] };
+    case "/api/executions":
+      return { executions: [] };
+    case "/api/tasks":
+      return { tasks: [] };
+    case "/api/chat":
+      return { messages: [] };
+    case "/api/memories":
+      return { memories: [] };
+    default:
+      throw new Error(`Modo demonstração: ${path} não tem dados.`);
+  }
+}
+
 async function get<T>(path: string, params: Record<string, string> = {}): Promise<T> {
+  if (DEMO) {
+    await connection(); // like the real fetch, render per request (the page reads the current time)
+    return demo(path) as T;
+  }
   const q = new URLSearchParams({ schema: SCHEMA, ...params });
   const res = await fetch(`${API}${path}?${q}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Wendy API ${path} → ${res.status}`);

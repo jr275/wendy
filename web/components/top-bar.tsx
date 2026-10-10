@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DEMO } from "@/lib/wendy";
 import { Nav } from "./nav";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -16,6 +17,11 @@ export function TopBar({ reasoner, wide = false }: { reasoner: string | null; wi
         <span className="ml-1 hidden h-5 w-px bg-line sm:ml-2 sm:block" aria-hidden />
         <Nav />
         <span className="ml-auto" />
+        {DEMO ? (
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-info-soft px-2.5 py-1 text-[11px] text-info sm:text-xs" title="Modo demonstração: só a interface. Nenhum dado real, e a Wendy não responde aqui.">
+            Demonstração · sem dados reais
+          </span>
+        ) : null}
         {reasoner ? (
           <>
             <span className="hidden rounded-full bg-warn-soft px-3 py-1 text-xs text-warn md:inline" title="Modo MVP: o Claude ainda não está disponível">

@@ -180,3 +180,364 @@ body {
 .copilotKitChat div[data-copilotkit]:not(.copilotKitInput) {
   background: transparent !important;
 }
+
+/*
+ * Concierge (Phase 6). The presence halo and the live "stage". Colors are tokens; motion is
+ * transform/opacity only and is switched off under prefers-reduced-motion.
+ */
+:root {
+  --presence-hi: #f4fbf7;
+  --presence-mid: #8fd1ae;
+  --presence-lo: #2f7a55;
+  --presence-ring: rgba(47, 122, 85, 0.35);
+  --presence-attn: #c98a2a;
+  --stage: #10140f;
+  --stage-ink: #f2f5f1;
+  --stage-muted: rgba(242, 245, 241, 0.62);
+  --stage-line: rgba(242, 245, 241, 0.12);
+}
+:root[data-theme="dark"] {
+  --presence-hi: #e9fff3;
+  --presence-mid: #6cc59a;
+  --presence-lo: #1f5a3e;
+  --presence-ring: rgba(108, 197, 154, 0.4);
+  --presence-attn: #e7b066;
+  --stage: #000000;
+  --stage-line: rgba(242, 245, 241, 0.14);
+}
+
+.presence {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+.presence svg {
+  overflow: visible;
+}
+.presence .p-core {
+  transform-origin: 60px 60px;
+  transition: opacity 0.6s ease, filter 0.6s ease;
+}
+.presence .p-ring {
+  fill: none;
+  stroke: var(--presence-ring);
+  stroke-width: 1.5;
+  transition: stroke 0.6s ease, opacity 0.6s ease;
+}
+.presence .p-marks line {
+  stroke: var(--presence-lo);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.presence .p-sonar circle {
+  fill: none;
+  stroke: var(--presence-mid);
+  stroke-width: 1.5;
+  opacity: 0;
+  transform-origin: 60px 60px;
+}
+.presence .p-wave rect {
+  fill: var(--presence-hi);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.presence .p-check {
+  fill: none;
+  stroke: var(--presence-hi);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  opacity: 0;
+}
+.presence .p-orbit {
+  transform-origin: 60px 60px;
+  transition: transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.presence .p-satellite {
+  fill: var(--presence-lo);
+  transition: fill 0.6s ease;
+}
+
+/* idle: barely breathing */
+.presence[data-presence="idle"] .p-core {
+  animation: p-breathe 7s ease-in-out infinite;
+}
+/* listening: the point turns toward the principal (down, toward the composer); ring brightens */
+.presence[data-presence="listening"] .p-orbit {
+  transform: rotate(180deg);
+}
+.presence[data-presence="listening"] .p-ring {
+  stroke: var(--presence-mid);
+}
+/* thinking: slow, deliberate orbit */
+.presence[data-presence="thinking"] .p-orbit {
+  animation: p-orbit 9s linear infinite;
+}
+/* planning: structure appears; orbit a little quicker */
+.presence[data-presence="planning"] .p-marks line {
+  opacity: 0.7;
+}
+.presence[data-presence="planning"] .p-orbit {
+  animation: p-orbit 5s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+/* awaiting the principal: amber ring, the point waits at the top */
+.presence[data-presence="awaiting"] .p-ring {
+  stroke: var(--presence-attn);
+  animation: p-attend 3.2s ease-in-out infinite;
+}
+.presence[data-presence="awaiting"] .p-satellite {
+  fill: var(--presence-attn);
+}
+/* waiting (nothing for the principal to do): low energy */
+.presence[data-presence="waiting"] .p-core {
+  opacity: 0.72;
+}
+/* calling: rings travel outwards */
+.presence[data-presence="calling"] .p-sonar circle {
+  animation: p-sonar 2.4s ease-out infinite;
+}
+.presence[data-presence="calling"] .p-sonar circle:nth-child(2) {
+  animation-delay: 1.2s;
+}
+.presence[data-presence="calling"] .p-orbit {
+  opacity: 0;
+}
+/* connected: active but calm — a voice line in the core */
+.presence[data-presence="connected"] .p-wave rect {
+  opacity: 0.95;
+  animation: p-voice 1.6s ease-in-out infinite;
+}
+.presence[data-presence="connected"] .p-wave rect:nth-child(2) {
+  animation-delay: 0.25s;
+}
+.presence[data-presence="connected"] .p-wave rect:nth-child(3) {
+  animation-delay: 0.5s;
+}
+.presence[data-presence="connected"] .p-orbit {
+  opacity: 0;
+}
+.presence[data-presence="connected"] .p-ring {
+  stroke: var(--presence-mid);
+}
+/* attention: amber, still */
+.presence[data-presence="attention"] .p-ring {
+  stroke: var(--presence-attn);
+}
+.presence[data-presence="attention"] .p-satellite {
+  fill: var(--presence-attn);
+}
+/* done: the ring closes and a check is drawn, once */
+.presence[data-presence="done"] .p-ring {
+  stroke: var(--presence-lo);
+  stroke-dasharray: 100;
+  animation: p-close 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.presence[data-presence="done"] .p-check {
+  opacity: 1;
+  animation: p-draw 0.6s 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.presence[data-presence="done"] .p-orbit {
+  opacity: 0;
+}
+/* error: quiet — desaturated core, muted ring; never alarming */
+.presence[data-presence="error"] .p-core {
+  filter: grayscale(0.85);
+  opacity: 0.8;
+}
+.presence[data-presence="error"] .p-ring {
+  stroke: var(--line);
+}
+.presence[data-presence="error"] .p-orbit {
+  transform: rotate(135deg);
+}
+
+@keyframes p-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+@keyframes p-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes p-attend {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+@keyframes p-sonar {
+  0% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2);
+  }
+}
+@keyframes p-voice {
+  0%,
+  100% {
+    transform: scaleY(0.55);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+@keyframes p-close {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes p-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Reduced motion: no animation at all; each state keeps a distinct still form. */
+@media (prefers-reduced-motion: reduce) {
+  .presence *,
+  .presence {
+    animation: none !important;
+    transition: none !important;
+  }
+  .presence[data-presence="calling"] .p-sonar circle:first-child {
+    opacity: 0.35;
+    transform: scale(1.45);
+  }
+  .presence[data-presence="connected"] .p-wave rect {
+    transform: none;
+  }
+  .presence[data-presence="done"] .p-ring,
+  .presence[data-presence="done"] .p-check {
+    stroke-dashoffset: 0;
+  }
+  .stage-dot {
+    animation: none !important;
+  }
+}
+
+/* The live call stage: a quiet dark surface in both themes. */
+.stage {
+  background: var(--stage);
+  color: var(--stage-ink);
+  border-radius: 24px;
+}
+.stage .stage-muted {
+  color: var(--stage-muted);
+}
+.stage .stage-line {
+  border-color: var(--stage-line);
+}
+.stage-dot {
+  animation: p-attend 1.6s ease-in-out infinite;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Emotional presence: character avatars beside the conversation (fixed-size slot, no layout shift). */
+.char-slot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 64px;
+  height: 56px;
+  flex: none;
+}
+.char {
+  position: relative;
+  display: inline-block;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: var(--surface-2);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px color-mix(in srgb, var(--char-accent, var(--brand)) 70%, transparent), 0 6px 14px rgba(0, 0, 0, 0.12);
+  transition: box-shadow 0.5s ease, filter 0.5s ease, opacity 0.5s ease;
+}
+.char img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+.char[data-size="primary"] {
+  width: 48px;
+  height: 48px;
+}
+.char[data-size="secondary"] {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 28px;
+  height: 28px;
+  opacity: 0.92;
+}
+/* thinking: the ring breathes slowly; executing: a little quicker */
+.char-slot[data-visible="true"] .char[data-interaction="thinking"] {
+  animation: char-ring 2.8s ease-in-out infinite;
+}
+.char-slot[data-visible="true"] .char[data-interaction="executing"] {
+  animation: char-ring 1.6s ease-in-out infinite;
+}
+/* awaiting the principal: still, amber ring — nothing competes with the approval */
+.char[data-interaction="awaiting"] {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--presence-attn), 0 6px 14px rgba(0, 0, 0, 0.12);
+}
+.char[data-interaction="completed"] {
+  animation: char-pop 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) 1;
+}
+.char[data-interaction="error"] {
+  filter: grayscale(0.7);
+  opacity: 0.85;
+}
+@keyframes char-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px color-mix(in srgb, var(--char-accent, var(--brand)) 70%, transparent), 0 6px 14px rgba(0, 0, 0, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 7px color-mix(in srgb, var(--char-accent, var(--brand)) 30%, transparent), 0 6px 14px rgba(0, 0, 0, 0.12);
+  }
+}
+@keyframes char-pop {
+  50% {
+    transform: scale(1.08);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .char,
+  .char-slot .char {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* character presence styles: rebuilt 1791651867 */

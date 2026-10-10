@@ -15,7 +15,7 @@ import { useOptionalWorkspace, type FocusCard } from "./workspace-context";
  * those are render-only here (useRenderTool), so the browser never runs a model or a tool.
  */
 const n = (x: number) => Math.round(x).toLocaleString("pt-BR");
-const STEPS: Record<string, string> = {
+export const STEPS: Record<string, string> = {
   entendendo: "Entendendo o que você pediu",
   executando: "Executando",
   raciocinando: "Reunindo evidências e validando cada afirmação",
@@ -127,10 +127,21 @@ const LABELS = {
 };
 
 /**
+ * Accessible names for the side chat's input controls (CopilotKit's defaults leave the two icon
+ * buttons unnamed and name the textarea only by its placeholder). Passed through CopilotKit's slot
+ * API: each slot object's props are merged into the default control, so its behavior is unchanged.
+ */
+const SIDEBAR_INPUT = {
+  textArea: { "aria-label": "Mensagem para a Wendy" },
+  sendButton: { "aria-label": "Enviar mensagem" },
+  addMenuButton: { "aria-label": "Adicionar anexos" },
+};
+
+/**
  * Everything both chat shells share: Wendy's card renderers, data-derived suggestions and the run step.
  * In the Hoje workspace cards can open in the panel; elsewhere (sidebar) they expand in place.
  */
-function useWendyChat(suggestions: string[]) {
+export function useWendyChat(suggestions: string[]) {
   const ws = useOptionalWorkspace();
   const full = ws?.mode === "conversa";
   const open = ws?.open;
@@ -273,6 +284,7 @@ export function WendySidebar({ suggestions }: { suggestions: string[] }) {
         onOpenChange={setChoice}
         width={420}
         labels={LABELS}
+        input={SIDEBAR_INPUT}
         header={{
           title: "Wendy",
           children: ({ titleContent, closeButton }) => (

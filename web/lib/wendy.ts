@@ -169,6 +169,50 @@ export interface ExecutionView {
   approvals: { actionId: string; tool: string; label: string; category: string; state: string; content: Record<string, unknown>; items: string[] }[];
   models: string[];
   children: ExecutionView[];
+  /** voice-concierge runs only: the call as Wendy derives it from her events (src/skills/voiceView.ts). */
+  voice?: VoiceView;
+}
+
+export interface Money {
+  amount: number;
+  currency: string;
+}
+export interface PhoneSource {
+  kind: "principal" | "web_page";
+  ref?: string;
+  title?: string;
+  sourceType?: "official_site" | "business_listing" | "other";
+  confidence?: "high" | "medium" | "low";
+}
+export interface CallStatus {
+  state: string;
+  terminal: boolean;
+  simulated: boolean;
+  transcript: { speaker: "agent" | "counterparty"; text: string; at: string }[];
+  signals: { kind: string; [k: string]: unknown }[];
+  actionsRequired: { action: string; detail: string; decision: string }[];
+  ended: { by: string; reason: string } | null;
+  failed: string | null;
+  connectedAt: string | null;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  cost: (Money & { estimated: true; billedMinutes: number }) | null;
+}
+/** Mirror of src/skills/voiceView.ts (types only — the state lives in Wendy's events). */
+export interface VoiceView {
+  mandate: { objective: string; targetName: string; phone: string; phoneSource: PhoneSource; parameters: Record<string, string | number>; acceptable: { time?: { from: string; to: string } } | null } | null;
+  phone: "not_needed" | "searching" | "resolved" | "failed" | null;
+  action: { id: string; state: string } | null;
+  call: CallStatus | null;
+  estimate: { maxCallSeconds: number; worstCase: Money; simulated: boolean };
+  blocked: {
+    kind: string;
+    usage: { callsInTask: number; callsToday: number; spentToday: number; spentMonth: number } | null;
+    worstCase: Money | null;
+    limits: { currency: string; maxPerCall: number; maxPerDay: number; maxPerMonth: number; callsPerDay: number };
+  } | null;
+  confirmationReasons: string[];
+  approvedBy: "principal" | "principal_message" | null;
 }
 
 export async function execution(id: string, principalId: string): Promise<ExecutionView | null> {
@@ -176,6 +220,15 @@ export async function execution(id: string, principalId: string): Promise<Execut
     return await get<ExecutionView>("/api/execution", { id, principal: principalId });
   } catch {
     return null;
+  }
+}
+
+/** The principal's latest runs (newest first): the concierge desk's active / recent tasks. */
+export async function executions(principalId: string): Promise<ExecutionView[]> {
+  try {
+    return (await get<{ executions: ExecutionView[] }>("/api/executions", { principal: principalId })).executions;
+  } catch {
+    return [];
   }
 }
 

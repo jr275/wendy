@@ -6,7 +6,8 @@ import { WorkspaceProvider } from "@/components/workspace-context";
 import { Sparkline } from "@/components/sparkline";
 import { TopBar } from "@/components/top-bar";
 import { ACTION_LABEL, EVENT_LABEL, dateLong, firstName, greeting, intPt, pct, stripRefs } from "@/lib/format";
-import { principal as getPrincipal, reasonerLabel, sites as getSites, tasks as getTasks, today as getToday, type InsightCard, type Site } from "@/lib/wendy";
+import { ConciergeDesk } from "@/components/concierge/desk";
+import { executions as getExecutions, principal as getPrincipal, reasonerLabel, sites as getSites, tasks as getTasks, today as getToday, type InsightCard, type Site } from "@/lib/wendy";
 
 const INSPECTOR = process.env.NEXT_PUBLIC_WENDY_INSPECTOR_URL ?? "http://127.0.0.1:3457";
 
@@ -31,7 +32,7 @@ function Skeleton() {
 async function Today() {
   const p = await getPrincipal();
   if (!p) return <Empty title="Nenhum executivo cadastrado" body="Cadastre um executivo na Wendy para começar." />;
-  const [t, s, open] = await Promise.all([getToday(p.id), getSites(p.id), getTasks(p.id).catch(() => [])]);
+  const [t, s, open, runs] = await Promise.all([getToday(p.id), getSites(p.id), getTasks(p.id).catch(() => []), getExecutions(p.id)]);
   const insights = t.insights ?? [];
   const surfaced = insights.filter((i) => i.status === "SURFACED");
   const quiet = insights.filter((i) => i.status === "SUPPRESSED");
@@ -57,14 +58,13 @@ async function Today() {
       <TopBar reasoner={reasoner} wide />
       <WorkspaceProvider>
       <Workspace suggestions={suggestions}>
-      <main className="mx-auto max-w-5xl px-4 pb-24 pt-10 sm:px-6 sm:pt-14">
-        <p className="eyebrow">{dateLong(now, p.timezone)} · Hoje</p>
-        <h1 className="mt-4 text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
-          {greeting(now, p.timezone)}, {firstName(p.display_name)}.
-          <span className="block text-muted">
-            {needs.length ? `${needs.length} ${needs.length === 1 ? "coisa pede" : "coisas pedem"} sua atenção.` : "Nada pendente com você."}
-          </span>
-        </h1>
+      {/* Delegate first: Wendy, one field, the tasks she is handling. The Hoje overview follows. */}
+      <ConciergeDesk tasks={runs} greeting={`${greeting(now, p.timezone)}, ${firstName(p.display_name)}.`} dateLabel={dateLong(now, p.timezone)} />
+      <main className="mx-auto max-w-5xl px-4 pb-24 pt-6 sm:px-6">
+        <div className="mt-14 border-t border-line pt-10">
+          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Hoje</h2>
+          <p className="mt-1 text-muted">{needs.length ? `${needs.length} ${needs.length === 1 ? "coisa pede" : "coisas pedem"} sua atenção.` : "Nada pendente com você."}</p>
+        </div>
         {surfaced[0] ? (
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-2">
             O mais importante agora: <Link className="font-medium text-ink underline decoration-line underline-offset-4 hover:decoration-accent" href={`/insight/${surfaced[0].id}`}>{stripRefs(surfaced[0].headline)}</Link>

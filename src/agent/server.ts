@@ -18,6 +18,7 @@ import { createContext } from '../runtime/context.js';
 import { systemClock } from '../util/clock.js';
 import { createSkillRuntime } from '../skills/index.js';
 import { messageRecorder, saveMessages, userMessages } from './chatLog.js';
+import { friendlyRunError, loggableError } from './errors.js';
 import { runWendyAgent } from './run.js';
 import { performWrite, WRITE_PATHS, writeErrorStatus, type WritePath } from '../../inspector/writeApi.js';
 
@@ -109,8 +110,8 @@ http
       await saveMessages(db, pid, userMessages(parsed.data as RunAgentInput), new Date());
       await runWendyAgent({ ctx, db, principalId: pid, skills }, parsed.data as RunAgentInput, send);
     } catch (e) {
-      console.error('[agent run error]', e);
-      send({ type: EventType.RUN_ERROR, message: (e as Error).message } as BaseEvent);
+      console.error('[agent run error]', loggableError(e));
+      send({ type: EventType.RUN_ERROR, message: friendlyRunError(e) } as BaseEvent);
     }
     if (pid) await saveMessages(db, pid, recorder.messages, new Date()).catch((e) => console.error('[chat log error]', e));
     res.end();

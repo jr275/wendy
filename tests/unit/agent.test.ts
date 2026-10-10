@@ -158,10 +158,74 @@ describe('Wendy AG-UI agent run', () => {
     expect(tools.show_execution).toBeUndefined();
   });
 
+  const feeling = { category: 'concerned', confidence: 0.9, evidence_source: 'explicit_user_statement', evidence_quote: 'estou ansioso', response_tone: 'calm' };
+
+  it('a message that only states a feeling gets a short supportive reply, with no answer flow and no card', async () => {
+    const reasoner = new ScriptedReasoner(db, {
+      intent: () => ({ skill: 'none', input_json: '{}', reason: 'only a feeling', mood: feeling, emotional_only: true }),
+      support: () => ({ reply: 'Sinto muito que isso esteja pesando. Quer conversar sobre o que mais te preocupa?' }),
+    });
+    const { types, tools, text } = await collect(reasoner, 'estou ansioso com essa viagem', {}, true);
+    expect(types.at(-1)).toBe('RUN_FINISHED');
+    expect(text).toMatch(/pesando/);
+    expect(tools.show_answer).toBeUndefined();
+    expect(reasoner.calls.map((c) => c.purpose)).toEqual(['intent', 'support']);
+  });
+
+  it('a supportive reply that states facts or numbers is rejected and the evidence-backed path answers instead', async () => {
+    const reasoner = new ScriptedReasoner(db, {
+      intent: () => ({ skill: 'none', input_json: '{}', reason: 'only a feeling', mood: feeling, emotional_only: true }),
+      support: () => ({ reply: 'Sua viagem é dia 12, já confirmei o voo.' }),
+      'understand-question': () => emptyUnderstanding(),
+      answer: () => ({ answer: 'Não sei.', claims: [], used_evidence: [], conflicts: [], information_gaps: ['Sem dados.'] }),
+    });
+    const { tools } = await collect(reasoner, 'estou ansioso com essa viagem', {}, true);
+    expect(tools.show_answer).toBeDefined();
+  });
+
+  it('emotional_only without a validated mood, or alongside a question, never takes the support path', async () => {
+    const reasoner = new ScriptedReasoner(db, {
+      intent: () => ({ skill: 'none', input_json: '{}', reason: 'x', mood: null, emotional_only: true }),
+      'understand-question': () => emptyUnderstanding(),
+      answer: () => ({ answer: 'Não sei.', claims: [], used_evidence: [], conflicts: [], information_gaps: ['Sem dados.'] }),
+    });
+    await collect(reasoner, 'estou ansioso com essa viagem', {}, true);
+    expect(reasoner.calls.map((c) => c.purpose)).not.toContain('support');
+  });
+
+  it('a bare emotion word gets a clarifying question instead of an answer from records', async () => {
+    const reasoner = new ScriptedReasoner(db, {
+      intent: () => ({ skill: 'none', input_json: '{}', reason: 'bare word', mood: null, feeling_unclear: true }),
+      clarify: () => ({ reply: 'Você está sentindo isso agora ou quer conversar sobre o tema?' }),
+    });
+    const { text, tools } = await collect(reasoner, 'ansiedade', {}, true);
+    expect(text).toMatch(/\?/);
+    expect(tools.show_answer).toBeUndefined();
+    expect(reasoner.calls.map((c) => c.purpose)).toEqual(['intent', 'clarify']);
+  });
+
   it('an empty question ends with RUN_ERROR and calls no model', async () => {
     const reasoner = new ScriptedReasoner(db, {});
     const { types } = await collect(reasoner, '   ');
     expect(types).toEqual(['RUN_STARTED', 'RUN_ERROR']);
     expect(reasoner.calls).toHaveLength(0);
+  });
+});
+
+describe('run errors: what the principal sees and what the log keeps', () => {
+  it('explains an expired Google login in pt-BR and never repeats provider details', async () => {
+    const { friendlyRunError, loggableError } = await import('../../src/agent/errors.js');
+    const gaxios = Object.assign(new Error('{"error":"invalid_grant","error_description":"reauth related error (invalid_rapt)"}'), { name: 'GaxiosError' });
+    expect(friendlyRunError(gaxios)).toBe('A autenticação do Google (usada pelo Gemini) expirou. No terminal, rode `gcloud auth application-default login` e tente de novo.');
+    expect(friendlyRunError(new Error('429 RESOURCE_EXHAUSTED'))).toMatch(/limite de uso/);
+    expect(friendlyRunError(new Error('fetch failed'))).toMatch(/rede/);
+    expect(friendlyRunError(new Error('boom {"secret":"x"}'))).toBe('A Wendy não conseguiu responder por um erro interno. O detalhe está no log do agente.');
+  });
+  it('the log line carries name and message only, with credentials masked', async () => {
+    const { loggableError } = await import('../../src/agent/errors.js');
+    const e = Object.assign(new Error('refresh_token=1//0hbaVjks8wj2-CgYIARAAGBESNgF-L9Ir8Ik4VbfNAjEScUyW3ODgZQ41n9eZmS6r1WJPBvB5MXBKHLvZ40 client_secret: abc123 failed'), { name: 'GaxiosError' });
+    const line = loggableError(e);
+    expect(line).toMatch(/^GaxiosError: refresh_token=<redacted>/);
+    expect(line).not.toMatch(/0hbaVjks8wj2|abc123/);
   });
 });

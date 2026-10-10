@@ -2,6 +2,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { approveAction, rejectAction } from "@/lib/actions";
 import { MemoryRow } from "./memory-row";
+import { TaskObject } from "./concierge/task-object";
 import { fetchExecution } from "@/lib/live";
 import type { ExecutionView } from "@/lib/wendy";
 
@@ -168,6 +169,12 @@ function Result({ v }: { v: ExecutionView }) {
 }
 
 export function ExecutionCard({ initial }: { initial: ExecutionView }) {
+  // A call is a delegated task, not a generic skill card: it gets the concierge task object.
+  if (initial.skillId === "voice-concierge") return <TaskObject initial={initial} compact />;
+  return <SkillCard initial={initial} />;
+}
+
+function SkillCard({ initial }: { initial: ExecutionView }) {
   const [v, setV] = useState(initial);
   const reload = async () => {
     const next = await fetchExecution(v.id);

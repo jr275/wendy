@@ -21,7 +21,7 @@ export function TopBar({ reasoner, wide = false }: { reasoner: string | null; wi
             <span className="hidden rounded-full bg-warn-soft px-3 py-1 text-xs text-warn md:inline" title="Modo MVP: o Claude ainda não está disponível">
               Raciocínio: <span className="num">{reasoner}</span> · não é o Claude
             </span>
-            <span className="rounded-full bg-warn-soft px-2.5 py-1 text-[11px] text-warn md:hidden" title={`Raciocínio: ${reasoner} — não é o Claude (modo MVP)`}>
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-warn-soft px-2.5 py-1 text-[11px] text-warn md:hidden" title={`Raciocínio: ${reasoner} — não é o Claude (modo MVP)`}>
               não é o Claude
             </span>
           </>

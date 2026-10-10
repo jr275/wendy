@@ -7,7 +7,7 @@ import { refresh } from "next/cache";
  */
 const AGENT = (process.env.WENDY_AGUI_URL ?? "http://127.0.0.1:3458/agui").replace(/\/agui$/, "");
 
-export type WriteResult = { ok: true } | { ok: false; error: string };
+export type WriteResult = { ok: true; result?: unknown } | { ok: false; error: string };
 
 async function write(name: string, body: Record<string, unknown>): Promise<WriteResult> {
   try {
@@ -17,10 +17,10 @@ async function write(name: string, body: Record<string, unknown>): Promise<Write
       body: JSON.stringify(body),
       cache: "no-store",
     });
-    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; result?: unknown };
     if (!res.ok || !json.ok) return { ok: false, error: friendly(json.error ?? `erro ${res.status}`) };
     refresh();
-    return { ok: true };
+    return { ok: true, result: json.result };
   } catch {
     return { ok: false, error: "A Wendy não respondeu. Verifique se o agente está rodando." };
   }
@@ -47,4 +47,17 @@ export async function confirmMemory(memoryId: string) {
 }
 export async function retractMemory(memoryId: string, reason: string | null) {
   return write("memory/retract", { memoryId, reason });
+}
+
+/**
+ * Cancels a run the principal started. Wendy decides what may stop: waiting approvals die with the
+ * run; an approved effect (a call already placed) is never cancelled — the result says so.
+ */
+export async function cancelExecution(executionId: string): Promise<WriteResult> {
+  const r = await write("execution/cancel", { executionId, reason: "cancelado por você" });
+  if (!r.ok) return r;
+  const status = (r.result as { status?: string } | undefined)?.status;
+  if (status === "not_cancellable") return { ok: false, error: "Esta ligação já foi aprovada e está em andamento; não dá para cancelar daqui." };
+  if (status === "not_found") return { ok: false, error: "Não encontrei esta tarefa." };
+  return r;
 }

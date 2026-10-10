@@ -1,7 +1,8 @@
 "use client";
 import { CopilotChatConfigurationProvider } from "@copilotkit/react-core/v2";
 import { AnswerCard, SiteCard } from "./cards";
-import { SeeingChip, WendyChat } from "./wendy-chat";
+import { ConciergeConversation } from "./concierge/conversation";
+import { SeeingChip } from "./wendy-chat";
 import { useWorkspace, type Mode } from "./workspace-context";
 
 function ModeToggle() {
@@ -29,7 +30,7 @@ function Focus() {
   const { focus, clear } = useWorkspace();
   if (!focus.length) return null;
   return (
-    <section aria-label="Em foco" className="mx-auto max-w-5xl px-4 pt-8 sm:px-6">
+    <section aria-label="Em foco" className="order-last mx-auto w-full max-w-5xl px-4 pb-10 pt-8 sm:px-6 lg:order-none lg:pb-0">
       <div className="flex items-center justify-between gap-3">
         <p className="eyebrow">Em foco · da sua conversa</p>
         <button type="button" onClick={clear} className="rounded-full border border-line px-3 py-1 text-xs text-ink-2 hover:bg-surface-2">
@@ -66,13 +67,13 @@ export function Workspace({ suggestions, children }: { suggestions: string[]; ch
         </div>
         <div className={`min-h-0 flex-1 ${painel ? "" : "mx-auto w-full max-w-3xl"}`}>
           {/* Every chat hook resolves to Wendy, the only agent (some read only this configuration). */}
-          <CopilotChatConfigurationProvider agentId="wendy">
-            <WendyChat suggestions={suggestions} />
+          <CopilotChatConfigurationProvider agentId="wendy" threadId="main">
+            <ConciergeConversation suggestions={suggestions} />
           </CopilotChatConfigurationProvider>
         </div>
       </section>
 
-      <section aria-label="Painel" className={painel ? "min-w-0 flex-1 overflow-y-auto" : "hidden"}>
+      <section aria-label="Painel" className={painel ? "flex min-w-0 flex-1 flex-col overflow-y-auto lg:block" : "hidden"}>
         <Focus />
         {children}
         <button

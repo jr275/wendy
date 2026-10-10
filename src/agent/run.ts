@@ -22,7 +22,9 @@ import type { SkillRegistry } from '../skills/registry.js';
 import type { SkillRuntime } from '../skills/runtime.js';
 import { executionView } from '../skills/view.js';
 import type { Toolbox } from '../tools/index.js';
+import { supportReply } from './support.js';
 import { siteCard } from './siteCard.js';
+import { loggableError } from './errors.js';
 import { summarizeRun } from './skillSummary.js';
 import { resolveViewing } from './viewing.js';
 
@@ -37,10 +39,10 @@ export interface AgentSkills {
 
 export type Send = (e: BaseEvent) => void;
 
-function lastUserText(input: RunAgentInput): string {
+function lastUserMessage(input: RunAgentInput): { id: string | null; text: string } {
   const m = [...input.messages].reverse().find((x) => x.role === 'user');
-  if (!m) return '';
-  return typeof m.content === 'string' ? m.content : contentToText(m.content as never);
+  if (!m) return { id: null, text: '' };
+  return { id: m.id ?? null, text: typeof m.content === 'string' ? m.content : contentToText(m.content as never) };
 }
 
 /** Claim/evidence markers like [C1] or [SC2] are for the validator; the chat shows them as cards instead. */
@@ -65,7 +67,8 @@ export async function runWendyAgent(deps: { ctx: WendyContext; db: Db; principal
   const { ctx, db, principalId } = deps;
   const { threadId, runId } = input;
   send({ type: EventType.RUN_STARTED, threadId, runId } as BaseEvent);
-  const question = lastUserText(input).trim();
+  const last = lastUserMessage(input);
+  const question = last.text.trim();
   if (!question) {
     send({ type: EventType.RUN_ERROR, message: 'Pergunta vazia.' } as BaseEvent);
     return;
@@ -80,10 +83,22 @@ export async function runWendyAgent(deps: { ctx: WendyContext; db: Db; principal
     send({ type: EventType.STEP_STARTED, stepName: 'entendendo' } as BaseEvent);
     const intent = await discoverIntent({ db, registry: deps.skills.registry, toolbox: deps.skills.toolbox, reasoner: ctx.reasoner }, { principalId, request: question, screen: viewing?.description ?? null, now: ctx.clock.now() });
     send({ type: EventType.STEP_FINISHED, stepName: 'entendendo' } as BaseEvent);
+    // The apparent mood of this request (validated by code) goes to the interface as transient agent
+    // state: it is not written to any table and nothing here depends on it.
+    if (intent.mood) send({ type: EventType.STATE_SNAPSHOT, snapshot: { ...((input.state as Record<string, unknown> | undefined) ?? {}), mood: intent.mood } } as BaseEvent);
     if (intent.kind === 'skill') {
-      await runSkillTurn(deps.skills, db, principalId, question, intent.skillId, intent.input, send);
+      await runSkillTurn(deps.skills, db, principalId, question, last.id, intent.skillId, intent.input, send);
       send({ type: EventType.RUN_FINISHED, threadId, runId } as BaseEvent);
       return;
+    }
+    // Only a feeling, nothing to look up or do: a short, fact-free reply (falls back to the answer path if it does not pass).
+    if (intent.emotionalOnly || intent.feelingUnclear) {
+      const support = await supportReply(ctx.reasoner, principalId, question, intent.emotionalOnly ? 'support' : 'clarify');
+      if (support) {
+        emitText(send, support.text);
+        send({ type: EventType.RUN_FINISHED, threadId, runId } as BaseEvent);
+        return;
+      }
     }
   }
 
@@ -130,10 +145,11 @@ export async function runWendyAgent(deps: { ctx: WendyContext; db: Db; principal
 }
 
 /** Starts a skill run, drives it for up to SKILL_TURN_BUDGET_MS, then reports its state as a card. */
-async function runSkillTurn(skills: AgentSkills, db: Db, principalId: string, question: string, skillId: string, input: unknown, send: Send): Promise<void> {
+async function runSkillTurn(skills: AgentSkills, db: Db, principalId: string, question: string, messageId: string | null, skillId: string, input: unknown, send: Send): Promise<void> {
   send({ type: EventType.STEP_STARTED, stepName: 'executando' } as BaseEvent);
-  const id = await skills.runtime.start(principalId, skillId, input, { kind: 'chat', question });
-  const driving = skills.runtime.advance(id).catch((e) => console.error('[skill run error]', id, e));
+  // The message id lets a skill cite the principal's own words (e.g. "pode ligar") as authorization; the runtime checks it.
+  const id = await skills.runtime.start(principalId, skillId, input, { kind: 'chat', question, ...(messageId ? { messageId } : {}) });
+  const driving = skills.runtime.advance(id).catch((e) => console.error('[skill run error]', id, loggableError(e)));
   let timer: NodeJS.Timeout | undefined;
   await Promise.race([driving, new Promise((r) => (timer = setTimeout(r, SKILL_TURN_BUDGET_MS)))]);
   clearTimeout(timer);

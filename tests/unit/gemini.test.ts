@@ -97,3 +97,27 @@ describe('Gemini reasoner: provider failures', () => {
     expect((await rows('gemini-bug'))[0]!.error).toBe('TypeError: a real bug');
   });
 });
+
+describe('Gemini reasoner: optional fast model for the small front-of-chat calls', () => {
+  const seen: string[] = [];
+  const spyAi = { models: { generateContent: async (a: { model: string }) => { seen.push(a.model); return { text: '{"answer":"ok","confidence":1}', modelVersion: 'v', responseId: 'r', usageMetadata: {}, candidates: [{ finishReason: 'STOP' }] }; } } } as never;
+  const call = (c: GeminiReasoningClient, purpose: string) => c.generate({ ...req, purpose, principalId });
+
+  it('unset (the default): every purpose keeps the main model, so nothing changes until it is switched on', async () => {
+    seen.length = 0;
+    const c = new GeminiReasoningClient(db, 'main-m', spyAi, {}, undefined);
+    for (const p of ['intent', 'understand-question', 'answer', 'reason']) await call(c, p);
+    expect(seen).toEqual(['main-m', 'main-m', 'main-m', 'main-m']);
+  });
+  it('set: only intent and understand-question use it; the answer and the reasoning keep the main model; the recorded model is the one used', async () => {
+    seen.length = 0;
+    const c = new GeminiReasoningClient(db, 'main-m', spyAi, {}, 'fast-m');
+    const rows: string[] = [];
+    for (const p of ['intent', 'understand-question', 'answer', 'reason', 'support', 'clarify']) {
+      const r = await call(c, p);
+      rows.push((await db.query<{ model: string }>('SELECT model FROM model_calls WHERE id = $1', [r.modelCallId])).rows[0]!.model);
+    }
+    expect(seen).toEqual(['fast-m', 'fast-m', 'main-m', 'main-m', 'main-m', 'main-m']);
+    expect(rows).toEqual(seen);
+  });
+});

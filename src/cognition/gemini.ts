@@ -18,6 +18,13 @@ import { DEFAULT_RETRY_POLICY, recordedError, withRetry, withTimeout, type Retry
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.1-pro-preview';
 
+/**
+ * Small, structured calls that sit in front of every chat answer (which skill? who and what is the question about?). Each one waits for the previous one,
+ * so their fixed latency adds up. When GEMINI_FAST_MODEL is set, only these use it; the answer and every reasoning call keep the main model.
+ * Unset (the default) = nothing changes.
+ */
+export const FAST_PURPOSES: ReadonlySet<string> = new Set(['intent', 'understand-question']);
+
 /** Thinking depth mapped from Wendy's effort levels. */
 const THINKING_LEVEL: Record<ReasoningRequest<unknown>['effort'], 'LOW' | 'MEDIUM' | 'HIGH'> = { low: 'LOW', medium: 'MEDIUM', high: 'HIGH', xhigh: 'HIGH', max: 'HIGH' };
 
@@ -31,6 +38,7 @@ export class GeminiReasoningClient implements ReasoningClient {
     private readonly model: string = process.env.GEMINI_MODEL ?? DEFAULT_GEMINI_MODEL,
     ai?: Pick<GoogleGenAI, 'models'>,
     retry: { policy?: Partial<RetryPolicy>; deps?: RetryDeps } = {},
+    private readonly fastModel: string | undefined = process.env.GEMINI_FAST_MODEL?.trim() || undefined,
   ) {
     this.policy = { ...DEFAULT_RETRY_POLICY, ...retry.policy };
     this.deps = retry.deps ?? {};
@@ -47,13 +55,19 @@ export class GeminiReasoningClient implements ReasoningClient {
     return withRetry((attempt) => this.once(req, attempt), this.policy, this.deps);
   }
 
+  /** The model for one call: the fast one for the small front-of-chat calls when configured, otherwise the main one. */
+  modelFor(purpose: string): string {
+    return this.fastModel && FAST_PURPOSES.has(purpose) ? this.fastModel : this.model;
+  }
+
   private async once<T>(req: ReasoningRequest<T>, attempt: number): Promise<ReasoningResult<T>> {
     const id = newId();
+    const model = this.modelFor(req.purpose);
     await recordModelCall(this.db, {
       id,
       principalId: req.principalId,
       purpose: req.purpose,
-      model: this.model,
+      model: model,
       input: { system: req.system, user: req.user, effort: req.effort, provider: 'vertex-gemini', attempt },
       evidenceRefs: req.evidenceRefs,
       startedAt: new Date(),
@@ -61,7 +75,7 @@ export class GeminiReasoningClient implements ReasoningClient {
 
     try {
       const response = await withTimeout(this.ai.models.generateContent({
-        model: this.model,
+        model: model,
         contents: req.user,
         config: {
           systemInstruction: req.system,
@@ -72,7 +86,7 @@ export class GeminiReasoningClient implements ReasoningClient {
         },
       }), this.policy.timeoutMs);
       const finish = response.candidates?.[0]?.finishReason ?? null;
-      const meta = { stopReason: finish, usage: response.usageMetadata, servedBy: response.modelVersion ?? this.model, apiMessageId: response.responseId };
+      const meta = { stopReason: finish, usage: response.usageMetadata, servedBy: response.modelVersion ?? model, apiMessageId: response.responseId };
 
       let parsed: z.ZodSafeParseResult<T> | null = null;
       try {
@@ -82,10 +96,10 @@ export class GeminiReasoningClient implements ReasoningClient {
       }
       if (!parsed?.success) {
         await finishModelCall(this.db, id, { ...meta, error: `UNPARSEABLE_OUTPUT${parsed ? `: ${parsed.error.issues.slice(0, 3).map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}` : ''}` });
-        throw new ReasoningUnavailableError(`No valid structured output from ${this.model} (${req.purpose}, finish=${finish})`, 'invalid_output');
+        throw new ReasoningUnavailableError(`No valid structured output from ${model} (${req.purpose}, finish=${finish})`, 'invalid_output');
       }
       await finishModelCall(this.db, id, { ...meta, output: parsed.data });
-      return { output: parsed.data, modelCallId: id, model: this.model };
+      return { output: parsed.data, modelCallId: id, model: model };
     } catch (err) {
       if (!(err instanceof ReasoningUnavailableError)) await finishModelCall(this.db, id, { error: recordedError(err) });
       throw err;

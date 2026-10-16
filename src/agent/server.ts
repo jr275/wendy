@@ -17,6 +17,7 @@ import { DevMailboxProvider } from '../providers/devMailbox.js';
 import { createContext } from '../runtime/context.js';
 import { systemClock } from '../util/clock.js';
 import { createSkillRuntime } from '../skills/index.js';
+import { readLimited, safeJson } from './body.js';
 import { messageRecorder, saveMessages, userMessages } from './chatLog.js';
 import { agentOffReason, gateAgentRequest, parseAgentSetting } from './availability.js';
 import { friendlyRunError, loggableError } from './errors.js';
@@ -92,11 +93,16 @@ http
     if (req.url.startsWith('/write/')) {
       // Writes from the web app's server actions. The principal is fixed here, never taken from the body.
       const path = `/api/write/${req.url.slice('/write/'.length)}` as WritePath;
-      let raw = '';
-      for await (const chunk of req) raw += chunk;
+      const raw = await readLimited(req);
+      if (raw === null) {
+        res.writeHead(413, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'request too large' }));
+        return;
+      }
       try {
         if (!WRITE_PATHS.includes(path)) throw Object.assign(new Error('unknown write'), { status: 404 });
-        const body = { ...(JSON.parse(raw || '{}') as Record<string, unknown>), principalId: await principalId() };
+        const json = safeJson(raw);
+        if (!json.ok || typeof json.value !== 'object' || json.value === null || Array.isArray(json.value)) throw Object.assign(new Error('invalid JSON body'), { status: 400 });
+        const body = { ...(json.value as Record<string, unknown>), principalId: await principalId() };
         const result = await performWrite(db, path, body);
         res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true, result }));
       } catch (e) {
@@ -104,16 +110,14 @@ http
       }
       return;
     }
-    let body = '';
-    for await (const chunk of req) {
-      body += chunk;
-      if (body.length > 2_000_000) {
-        res.writeHead(413).end();
-        return;
-      }
+    const body = await readLimited(req);
+    if (body === null) {
+      res.writeHead(413).end();
+      return;
     }
-    const parsed = RunAgentInputSchema.safeParse(JSON.parse(body || '{}'));
-    if (!parsed.success) {
+    const json = safeJson(body);
+    const parsed = json.ok ? RunAgentInputSchema.safeParse(json.value) : null;
+    if (!parsed || !parsed.success) {
       res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'invalid RunAgentInput' }));
       return;
     }

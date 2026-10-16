@@ -56,7 +56,7 @@ const tickRoutines = async () => {
   if (routinesBusy) return;
   routinesBusy = true;
   try {
-    for (const r of await runDueRoutines(db, { handlers: { research_digest: researchDigestHandler(), market_watch: marketWatchHandler() } }, new Date()))
+    for (const r of await runDueRoutines(db, { handlers: { research_digest: researchDigestHandler(), market_watch: marketWatchHandler() }, clock: () => new Date() }, new Date()))
       if (r.outcome !== 'skipped') console.log(JSON.stringify({ at: new Date().toISOString(), routine: r.kind, date: r.runDate, outcome: r.outcome, stored: r.stored, detail: r.detail }));
   } catch (e) {
     console.error('[routines error]', loggableError(e));

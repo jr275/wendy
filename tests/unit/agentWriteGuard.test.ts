@@ -185,7 +185,7 @@ describe('source order in the agent server (regression guard, NOT a running serv
     const at = (needle: string) => s.indexOf(needle);
     expect(at('authorized(req.headers.authorization)')).toBeGreaterThan(-1);
     expect(at('gateAgentRequest(')).toBeGreaterThan(at('authorized(req.headers.authorization)'));
-    for (const later of ['for await (const chunk of req)', 'saveMessages(db, pid, userMessages', 'performWrite(db, path, body)', 'principalId()']) {
+    for (const later of ['readLimited(req)', 'saveMessages(db, pid, userMessages', 'performWrite(db, path, body)', 'principalId()']) {
       const i = s.indexOf(later, at('gateAgentRequest('));
       expect(i, later).toBeGreaterThan(at('gateAgentRequest('));
     }

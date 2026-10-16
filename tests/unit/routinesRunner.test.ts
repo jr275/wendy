@@ -126,3 +126,19 @@ describe('runner (isolated test database)', () => {
     expect(JSON.stringify(ev)).not.toContain('example.test');
   });
 });
+
+describe('runner: finished_at is when the run ENDED', () => {
+  it('uses the injected clock for the end of the run, so the stored duration is real (it used to equal the start)', async () => {
+    const t2 = await createTestDb();
+    try {
+      const p = await createPrincipal(t2.db, { displayName: 'P', primaryEmail: 'p@example.test', timezone: 'America/Sao_Paulo', locale: 'pt-BR' });
+      await t2.db.query(`INSERT INTO routines(id, principal_id, kind, created_at, updated_at) VALUES ($1,$2,'research_digest',$3,$3)`, [newId(), p, LATE]);
+      const end = new Date(LATE.getTime() + 95_000);
+      await runDueRoutines(t2.db, { handlers: { research_digest: async () => ({ items: [] }) }, clock: () => end }, LATE);
+      const r = (await t2.db.query<{ s: number }>(`SELECT extract(epoch from (finished_at - started_at))::int AS s FROM routine_runs`)).rows[0]!;
+      expect(r.s).toBe(95);
+    } finally {
+      await t2.drop();
+    }
+  });
+});

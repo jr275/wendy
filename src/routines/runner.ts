@@ -38,6 +38,8 @@ export type RoutineHandler = (ctx: { db: Db; principalId: string; routine: Routi
 export interface RunnerDeps {
   /** Only kinds with a handler can run; the others are left alone (no run row is created for them). */
   handlers: Partial<Record<string, RoutineHandler>>;
+  /** When a run ENDS (the worker passes the real clock, so `finished_at` minus `started_at` is the real duration). Default: the `now` of the tick, which keeps tests deterministic. */
+  clock?: () => Date;
 }
 
 export interface RunReport {
@@ -89,6 +91,7 @@ export async function runDueRoutines(db: Db, deps: RunnerDeps, now: Date, opts: 
       continue;
     }
     const id = runId;
+    const endedAt = () => (deps.clock ?? (() => now))();
     await withTx(db, (tx) => appendAudit(tx, { principalId: r.principal_id, eventType: 'ROUTINE_RUN_STARTED', actor: 'WENDY', subjectType: 'routine', subjectId: r.id, payload: { kind: r.kind, runDate, runId: id } }));
     try {
       const res = await handler({ db, principalId: r.principal_id, routine: r, config: r.config ?? {}, now, runDate });
@@ -102,7 +105,7 @@ export async function runDueRoutines(db: Db, deps: RunnerDeps, now: Date, opts: 
           );
           n += ins.rowCount ?? 0;
         }
-        await tx.query(`UPDATE routine_runs SET status = 'DONE', finished_at = $2, lease_until = NULL, error = $3 WHERE id = $1`, [id, now, res.note ? redactSecrets(res.note).slice(0, 500) : null]);
+        await tx.query(`UPDATE routine_runs SET status = 'DONE', finished_at = $2, lease_until = NULL, error = $3 WHERE id = $1`, [id, endedAt(), res.note ? redactSecrets(res.note).slice(0, 500) : null]);
         await appendAudit(tx, { principalId: r.principal_id, eventType: 'ROUTINE_RUN_FINISHED', actor: 'WENDY', subjectType: 'routine', subjectId: r.id, payload: { kind: r.kind, runDate, runId: id, stored: n, offered: res.items.length } });
         return n;
       });
@@ -110,7 +113,7 @@ export async function runDueRoutines(db: Db, deps: RunnerDeps, now: Date, opts: 
     } catch (e) {
       const m = msg(e);
       await withTx(db, async (tx) => {
-        await tx.query(`UPDATE routine_runs SET status = 'FAILED', finished_at = $2, lease_until = NULL, error = $3 WHERE id = $1`, [id, now, m]);
+        await tx.query(`UPDATE routine_runs SET status = 'FAILED', finished_at = $2, lease_until = NULL, error = $3 WHERE id = $1`, [id, endedAt(), m]);
         await appendAudit(tx, { principalId: r.principal_id, eventType: 'ROUTINE_RUN_FAILED', actor: 'WENDY', subjectType: 'routine', subjectId: r.id, payload: { kind: r.kind, runDate, runId: id } });
       });
       reports.push({ routineId: r.id, kind: r.kind, runDate, outcome: 'failed', detail: m });

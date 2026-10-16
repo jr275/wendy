@@ -29,7 +29,7 @@ export function ReadingDigest({ digest, canWrite }: { digest: DigestView | null;
         <ul className="card mt-3 divide-y divide-line-2 overflow-hidden">
           {shown.map((i) => (
             <li key={i.id} className={`px-5 py-4 ${i.read ? "opacity-60" : ""}`}>
-              <a href={i.url} target="_blank" rel="noopener noreferrer" className="font-medium text-ink underline decoration-line underline-offset-4 hover:decoration-accent">
+              <a href={i.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center font-medium text-ink underline decoration-line underline-offset-4 hover:decoration-accent lg:min-h-0">
                 {i.title}
               </a>
               <span className="mt-0.5 block text-sm text-muted">

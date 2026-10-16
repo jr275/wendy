@@ -14,7 +14,7 @@ import { appendAudit } from '../audit/ledger.js';
 import { redactSecrets } from '../cognition/resilience.js';
 import { withTx, type Db } from '../db/db.js';
 import { newId } from '../util/hash.js';
-import { decide, LEASE_MIN, localParts, type RoutineRow, type RunRow } from './schedule.js';
+import { decide, LEASE_MIN, periodStart, type RoutineRow, type RunRow } from './schedule.js';
 
 export interface NewDigestItem {
   kind: 'article' | 'quote' | 'challenge';
@@ -54,14 +54,14 @@ export interface RunReport {
 const msg = (e: unknown) => redactSecrets(e instanceof Error ? e.message : String(e)).slice(0, 500);
 
 export async function runDueRoutines(db: Db, deps: RunnerDeps, now: Date, opts: { force?: boolean; onlyKind?: string; principalId?: string } = {}): Promise<RunReport[]> {
-  const routines = (await db.query<RoutineRow & { config: Record<string, unknown> }>(`SELECT id, principal_id, kind, enabled, local_time::text AS local_time, timezone, paused_until, config FROM routines WHERE enabled ORDER BY created_at`)).rows;
+  const routines = (await db.query<RoutineRow & { config: Record<string, unknown> }>(`SELECT id, principal_id, kind, enabled, local_time::text AS local_time, timezone, paused_until, cadence, weekday, day_of_month, config FROM routines WHERE enabled ORDER BY created_at`)).rows;
   const reports: RunReport[] = [];
   for (const r of routines) {
     if (opts.onlyKind && r.kind !== opts.onlyKind) continue;
     if (opts.principalId && r.principal_id !== opts.principalId) continue;
     const handler = deps.handlers[r.kind];
     if (!handler) continue;
-    const runDate = localParts(now, r.timezone).date;
+    const runDate = periodStart(r, now);
     const today = (await db.query<RunRow & { id: string }>(`SELECT id, status, attempts, lease_until, started_at, finished_at FROM routine_runs WHERE routine_id = $1 AND run_date = $2`, [r.id, runDate])).rows[0] ?? null;
     // "Run now" ignores the time of day but never the one-run-per-day rule.
     const d = decide(opts.force ? { ...r, local_time: '00:00' } : r, now, today);

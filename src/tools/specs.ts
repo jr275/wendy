@@ -24,9 +24,12 @@ export const TOOL_SPECS = {
   'web.fetch': { name: 'web.fetch', description: 'Read one public web page as text (public internet only).', category: 'READ', risk: 'LOW', label: 'Ler página da web' },
   'documents.list': { name: 'documents.list', description: "List readable files in the principal's authorized documents folder.", category: 'READ', risk: 'LOW', label: 'Listar documentos' },
   'documents.read': { name: 'documents.read', description: 'Read one file from the authorized documents folder as text.', category: 'READ', risk: 'LOW', label: 'Ler documento' },
+  'contacts.find': { name: 'contacts.find', description: "Find the principal's contacts by name, phone number (or its last digits) or words from the context or notes.", category: 'READ', risk: 'LOW', label: 'Buscar contato' },
+  'contacts.save': { name: 'contacts.save', description: 'Save a contact the principal described (name, phone, what the person is to them) or add a note to one. Stores only what the principal said; never messages or calls anyone.', category: 'WRITE', risk: 'LOW', defaultMode: 'REQUIRE_APPROVAL', label: 'Salvar contato' },
   'tasks.list': { name: 'tasks.list', description: "List the principal's open tasks.", category: 'READ', risk: 'LOW', label: 'Ver tarefas' },
   'tasks.create': { name: 'tasks.create', description: 'Create tasks for the principal.', category: 'WRITE', risk: 'LOW', defaultMode: 'REQUIRE_APPROVAL', label: 'Criar tarefas' },
   'tasks.complete': { name: 'tasks.complete', description: 'Mark one task as done.', category: 'WRITE', risk: 'LOW', defaultMode: 'AUTO', label: 'Concluir tarefa' },
+  'tasks.update': { name: 'tasks.update', description: "Set the person's own priority or category on one task, snooze it until a date, or archive it. Never changes the title or the due date.", category: 'WRITE', risk: 'LOW', defaultMode: 'AUTO', label: 'Atualizar tarefa' },
   'tasks.delete': { name: 'tasks.delete', description: 'Delete one task (kept in history as DELETED).', category: 'DESTRUCTIVE', risk: 'MEDIUM', label: 'Apagar tarefa' },
   // Calls a person or business on the principal's behalf: external, always approved (the mandate is the approved content).
   'voice.call': { name: 'voice.call', description: 'Place a phone call on the principal\'s behalf under an approved mandate.', category: 'EXTERNAL', risk: 'HIGH', label: 'Fazer uma ligação' },

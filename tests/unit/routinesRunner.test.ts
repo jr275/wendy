@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from '../../src/db/db.js';
 import { createPrincipal } from '../../src/events/world.js';
 import { runDueRoutines, type NewDigestItem, type RoutineHandler } from '../../src/routines/runner.js';
-import { decide, localParts, timeToMinutes, type RoutineRow, type RunRow } from '../../src/routines/schedule.js';
+import { decide, localParts, periodStart, timeToMinutes, type RoutineRow, type RunRow } from '../../src/routines/schedule.js';
 import { newId } from '../../src/util/hash.js';
 import { createTestDb } from '../helpers/db.js';
 
@@ -140,5 +140,48 @@ describe('runner: finished_at is when the run ENDED', () => {
     } finally {
       await t2.drop();
     }
+  });
+});
+
+describe('cadence (pure): the period a moment belongs to, in America/Sao_Paulo', () => {
+  const weekly = { ...base, cadence: 'weekly' as const, weekday: 0, local_time: '18:00:00' }; // Sundays 18:00
+  const monthly = { ...base, cadence: 'monthly' as const, day_of_month: 1, local_time: '09:00:00' };
+  it('daily is the local day; weekly is the most recent chosen weekday; monthly the most recent chosen day', () => {
+    expect(periodStart(base, new Date('2026-10-16T11:00:00Z'))).toBe('2026-10-16');
+    expect(periodStart(weekly, new Date('2026-10-14T15:00:00Z'))).toBe('2026-10-11'); // Wednesday → the Sunday before
+    expect(periodStart(weekly, new Date('2026-10-11T22:00:00Z'))).toBe('2026-10-11'); // Sunday itself
+    expect(periodStart(monthly, new Date('2026-10-16T11:00:00Z'))).toBe('2026-10-01');
+    expect(periodStart({ ...monthly, day_of_month: 15 }, new Date('2026-10-10T11:00:00Z'))).toBe('2026-09-15'); // before the 15th → last month's
+    expect(periodStart({ ...monthly, day_of_month: 20 }, new Date('2027-01-05T15:00:00Z'))).toBe('2026-12-20'); // across the year
+  });
+  it('uses the LOCAL date: 23:30 on Saturday in São Paulo is already Sunday in UTC but still the previous period', () => {
+    expect(periodStart(weekly, new Date('2026-10-18T02:30:00Z'))).toBe('2026-10-11'); // Sat 23:30 local
+  });
+  it('the time of day only gates the first day of the period; later days of it are a recovery (due at once)', () => {
+    expect(decide(weekly, new Date('2026-10-11T19:00:00Z'), null)).toEqual({ action: 'skip', reason: 'too_early' }); // Sunday 16:00 local
+    expect(decide(weekly, new Date('2026-10-11T22:00:00Z'), null)).toEqual({ action: 'claim' }); // Sunday 19:00 local
+    expect(decide(weekly, new Date('2026-10-14T08:00:00Z'), null)).toEqual({ action: 'claim' }); // Wednesday: Sunday's run was missed
+    expect(decide(weekly, new Date('2026-10-14T08:00:00Z'), run({ status: 'DONE' }))).toEqual({ action: 'skip', reason: 'done' });
+  });
+});
+
+describe('cadence (runner, isolated database)', () => {
+  let t3: Awaited<ReturnType<typeof createTestDb>>;
+  let pid3: string;
+  beforeAll(async () => {
+    t3 = await createTestDb();
+    pid3 = await createPrincipal(t3.db, { displayName: 'P', primaryEmail: 'p@example.test', timezone: 'America/Sao_Paulo', locale: 'pt-BR' });
+    await t3.db.query(`INSERT INTO routines(id, principal_id, kind, local_time, cadence, weekday, created_at, updated_at) VALUES ($1,$2,'weekly_review','18:00','weekly',0,$3,$3)`, [newId(), pid3, LATE]);
+  });
+  afterAll(() => t3.drop());
+  it('a weekly routine runs once per week, recovers a missed Sunday, and runs again the next week', async () => {
+    let calls = 0;
+    const h = { handlers: { weekly_review: (async () => { calls++; return { items: [] }; }) as RoutineHandler } };
+    const wed = new Date('2026-10-14T15:00:00Z'); // Wednesday: the Sunday run (10-11) was missed
+    expect((await runDueRoutines(t3.db, h, wed))[0]).toMatchObject({ outcome: 'done', runDate: '2026-10-11' });
+    expect((await runDueRoutines(t3.db, h, new Date('2026-10-15T15:00:00Z')))[0]).toMatchObject({ outcome: 'skipped', detail: 'done' });
+    expect(calls).toBe(1);
+    expect((await runDueRoutines(t3.db, h, new Date('2026-10-18T22:00:00Z')))[0]).toMatchObject({ outcome: 'done', runDate: '2026-10-18' }); // next Sunday 19:00 local
+    expect(calls).toBe(2);
   });
 });

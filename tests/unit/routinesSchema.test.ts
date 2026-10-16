@@ -32,8 +32,8 @@ describe('migration 009: routines', () => {
     const r = (await db.query<{ enabled: boolean; local_time: string; timezone: string; paused_until: Date | null; config: unknown }>(`SELECT enabled, local_time::text, timezone, paused_until, config FROM routines WHERE id = $1`, [id])).rows[0]!;
     expect(r).toEqual({ enabled: true, local_time: '07:30:00', timezone: 'America/Sao_Paulo', paused_until: null, config: {} });
   });
-  it('only the known kinds are accepted; one routine of a kind per person', async () => {
-    await expect(routine('something_else')).rejects.toThrow();
+  it('a malformed kind is refused (011: the code decides which kinds run); one routine of a kind per person', async () => {
+    await expect(routine('Something Else!')).rejects.toThrow();
     await routine('daily_quote');
     await expect(routine('daily_quote')).rejects.toThrow(); // UNIQUE (principal_id, kind)
   });
@@ -65,14 +65,38 @@ describe('migration 009: routines', () => {
 });
 
 describe('migration 010: market watch', () => {
-  it('accepts the market_watch routine kind, still rejects unknown kinds, and keeps watchlist/alerts unique', async () => {
+  it('accepts the market_watch routine kind, still rejects malformed kinds, and keeps watchlist/alerts unique', async () => {
     await db.query(`INSERT INTO routines(id, principal_id, kind, created_at, updated_at) VALUES ($1,$2,'market_watch',$3,$3)`, [newId(), pid, NOW]);
-    await expect(db.query(`INSERT INTO routines(id, principal_id, kind, created_at, updated_at) VALUES ($1,$2,'nope',$3,$3)`, [newId(), pid, NOW])).rejects.toThrow();
+    await expect(db.query(`INSERT INTO routines(id, principal_id, kind, created_at, updated_at) VALUES ($1,$2,'No pe!',$3,$3)`, [newId(), pid, NOW])).rejects.toThrow();
     await db.query(`INSERT INTO watchlist(id, principal_id, symbol, market, source, updated_at) VALUES ($1,$2,'PETR4','B3','liquidity',$3)`, [newId(), pid, NOW]);
     await expect(db.query(`INSERT INTO watchlist(id, principal_id, symbol, market, source, updated_at) VALUES ($1,$2,'PETR4','B3','config',$3)`, [newId(), pid, NOW])).rejects.toThrow();
     await expect(db.query(`INSERT INTO watchlist(id, principal_id, symbol, market, source, updated_at) VALUES ($1,$2,'x y','B3','config',$3)`, [newId(), pid, NOW])).rejects.toThrow();
     const a = () => db.query(`INSERT INTO market_alerts(id, principal_id, symbol, kind, observed_at, value, threshold, explanation, created_at) VALUES ($1,$2,'PETR4','VOLUME_SPIKE',$3,4,3,'x',$3)`, [newId(), pid, NOW]);
     await a();
     await expect(a()).rejects.toThrow(); // same candle, same kind: once
+  });
+});
+
+describe('migration 011: concierge phase 1', () => {
+  it('tasks: priority and category are optional and constrained; ARCHIVED is a valid state; existing rows are untouched', async () => {
+    const t = async (cols: string, vals: unknown[]) => db.query(`INSERT INTO tasks(id, principal_id, title, status, source, created_by, created_at, updated_at${cols}) VALUES ($1,$2,'t','OPEN','{}','PRINCIPAL',$3,$3${vals.map((_, i) => `,$${i + 4}`).join('')})`, [newId(), pid, NOW, ...vals]);
+    await t('', []);
+    await t(', priority, category', ['HIGH', 'trabalho']);
+    await expect(t(', priority', ['MAYBE'])).rejects.toThrow();
+    await expect(t(', category', [''])).rejects.toThrow();
+    await db.query(`INSERT INTO tasks(id, principal_id, title, status, source, created_by, created_at, updated_at, archived_at) VALUES ($1,$2,'x','ARCHIVED','{}','PRINCIPAL',$3,$3,$3)`, [newId(), pid, NOW]);
+    await expect(db.query(`INSERT INTO tasks(id, principal_id, title, status, source, created_by, created_at, updated_at) VALUES ($1,$2,'x','WAITING','{}','PRINCIPAL',$3,$3)`, [newId(), pid, NOW])).rejects.toThrow();
+  });
+  it('routines: free kind names are accepted but malformed ones are not; the cadence needs its own field and nothing else', async () => {
+    const r = (kind: string, cols = '', vals: unknown[] = []) => db.query(`INSERT INTO routines(id, principal_id, kind, created_at, updated_at${cols}) VALUES ($1,$2,$3,$4,$4${vals.map((_, i) => `,$${i + 5}`).join('')})`, [newId(), pid, kind, NOW, ...vals]);
+    await r('daily_plan');
+    await expect(r('Bad Kind')).rejects.toThrow();
+    await r('weekly_review', ', cadence, weekday', ['weekly', 0]);
+    await r('monthly_report', ', cadence, day_of_month', ['monthly', 1]);
+    await expect(r('weekly_x', ', cadence', ['weekly'])).rejects.toThrow(); // weekly needs a weekday
+    await expect(r('monthly_x', ', cadence, day_of_month', ['monthly', 31])).rejects.toThrow(); // 28 at most
+    await expect(r('daily_x', ', cadence, weekday', ['daily', 3])).rejects.toThrow(); // daily takes no day
+    const old = (await db.query<{ cadence: string }>(`SELECT cadence FROM routines WHERE kind = 'market_watch'`)).rows[0];
+    expect(old?.cadence ?? 'daily').toBe('daily'); // routines that existed keep running daily
   });
 });

@@ -127,7 +127,7 @@ describe('skill registry', () => {
 
   it('derives permissions from tools, resolves dependencies, composes, searches, and can disable', () => {
     const r = builtinRegistry();
-    expect(r.permissions('task-management').map((p) => p.category).sort()).toEqual(['DESTRUCTIVE', 'READ', 'WRITE', 'WRITE']);
+    expect(r.permissions('task-management').map((p) => p.category).sort()).toEqual(['DESTRUCTIVE', 'READ', 'WRITE', 'WRITE', 'WRITE']);
     expect(r.resolveDependencies('research-and-plan').map((s) => s.id)).toEqual(['web-research', 'task-management', 'research-and-plan']);
     expect(r.compose('research-and-plan').children.map((c) => c.id)).toEqual(['web-research', 'task-management']);
     expect(r.search('analise o contrato em PDF')[0]!.id).toBe('document-analysis');

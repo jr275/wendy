@@ -18,4 +18,14 @@ export const EVENT_LABEL: Record<string, string> = {
   PRINCIPAL_QUESTION: "pergunta",
   SEARCH_PERFORMANCE_CHANGE: "site · Google",
 };
-export const ACTION_LABEL: Record<string, string> = { SEND_EMAIL: "E-mail", PREPARE_BRIEFING: "Briefing" };
+export const ACTION_LABEL: Record<string, string> = {
+  SEND_EMAIL: "E-mail",
+  PREPARE_BRIEFING: "Briefing",
+  "contacts.save": "Salvar contato",
+  "tasks.create": "Criar tarefas",
+  "tasks.update": "Atualizar tarefa",
+  "tasks.complete": "Concluir tarefa",
+  "tasks.delete": "Apagar tarefa",
+  "memory.propose": "Propor memórias",
+  "voice.call": "Fazer uma ligação",
+};

@@ -57,3 +57,11 @@ export async function refreshDigest(): Promise<WriteResult> {
   if (out.outcome === "failed") return { ok: false, error: "Não consegui buscar agora. Tento de novo mais tarde." };
   return r;
 }
+
+/** Adds an asset to the market monitor's list (checked with one request to the data provider). It only watches: no order, no message. */
+export async function addMarketAsset(symbol: string): Promise<WriteResult> {
+  return write("market/add", { symbol });
+}
+export async function removeMarketAsset(symbol: string): Promise<WriteResult> {
+  return write("market/remove", { symbol });
+}

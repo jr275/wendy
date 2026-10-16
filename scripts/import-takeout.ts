@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import { parseArgs } from 'node:util';
 import { databaseUrl, loadEnv } from '../src/config.js';
-import { createPool, migrate } from '../src/db/db.js';
+import { createPool, assertMigrated } from '../src/db/db.js';
 import { createPrincipal } from '../src/events/world.js';
 import { importTakeout, loadExclusions } from '../src/importers/takeout.js';
 import { normalizeAddress } from '../src/repositories/pg.js';
@@ -44,7 +44,7 @@ const since = a.since ? new Date(`${a.since}T00:00:00Z`) : new Date(Date.now() -
 if (Number.isNaN(since.getTime())) fail('--since deve ser AAAA-MM-DD');
 
 const db = createPool(databaseUrl());
-await migrate(db);
+await assertMigrated(db);
 const email = normalizeAddress(a['principal-email']!);
 let principalId = (await db.query<{ id: string }>('SELECT id FROM principals WHERE primary_email = $1', [email])).rows[0]?.id;
 if (!principalId) {

@@ -100,3 +100,19 @@ describe('migration 011: concierge phase 1', () => {
     expect(old?.cadence ?? 'daily').toBe('daily'); // routines that existed keep running daily
   });
 });
+
+describe('migration 012: market view', () => {
+  it('candles are unique per person, symbol and day and refuse nonsense; watchlist accepts user rows, references and index symbols', async () => {
+    const c = (sym: string, day: string, vol = 10) => db.query(`INSERT INTO market_candles(principal_id, symbol, day, open, high, low, close, volume, fetched_at) VALUES ($1,$2,$3,1,2,0.5,1.5,$4,$5)`, [pid, sym, day, vol, NOW]);
+    await c('PETR4', '2026-10-15');
+    await expect(c('PETR4', '2026-10-15')).rejects.toThrow(); // one candle per day
+    await expect(c('PETR4', '2026-10-16', -1)).rejects.toThrow(); // negative volume
+    const w = (sym: string, cols = '', vals: unknown[] = []) => db.query(`INSERT INTO watchlist(id, principal_id, symbol, market, source, updated_at${cols}) VALUES ($1,$2,$3,'B3','user',$4${vals.map((_, i) => `,$${i + 5}`).join('')})`, [newId(), pid, sym, NOW, ...vals]);
+    await w('ITUB4');
+    await w('^BVSP', ', role', ['reference']);
+    await expect(w('x y')).rejects.toThrow();
+    await expect(w('ABC', ', role', ['nope'])).rejects.toThrow();
+    await db.query(`UPDATE watchlist SET excluded = true WHERE symbol = 'ITUB4'`);
+    expect((await db.query(`SELECT excluded, role FROM watchlist WHERE symbol = 'ITUB4'`)).rows[0]).toEqual({ excluded: true, role: 'asset' });
+  });
+});

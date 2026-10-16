@@ -1,5 +1,6 @@
 /** Read model of one skill run (and its children) for the UI. Read-only, scoped to the principal. */
 import type { Queryable } from '../db/db.js';
+import { approvalItems } from './approvalItems.js';
 import { toolSpec } from '../tools/specs.js';
 import { summarizeMandate } from '../voice/mandate.js';
 import type { VoiceMandate } from '../voice/types.js';
@@ -45,13 +46,18 @@ export async function executionView(q: Queryable, registry: SkillRegistry, princ
   const approvals: ExecutionView['approvals'] = [];
   for (const a of rows) {
     const spec = toolSpec(a.action_type);
-    const c = a.content as { tasks?: { title: string }[]; taskId?: string };
+    const c = a.content as { tasks?: { title: string }[]; taskId?: string; personId?: string };
+    const taskTitle = c.taskId ? ((await q.query<{ title: string }>('SELECT title FROM tasks WHERE id = $1 AND principal_id = $2', [c.taskId, principalId])).rows[0]?.title ?? null) : null;
+    const contactName = c.personId ? ((await q.query<{ full_name: string }>('SELECT full_name FROM people WHERE id = $1 AND principal_id = $2', [c.personId, principalId])).rows[0]?.full_name ?? null) : null;
+    const described = approvalItems(a.action_type, a.content, { taskTitle, contactName });
     const items = a.action_type === 'voice.call'
       ? summarizeMandate(a.content as unknown as VoiceMandate)
+      : described.length
+      ? described
       : c.tasks
       ? c.tasks.map((t) => t.title)
-      : c.taskId
-        ? (await q.query<{ title: string }>('SELECT title FROM tasks WHERE id = $1 AND principal_id = $2', [c.taskId, principalId])).rows.map((r) => r.title)
+      : taskTitle
+        ? [taskTitle]
         : [];
     approvals.push({ actionId: a.id, tool: a.action_type, label: spec?.label ?? a.action_type, category: spec?.category ?? 'UNKNOWN', state: a.state, content: a.content, items });
   }

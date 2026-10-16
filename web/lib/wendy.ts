@@ -44,6 +44,10 @@ function demo(path: string): unknown {
       return { memories: [] };
     case "/api/market":
       return { market: null };
+    case "/api/market/overview":
+      return { market: null };
+    case "/api/market/asset":
+      return { asset: null };
     case "/api/digest":
       return { digest: null };
     case "/api/review":
@@ -54,10 +58,10 @@ function demo(path: string): unknown {
 }
 
 async function get<T>(path: string, params: Record<string, string> = {}): Promise<T> {
-  if (DEMO) {
-    await connection(); // like the real fetch, render per request (the page reads the current time)
-    return demo(path) as T;
-  }
+  // Every read is per request (the pages show the current time and live data). This MUST come before the fetch and outside any try/catch of the
+  // callers: the framework signals "this page is dynamic" with an exception, and a caller that swallows it would render the page as if it were static.
+  await connection();
+  if (DEMO) return demo(path) as T;
   const q = new URLSearchParams({ schema: SCHEMA, ...params });
   const res = await fetch(`${API}${path}?${q}`, { cache: "no-store", headers: apiHeaders(process.env.WENDY_API_TOKEN) });
   if (!res.ok) throw new Error(`Wendy API ${path} → ${res.status}`);
@@ -401,6 +405,83 @@ export interface MarketView {
 export async function marketFor(principalId: string): Promise<MarketView | null> {
   try {
     return (await get<{ market: MarketView | null }>("/api/market", { principal: principalId })).market;
+  } catch {
+    return null;
+  }
+}
+
+export interface MarketQuote {
+  symbol: string;
+  market: "B3" | "US";
+  lastClose: number;
+  prevClose: number | null;
+  changePct: number | null;
+  asOf: string;
+  spark?: number[];
+}
+export interface MarketWatchRow {
+  symbol: string;
+  market: "B3" | "US";
+  source: "liquidity" | "config" | "user";
+  role: "asset" | "reference";
+  active: boolean;
+  excluded: boolean;
+  lastClose: number | null;
+  changePct: number | null;
+  asOf: string | null;
+}
+export interface MarketAlertRow {
+  id: string;
+  symbol: string;
+  kind: "MOVE_OUTLIER" | "VOLUME_SPIKE" | "RANGE_EXPANSION";
+  day: string;
+  value: number;
+  threshold: number;
+  explanation: string;
+}
+export interface MarketOverview {
+  note: string;
+  routine: { enabled: boolean; localTime: string; timezone: string } | null;
+  lastRun: { date: string; status: string } | null;
+  references: MarketQuote[];
+  gainers: MarketQuote[];
+  losers: MarketQuote[];
+  alerts: MarketAlertRow[];
+  watchlist: MarketWatchRow[];
+  counts: { watchedAssets: number; excluded: number };
+  budget: { perSweep: number; perMonthEstimate: number; monthlyQuota: number; maxAssets: number };
+  asOf: string | null;
+}
+export interface MarketCandle {
+  day: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+export interface MarketAsset {
+  note: string;
+  symbol: string;
+  market: "B3" | "US";
+  role: "asset" | "reference";
+  source: string;
+  active: boolean;
+  candles: MarketCandle[];
+  alerts: MarketAlertRow[];
+  stats: { lastClose: number; changePct: number | null; high: number; low: number; days: number; asOf: string } | null;
+}
+/** null when the market data cannot be read (never invented): the page says so. */
+export async function marketOverviewFor(principalId: string): Promise<MarketOverview | null> {
+  try {
+    return (await get<{ market: MarketOverview | null }>("/api/market/overview", { principal: principalId })).market;
+  } catch {
+    return null;
+  }
+}
+export async function marketAssetFor(principalId: string, symbol: string): Promise<MarketAsset | null> {
+  try {
+    return (await get<{ asset: MarketAsset | null }>("/api/market/asset", { principal: principalId, symbol })).asset;
   } catch {
     return null;
   }

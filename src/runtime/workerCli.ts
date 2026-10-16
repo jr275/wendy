@@ -1,6 +1,6 @@
 import { createReasoner, reasonerKind } from '../cognition/reasoner.js';
 import { databaseUrl, loadEnv } from '../config.js';
-import { createPool, migrate } from '../db/db.js';
+import { assertMigrated, createPool } from '../db/db.js';
 import { loggableError } from '../agent/errors.js';
 import { DevMailboxProvider } from '../providers/devMailbox.js';
 import { systemClock } from '../util/clock.js';
@@ -17,7 +17,7 @@ import { marketWatchHandler } from '../routines/marketWatch.js';
 
 loadEnv();
 const db = createPool(databaseUrl());
-await migrate(db);
+await assertMigrated(db);
 const ctx = createContext({ db, reasoner: createReasoner(db), clock: systemClock, emailProvider: new DevMailboxProvider(db) });
 ctx.skills = createSkillRuntime(ctx, { owner: `worker:${process.pid}` }).runtime;
 

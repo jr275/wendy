@@ -3,6 +3,7 @@ import { ActionExecutor } from '../actions/executor.js';
 import type { WendyContext } from '../runtime/context.js';
 import { Toolbox, type ToolboxDeps } from '../tools/index.js';
 import { GeminiWebSearch } from '../tools/web.js';
+import { contactImport } from './builtin/contactImport.js';
 import { contactManagement } from './builtin/contactManagement.js';
 import { documentAnalysis } from './builtin/documentAnalysis.js';
 import { learnAboutMe } from './builtin/learnAboutMe.js';
@@ -17,7 +18,7 @@ import { SkillRuntime, type RuntimeDeps } from './runtime.js';
 
 /** Built-in skills, dependencies first. */
 export function builtinRegistry(): SkillRegistry {
-  return new SkillRegistry().register(webResearch).register(documentAnalysis).register(taskManagement).register(researchAndPlan).register(learnAboutMe).register(voiceConcierge).register(researchDigestSkill).register(marketWatchSkill).register(contactManagement);
+  return new SkillRegistry().register(webResearch).register(documentAnalysis).register(taskManagement).register(researchAndPlan).register(learnAboutMe).register(voiceConcierge).register(researchDigestSkill).register(marketWatchSkill).register(contactManagement).register(contactImport);
 }
 
 export function defaultToolbox(ctx: Pick<WendyContext, 'db'>, overrides: Partial<ToolboxDeps> = {}): Toolbox {

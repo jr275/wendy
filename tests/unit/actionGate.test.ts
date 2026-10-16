@@ -109,7 +109,7 @@ describe('source contract (regression guard, not behaviour)', () => {
   const actions = src('lib/actions.ts');
   it('every exported server action goes through the single write door; lib/actions.ts has no other fetch', () => {
     const exported = [...actions.matchAll(/export async function (\w+)/g)].map((m) => m[1]);
-    expect(exported.sort()).toEqual(['approveAction', 'cancelExecution', 'confirmMemory', 'markDigestRead', 'refreshDigest', 'rejectAction', 'retractMemory', 'setSiteImportance']);
+    expect(exported.sort()).toEqual(['addMarketAsset', 'approveAction', 'cancelExecution', 'confirmMemory', 'markDigestRead', 'refreshDigest', 'rejectAction', 'removeMarketAsset', 'retractMemory', 'setSiteImportance']);
     expect((actions.match(/\bwrite\(/g) ?? []).length).toBeGreaterThanOrEqual(exported.length); // one call each (cancelExecution included)
     expect(actions).toMatch(/unavailableReason: ACTION_UNAVAILABLE_REASON/);
     expect(actions.replace(/fetchImpl: fetch/, '')).not.toMatch(/\bfetch\(/);

@@ -22,6 +22,7 @@ export const ACTION_LABEL: Record<string, string> = {
   SEND_EMAIL: "E-mail",
   PREPARE_BRIEFING: "Briefing",
   "contacts.save": "Salvar contato",
+  "contacts.import": "Importar contatos",
   "tasks.create": "Criar tarefas",
   "tasks.update": "Atualizar tarefa",
   "tasks.complete": "Concluir tarefa",

@@ -30,7 +30,7 @@ export function readBrapiToken(file = defaultTokenPath()): string | null {
 /** B3 tickers (PETR4, VALE3, BOVA11…). */
 export const isB3Ticker = (s: string): boolean => /^[A-Z]{4}\d{1,2}$/.test(s);
 /** B3 or US tickers (AAPL, MSFT…): validated before they go into a URL. */
-export const isTicker = (s: string): boolean => isB3Ticker(s) || /^[A-Z]{1,5}$/.test(s);
+export const isTicker = (s: string): boolean => isB3Ticker(s) || /^[A-Z]{1,5}$/.test(s) || /^\^[A-Z]{3,8}$/.test(s); // ^BVSP-style index symbols too
 
 type FetchLike = (url: string, init: { headers: Record<string, string>; signal: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
@@ -39,7 +39,7 @@ export async function fetchDailyCandles(symbol: string, token: string, opts: { f
   const doFetch = opts.fetchImpl ?? (fetch as unknown as FetchLike);
   let res;
   try {
-    res = await doFetch(`https://brapi.dev/api/quote/${symbol}?range=3mo&interval=1d`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, signal: AbortSignal.timeout(opts.timeoutMs ?? 20_000) });
+    res = await doFetch(`https://brapi.dev/api/quote/${encodeURIComponent(symbol)}?range=3mo&interval=1d`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, signal: AbortSignal.timeout(opts.timeoutMs ?? 20_000) });
   } catch {
     throw new BrapiError('não consegui falar com a brapi');
   }

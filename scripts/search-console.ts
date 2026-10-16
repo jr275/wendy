@@ -12,7 +12,7 @@
 import { parseArgs } from 'node:util';
 import { createReasoner, reasonerKind } from '../src/cognition/reasoner.js';
 import { databaseUrl, loadEnv } from '../src/config.js';
-import { createPool, migrate } from '../src/db/db.js';
+import { createPool, assertMigrated } from '../src/db/db.js';
 import { createPrincipal } from '../src/events/world.js';
 import { DevMailboxProvider } from '../src/providers/devMailbox.js';
 import { normalizeAddress } from '../src/repositories/pg.js';
@@ -43,7 +43,7 @@ if (!['add', 'list', 'sync'].includes(cmd ?? '')) fail('use: add | list | sync')
 if (!a['principal-email']) fail('informe --principal-email');
 
 const db = createPool(databaseUrl());
-await migrate(db);
+await assertMigrated(db);
 const email = normalizeAddress(a['principal-email']!);
 let principalId = (await db.query<{ id: string }>('SELECT id FROM principals WHERE primary_email = $1', [email])).rows[0]?.id;
 if (!principalId) {

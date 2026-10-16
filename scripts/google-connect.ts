@@ -6,13 +6,13 @@
  */
 import { spawn } from 'node:child_process';
 import { databaseUrl, loadEnv } from '../src/config.js';
-import { createPool, migrate } from '../src/db/db.js';
+import { assertMigrated, createPool } from '../src/db/db.js';
 import { connectGoogle } from '../src/sensors/google/auth.js';
 import { registerConnection } from '../src/sensors/google/sync.js';
 
 loadEnv();
 const db = createPool(databaseUrl());
-await migrate(db);
+await assertMigrated(db);
 const email = (process.env.WENDY_PRINCIPAL_EMAIL ?? '').toLowerCase();
 const p = (await db.query<{ id: string; primary_email: string }>('SELECT id, primary_email FROM principals WHERE primary_email = $1', [email])).rows[0];
 if (!p) throw new Error(`principal ${email || '(WENDY_PRINCIPAL_EMAIL unset)'} not found`);

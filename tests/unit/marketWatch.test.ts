@@ -43,10 +43,13 @@ describe('market_watch routine', () => {
     const r = await run(base());
     expect(r[0]).toMatchObject({ outcome: 'done' });
     expect(r[0]!.detail).toBe('4 ativos verificados, 3 observações novas');
-    const w = (await db.query<{ symbol: string; market: string }>(`SELECT symbol, market FROM watchlist WHERE active ORDER BY symbol`)).rows;
+    const w = (await db.query<{ symbol: string; market: string }>(`SELECT symbol, market FROM watchlist WHERE active AND role = 'asset' ORDER BY symbol`)).rows;
+    expect((await db.query<{ symbol: string }>(`SELECT symbol FROM watchlist WHERE role = 'reference'`)).rows.map((r) => r.symbol).sort()).toEqual(['QQQ', '^BVSP']);
+    // the history is kept for every asset and every reference, so the person can see it
+    expect((await db.query<{ symbol: string }>(`SELECT DISTINCT symbol FROM market_candles`)).rows.map((r) => r.symbol).sort()).toEqual(['AAPL', 'MSFT', 'PETR4', 'QQQ', 'VALE3', '^BVSP']);
     expect(w).toEqual([{ symbol: 'AAPL', market: 'US' }, { symbol: 'MSFT', market: 'US' }, { symbol: 'PETR4', market: 'B3' }, { symbol: 'VALE3', market: 'B3' }]);
     const a = (await db.query<{ symbol: string; kind: string; explanation: string }>(`SELECT symbol, kind, explanation FROM market_alerts ORDER BY kind`)).rows;
-    expect(a.every((x) => x.symbol === 'PETR4')).toBe(true);
+    expect(a.every((x) => x.symbol === 'PETR4')).toBe(true); // the reference series never raise alerts
     expect(a.map((x) => x.kind)).toEqual(['MOVE_OUTLIER', 'RANGE_EXPANSION', 'VOLUME_SPIKE']);
     expect(a[0]!.explanation).toMatch(/não uma recomendação/);
   });

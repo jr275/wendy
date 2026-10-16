@@ -23,6 +23,39 @@ export function normalizePhone(raw: string): string | null {
   return /^[1-9]\d{9,14}$/.test(digits) ? `+${digits}` : null;
 }
 
+export type LoosePhone = { phone: string } | { phone: null; reason: 'sem_ddd' | 'suspeito' | 'invalido' | 'vazio' };
+
+/**
+ * For IMPORTING a whole address book, where numbers come in every shape. Stricter than guessing, looser than normalizePhone:
+ *  - "+<country…>" is taken as written when it has a believable length (12–15 digits, or 11 starting with 1);
+ *  - without "+", a number that already starts with the country code, or one with area code + number (10–11 digits), gets the country code;
+ *  - a number with only 8–9 digits has NO area code and is never completed by guessing (unless the caller passes defaultArea);
+ *  - a "+" number with 10–11 digits that is not North American is probably missing its country code: reported as suspect, not fixed.
+ */
+export function normalizePhoneLoose(raw: string, opts: { country?: string; area?: string } = {}): LoosePhone {
+  const country = opts.country ?? '55';
+  const t = raw.trim();
+  if (!t) return { phone: null, reason: 'vazio' };
+  let digits = t.replace(/\D/g, '');
+  const plus = t.startsWith('+') || digits.startsWith('00');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (!digits) return { phone: null, reason: 'invalido' };
+  const ok = (d: string) => (/^[1-9]\d{9,14}$/.test(d) ? { phone: `+${d}` } : ({ phone: null, reason: 'invalido' } as const));
+  if (plus) {
+    if (digits.startsWith(country) && digits.length !== country.length + 10 && digits.length !== country.length + 11) return { phone: null, reason: 'invalido' };
+    if (digits.length === 11 && digits.startsWith('1')) return ok(digits); // +1 (area) number: North America
+    if (digits.length === 10 || digits.length === 11) return { phone: null, reason: 'suspeito' };
+    return ok(digits);
+  }
+  if (digits.startsWith(country) && (digits.length === country.length + 10 || digits.length === country.length + 11)) return ok(digits);
+  // Brazilian trunk prefix: "(021) 99999-9999" is written with a leading 0 before the area code; it is only a dialling prefix, not part of the number.
+  if (country === '55' && digits.startsWith('0') && !digits.startsWith('00') && (digits.length === 11 || digits.length === 12) && /^[1-9][1-9]/.test(digits.slice(1))) digits = digits.slice(1);
+  const validArea = (d: string) => /^[1-9][1-9]/.test(d);
+  if ((digits.length === 10 || digits.length === 11) && validArea(digits)) return ok(`${country}${digits}`);
+  if (digits.length === 8 || digits.length === 9) return opts.area && /^[1-9][1-9]$/.test(opts.area) ? ok(`${country}${opts.area}${digits}`) : { phone: null, reason: 'sem_ddd' };
+  return { phone: null, reason: 'invalido' };
+}
+
 /** Lowercase, no accents, single spaces: how names are compared. */
 export const normalizeName = (s: string): string =>
   s

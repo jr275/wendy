@@ -26,6 +26,24 @@ Atualizado em 16/out/2026. Duas rotinas diárias que rodam no **worker** (`npm r
 - **Onde ver:** cartão "Mercado" na Home (os casos mais fortes dos últimos 7 dias); chat ("o que o mercado mostrou?", skill `market-watch`).
 - **Agora:** `npx tsx scripts/market-now.ts` (gasta ~330 requisições). Consulta de um ativo só: `npx tsx scripts/market-probe.ts PETR4`.
 
+## Tela do Mercado (`/mercado`, `/mercado/<ativo>`) — 16/out/2026
+- **Panorama:** Ibovespa e um ETF do Nasdaq-100 (QQQ) como referências, com mini-gráfico, e um parágrafo montado só com números guardados (sem modelo, sem "por quê", sem "o que fazer"). **O dólar não aparece**: o câmbio exige o plano pago da brapi.
+- **Maiores altas e quedas** entre os seus ativos, ignorando os de volume muito baixo; uma alta nunca aparece como queda.
+- **Gráfico por ativo:** candles diários (corpo vazio = alta, cheio = queda, sem depender só de cor), volume, marcador nos dias com observação, 1 mês ou 3 meses, e tabela com os mesmos números.
+- **Histórico de alertas** dos últimos 30 dias, com número e explicação, e **lista editável**: adicionar valida o código com 1 consulta à brapi e já guarda o histórico; remover é permanente (sobrevive à atualização semanal); "restaurar" traz de volta.
+- **Cota:** a tela mostra quantas consultas cada verificação usa e a estimativa mensal contra as 15.000 do plano gratuito. Limite de 398 ativos.
+- **Candles guardados:** a varredura passou a guardar o histórico que já baixava (sem consultas extras); `npx tsx scripts/market-backfill.ts PETR4 …` busca o histórico de ativos já na lista (1 consulta por ativo), útil antes da próxima verificação. Migration `012_market_view.sql`.
+
+## Contatos e importação (Concierge, Fase 1)
+- Salvar e buscar contatos pelo chat (skill `contact-management`), sempre com aprovação e só com o que você disse.
+- **Importar uma agenda em CSV** (Google Contatos): copie o arquivo para `~/Wendy/Importar` e rode `npx tsx scripts/contacts-import.ts --file "caminho.csv" [--default-area 21]` (simula, sem gravar). Com `--propose` o lote entra na fila de aprovação (um cartão com as contagens). Só nome e telefone são lidos; número sem código do país ou sem DDD **não é completado por chute** (só com `--default-area`); o relatório das linhas de fora fica ao lado do arquivo (modo 600).
+
+## Subir tudo no Mac
+`./scripts/dev-up.sh` inicia o que não estiver rodando (agente 3458, inspetor 3457, worker e site 3010), sem duplicar. Logs em `~/Wendy/logs`. Os processos iniciados por uma sessão do app morrem quando ela reinicia; este comando os sobe de novo.
+
+## Migrations
+O worker e os scripts que apontam para o banco real **não aplicam migrations sozinhos**: com uma pendente, recusam iniciar e dizem o que fazer (backup, depois `npm run migrate`). `WENDY_AUTO_MIGRATE=1` restaura o comportamento antigo.
+
 ## Quando algo não aparece
 | Sintoma | Causa provável |
 |---|---|

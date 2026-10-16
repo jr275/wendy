@@ -580,6 +580,22 @@ export async function market(db: pg.Pool, principalIdParam: string | null) {
   return { market: await marketAlertsFor(db, pid) };
 }
 
+/** The market screen: references, movers, alerts, the watched list and the request budget. Read-only. */
+export async function marketOverviewView(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { market: null };
+  const { marketOverview } = await import('../src/market/views.js');
+  return { market: await marketOverview(db, pid) };
+}
+
+/** One asset: its candles, figures and alerts. Read-only. */
+export async function marketAssetView(db: pg.Pool, principalIdParam: string | null, symbol: string) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid || !/^\^?[A-Za-z0-9]{1,8}$/.test(symbol)) return { asset: null };
+  const { marketAsset } = await import('../src/market/views.js');
+  return { asset: await marketAsset(db, pid, symbol) };
+}
+
 /** What Wendy knows: proposals to confirm and active memories, with freshness. */
 export async function memoryOverview(db: pg.Pool, principalIdParam: string | null) {
   const pid = await resolvePrincipal(db, principalIdParam);

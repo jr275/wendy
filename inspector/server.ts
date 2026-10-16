@@ -18,7 +18,7 @@ import { createPool } from '../src/db/db.js'; // also registers pg type parsers
 import { readOnlyPool } from './readOnlyPool.js';
 import { createWriteApi } from './writeApi.js';
 import { checkBinding, hostedDecision } from '../src/security/apiAuth.js';
-import { activity, actionsList, chat, configuration, digest, history, market, review, execution, executions, memoryOverview, radar, sites, sources, insightDetail, modelCalls, ontology, people, principals, tasks, today } from './views.js';
+import { activity, actionsList, chat, configuration, digest, history, market, marketAssetView, marketOverviewView, review, execution, executions, memoryOverview, radar, sites, sources, insightDetail, modelCalls, ontology, people, principals, tasks, today } from './views.js';
 
 loadEnv();
 const DB_URL = process.env.INSPECT_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres:///wendy';
@@ -230,6 +230,8 @@ http
       if (url.pathname === '/api/review') return send(res, 200, await review(db, principal));
       if (url.pathname === '/api/digest') return send(res, 200, await digest(db, principal));
       if (url.pathname === '/api/market') return send(res, 200, await market(db, principal));
+      if (url.pathname === '/api/market/overview') return send(res, 200, await marketOverviewView(db, principal));
+      if (url.pathname === '/api/market/asset') return send(res, 200, await marketAssetView(db, principal, url.searchParams.get('symbol') ?? ''));
       if (url.pathname === '/api/memories') return send(res, 200, await memoryOverview(db, principal));
       if (url.pathname === '/api/ledger') return send(res, 200, await ledger(db));
       // A list, not one record: it takes the principal, never an id (it sat after the id check, so every call answered "invalid id").

@@ -24,6 +24,7 @@ import { MemoryService, MemoryTransitionError } from '../src/memory/memoryServic
 import { PeopleService } from '../src/people/peopleService.js';
 import { setSiteImportance } from '../src/sensors/searchConsole.js';
 import { DevMailboxProvider } from '../src/providers/devMailbox.js';
+import { addAsset, removeAsset } from '../src/market/watchlist.js';
 import { markDigestRead, refreshDigest } from '../src/routines/digestService.js';
 import { cancelExecution } from '../src/skills/cancel.js';
 import { agentOffReason } from '../src/agent/availability.js';
@@ -68,6 +69,9 @@ const ROUTES = {
   '/api/write/digest/read': route(z.object({ principalId: uuid, itemId: uuid }), (db, b, at) => markDigestRead(db, b.principalId, b.itemId, at)),
   // Runs the reading digest now (public RSS feeds only). Same runner as the schedule: never more than one finished run per local day.
   '/api/write/digest/refresh': route(z.object({ principalId: uuid }), (db, b, at) => refreshDigest(db, b.principalId, at)),
+  // The watched list of the market monitor. Adding checks the asset with one request to the data provider; neither places an order or sends anything.
+  '/api/write/market/add': route(z.object({ principalId: uuid, symbol: z.string().trim().min(1).max(12) }), (db, b, at) => addAsset(db, b.principalId, b.symbol, at)),
+  '/api/write/market/remove': route(z.object({ principalId: uuid, symbol: z.string().trim().min(1).max(12) }), (db, b, at) => removeAsset(db, b.principalId, b.symbol, at)),
   '/api/write/memory/confirm': route(z.object({ principalId: uuid, memoryId: uuid }), async (db, b, at) => {
     await new MemoryService(db).confirm(b.principalId, b.memoryId, at);
     return { status: 'ACTIVE' };

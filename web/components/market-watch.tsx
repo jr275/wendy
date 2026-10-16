@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { MarketView } from "@/lib/wendy";
 
 /**
@@ -38,6 +39,9 @@ export function MarketWatch({ market }: { market: MarketView | null }) {
       ) : (
         <p className="mt-3 text-muted">Nada fora do comum nos últimos 7 dias.</p>
       )}
+      <Link href="/mercado" className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-accent-ink hover:underline lg:min-h-8">
+        Abrir o Mercado: gráficos, lista e histórico →
+      </Link>
       {market.symbolsWithAlerts > bySymbol.size ? <p className="mt-2 text-sm text-faint">Mostrando os {bySymbol.size} casos mais fortes de {market.symbolsWithAlerts} ativos com observações nos últimos 7 dias.</p> : null}
     </div>
   );

@@ -93,7 +93,7 @@ async function Today() {
       {/* Delegate first: Wendy, one field, the tasks she is handling. The Hoje overview follows. */}
       <ConciergeDesk unavailableReason={UNAVAILABLE_REASON} tasks={runs} greeting={`${greeting(now, p.timezone)}, ${firstName(p.display_name)}.`} dateLabel={dateLong(now, p.timezone)} />
       <History questions={past} runs={runs} timeZone={p.timezone} now={now.toISOString()} />
-      <main className="mx-auto max-w-5xl px-4 pb-24 pt-6 sm:px-6">
+      <main className="mx-auto w-full max-w-5xl px-4 pb-24 pt-6 sm:px-6">
         <div className="mt-14 border-t border-line pt-10">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Hoje</h2>

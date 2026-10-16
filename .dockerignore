@@ -1,0 +1,21 @@
+# The backend image is built from the repo root: keep every secret, personal file and build artifact out of the build context.
+.git
+.env
+.env.*
+node_modules
+web
+data
+data-archive-*
+legacy
+eval-results
+gate-results
+shot.png
+deploy/data
+deploy/secrets
+deploy/backups
+deploy/.env
+config/github-scope.json
+config/search-scope.json
+config/spend-policy.json
+config/import-exclusions.json
+config/retrieval-cases.json

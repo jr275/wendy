@@ -1,0 +1,150 @@
+# Wendy on ONE server. Only Caddy publishes ports (80/443); the database, the agent, the read API and the worker are reachable only from inside
+# the Docker network. Each service gets exactly the variables it needs (no shared catch-all env_file), so a secret does not reach a process that has no use for it.
+#
+#   cd deploy && docker compose up -d --build        (after reading README.md)
+name: wendy
+
+x-restart: &restart
+  restart: unless-stopped
+
+x-backend: &backend
+  <<: *restart
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile.backend
+  image: wendy-backend:local
+  volumes:
+    - ./data:/data
+    - ./secrets:/run/secrets:ro
+
+services:
+  db:
+    <<: *restart
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: wendy
+      POSTGRES_DB: wendy
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wendy -d wendy"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    <<: *backend
+    restart: "no"
+    command: ["npx", "tsx", "src/db/migrateCli.ts"]
+    environment:
+      DATABASE_URL: postgres://wendy:${POSTGRES_PASSWORD}@db:5432/wendy
+    depends_on:
+      db:
+        condition: service_healthy
+
+  agent:
+    <<: *backend
+    command: ["npx", "tsx", "src/agent/server.ts"]
+    environment:
+      HOME: /data
+      TZ: America/Sao_Paulo
+      DATABASE_URL: postgres://wendy:${POSTGRES_PASSWORD}@db:5432/wendy
+      WENDY_AGENT_HOST: 0.0.0.0
+      WENDY_AGENT_TOKEN: ${WENDY_AGENT_TOKEN:?set WENDY_AGENT_TOKEN}
+      WENDY_PRINCIPAL_EMAIL: ${WENDY_PRINCIPAL_EMAIL:?set WENDY_PRINCIPAL_EMAIL}
+      WENDY_REASONER: gemini
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:?set GOOGLE_CLOUD_PROJECT}
+      GEMINI_LOCATION: ${GEMINI_LOCATION:-global}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-pro-preview}
+      GEMINI_FAST_MODEL: ${GEMINI_FAST_MODEL:-}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/vertex-sa.json
+      WENDY_DOCUMENTS_DIR: /data/Wendy/Documentos
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(3458,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  inspector:
+    <<: *backend
+    command: ["npx", "tsx", "inspector/server.ts"]
+    environment:
+      HOME: /data
+      TZ: America/Sao_Paulo
+      DATABASE_URL: postgres://wendy:${POSTGRES_PASSWORD}@db:5432/wendy
+      # Hosted mode: read-only API, bearer token required (the process refuses to start on 0.0.0.0 without it).
+      INSPECT_HOST: 0.0.0.0
+      WENDY_API_TOKEN: ${WENDY_API_TOKEN:?set WENDY_API_TOKEN}
+      WENDY_PRINCIPAL_EMAIL: ${WENDY_PRINCIPAL_EMAIL:?set WENDY_PRINCIPAL_EMAIL}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3457/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    <<: *backend
+    command: ["npx", "tsx", "src/runtime/workerCli.ts"]
+    environment:
+      HOME: /data
+      TZ: America/Sao_Paulo
+      DATABASE_URL: postgres://wendy:${POSTGRES_PASSWORD}@db:5432/wendy
+      WENDY_PRINCIPAL_EMAIL: ${WENDY_PRINCIPAL_EMAIL:?set WENDY_PRINCIPAL_EMAIL}
+      WENDY_REASONER: gemini
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:?set GOOGLE_CLOUD_PROJECT}
+      GEMINI_LOCATION: ${GEMINI_LOCATION:-global}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-pro-preview}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/vertex-sa.json
+      WENDY_DOCUMENTS_DIR: /data/Wendy/Documentos
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    <<: *restart
+    build:
+      context: ../web
+      dockerfile: ../deploy/Dockerfile.web
+    image: wendy-web:local
+    environment:
+      NODE_ENV: production
+      WENDY_API_URL: http://inspector:3457
+      WENDY_API_TOKEN: ${WENDY_API_TOKEN:?set WENDY_API_TOKEN}
+      WENDY_AGUI_URL: http://agent:3458/agui
+      WENDY_AGENT_TOKEN: ${WENDY_AGENT_TOKEN:?set WENDY_AGENT_TOKEN}
+      WENDY_PRINCIPAL_EMAIL: ${WENDY_PRINCIPAL_EMAIL:?set WENDY_PRINCIPAL_EMAIL}
+      WENDY_WEB_PASSWORD_HASH: ${WENDY_WEB_PASSWORD_HASH:?set WENDY_WEB_PASSWORD_HASH}
+      WENDY_SESSION_SECRET: ${WENDY_SESSION_SECRET:?set WENDY_SESSION_SECRET}
+    depends_on:
+      agent:
+        condition: service_healthy
+      inspector:
+        condition: service_healthy
+
+  caddy:
+    <<: *restart
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      WENDY_DOMAIN: ${WENDY_DOMAIN:?set WENDY_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

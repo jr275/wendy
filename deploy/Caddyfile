@@ -1,0 +1,28 @@
+# TLS (Let's Encrypt, automatic) and the only door into the system. Everything else stays on the private Docker network.
+{
+	email {$ACME_EMAIL}
+}
+
+{$WENDY_DOMAIN} {
+	encode zstd gzip
+
+	# Optional second layer while the login has no second factor: only your own addresses (uncomment and edit).
+	# @blocked not remote_ip 203.0.113.10 198.51.100.0/24
+	# respond @blocked 403
+
+	request_body {
+		max_size 2MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	reverse_proxy web:3010 {
+		# The login limiter trusts X-Forwarded-For: overwrite whatever the client sent with the real peer address.
+		header_up X-Forwarded-For {remote_host}
+		# The conversation streams (SSE): send every chunk as it arrives.
+		flush_interval -1
+	}
+}

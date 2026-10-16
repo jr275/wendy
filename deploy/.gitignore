@@ -1,0 +1,5 @@
+# Real values, the database, credentials and backups never go to Git.
+.env
+data/
+secrets/
+backups/

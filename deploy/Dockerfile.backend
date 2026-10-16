@@ -1,0 +1,14 @@
+# Agent, read API (inspector) and worker: the same image, a different command (see docker-compose.yml).
+# Built from the repo root:  docker compose -f deploy/docker-compose.yml build
+FROM node:24-bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package.json package-lock.json tsconfig.json ./
+# devDependencies are installed on purpose: the processes run TypeScript directly through tsx.
+RUN npm ci --include=dev && npm cache clean --force
+COPY src ./src
+COPY inspector ./inspector
+COPY scripts ./scripts
+COPY config ./config
+RUN mkdir -p /data && chown -R node:node /data /app
+USER node

@@ -1,0 +1,16 @@
+# The Next.js web app (login + conversation UI). Built from ../web.
+FROM node:24-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+FROM node:24-bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 COPILOTKIT_TELEMETRY_DISABLED=true
+COPY --from=build /app ./
+USER node
+EXPOSE 3010
+CMD ["npx", "next", "start", "-p", "3010", "-H", "0.0.0.0"]

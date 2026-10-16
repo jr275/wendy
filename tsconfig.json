@@ -9,7 +9,8 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "types": ["node"],
-    "noEmit": true
+    "noEmit": true,
+    "paths": { "@/lib/*": ["./web/lib/*"], "next/server": ["./web/node_modules/next/server.d.ts"] }
   },
   "include": ["src", "tests", "fixtures", "scripts", "inspector"]
 }

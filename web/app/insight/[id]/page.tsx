@@ -4,10 +4,11 @@ import { Suspense } from "react";
 import { ApprovalCard } from "@/components/approval";
 import { Lead } from "@/components/lead";
 import { ShareViewing } from "@/components/share-viewing";
-import { WendySidebar } from "@/components/wendy-chat";
+import { AgentAvailability } from "@/components/agent-availability";
+import { ConversationDrawer } from "@/components/concierge/conversation-drawer";
 import { TopBar } from "@/components/top-bar";
 import { EVENT_LABEL, stripRefs } from "@/lib/format";
-import { insight as getInsight, type DetailAction, type DetailClaim, type InsightDetail } from "@/lib/wendy";
+import { insight as getInsight, ACTION_UNAVAILABLE_REASON, UNAVAILABLE_REASON, type DetailAction, type DetailClaim, type InsightDetail } from "@/lib/wendy";
 
 export default function Page(props: PageProps<"/insight/[id]">) {
   return (
@@ -77,7 +78,7 @@ async function InsightView({ params }: { params: Promise<{ id: string }> }) {
   const score = i.salience.score;
 
   return (
-    <>
+    <AgentAvailability actionReason={ACTION_UNAVAILABLE_REASON}>
       <TopBar reasoner={reasoner} />
       <main className="mx-auto max-w-5xl px-4 pb-24 pt-8 sm:px-6 sm:pt-10">
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -89,7 +90,7 @@ async function InsightView({ params }: { params: Promise<{ id: string }> }) {
           {i.status !== "SURFACED" ? <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs text-muted">{i.status === "SUPPRESSED" ? "registrado sem interromper" : "descartado pela validação"}</span> : null}
         </div>
 
-        <h1 className="mt-6 max-w-4xl text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">{stripRefs(i.headline) || "Insight"}</h1>
+        <h1 className="display mt-6 max-w-4xl text-3xl leading-[1.1] tracking-tight sm:text-5xl">{stripRefs(i.headline) || "Insight"}</h1>
         <div className="mt-6 max-w-3xl">
           <Lead text={i.narrative} />
         </div>
@@ -120,8 +121,8 @@ async function InsightView({ params }: { params: Promise<{ id: string }> }) {
                     <ul className="mt-3 grid gap-3">
                       {items.map((c) =>
                         c.kind === "FACT" ? (
-                          <li key={c.label} className="flex items-start gap-3 text-[15px] text-ink-2">
-                            <span className="num mt-0.5 rounded bg-surface-2 px-1.5 text-[11px] text-muted">{c.label}</span>
+                          <li key={c.label} className="flex items-start gap-3 text-body text-ink-2">
+                            <span className="num mt-0.5 rounded bg-surface-2 px-1.5 text-micro text-muted">{c.label}</span>
                             <span>{readableFact(c, d.labels)}</span>
                           </li>
                         ) : (
@@ -189,8 +190,8 @@ async function InsightView({ params }: { params: Promise<{ id: string }> }) {
         </div>
       </main>
       <ShareViewing viewing={{ kind: "insight", id, label: `Insight · ${short(stripRefs(i.headline) || "sem título")}` }} />
-      <WendySidebar suggestions={["Explique isso com mais detalhe", "O que eu devo fazer sobre isso?", "O que a Wendy ainda não sabe aqui?"]} />
-    </>
+      <ConversationDrawer unavailableReason={UNAVAILABLE_REASON} suggestions={["Explique isso com mais detalhe", "O que eu devo fazer sobre isso?", "O que a Wendy ainda não sabe aqui?"]} />
+    </AgentAvailability>
   );
 }
 
@@ -238,7 +239,7 @@ function PreparedAction({ a }: { a: DetailAction }) {
           {(a.content.sections ?? []).map((sec) => (
             <div key={sec.heading}>
               <p className="text-sm font-semibold">{stripRefs(sec.heading)}</p>
-              <ul className="mt-1 grid gap-1 text-[15px] text-ink-2">
+              <ul className="mt-1 grid gap-1 text-body text-ink-2">
                 {sec.points.map((p, k) => (
                   <li key={k}>— {stripRefs(p.text)}</li>
                 ))}

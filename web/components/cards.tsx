@@ -121,7 +121,7 @@ export function AnswerCard({ a, proofOnly = false }: { a: AnswerPayload; proofOn
       {a.gaps.length ? (
         <section className="mt-6">
           <h3 className="eyebrow">O que eu não sei</h3>
-          <ul className="mt-2 grid gap-1.5 text-[15px] text-ink-2">{a.gaps.map((g, i) => <li key={i}>— {g}</li>)}</ul>
+          <ul className="mt-2 grid gap-1.5 text-body text-ink-2">{a.gaps.map((g, i) => <li key={i}>— {g}</li>)}</ul>
         </section>
       ) : null}
 
@@ -225,7 +225,7 @@ export function SiteCard({ s }: { s: SitePayload }) {
           alarm={alarm}
           note={low ? "Volume baixo — as variações percentuais não são conclusivas." : undefined}
         />
-        <dl className="grid grid-cols-3 gap-4 self-end sm:grid-cols-1 sm:gap-3">
+        <dl className="grid grid-cols-1 gap-3 self-end">
           <div>
             <dt className="eyebrow">Impressões</dt>
             <dd className="num mt-0.5 text-lg font-semibold">

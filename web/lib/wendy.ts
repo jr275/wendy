@@ -1,5 +1,7 @@
 import "server-only";
+import { apiHeaders, resolvePrincipalState, type PrincipalState } from "./apiState";
 import { connection } from "next/server";
+import { actionUnavailableReason, parseAgentSetting, unavailableReason } from "./agentConfig";
 
 /**
  * Server-side access to Wendy's read API (the existing inspector server, read-only at the DB level).
@@ -15,6 +17,12 @@ const PRINCIPAL_EMAIL = process.env.WENDY_PRINCIPAL_EMAIL ?? "";
  * obviously fictional principal and EMPTY lists, and the top bar says so. Off unless the variable is "1".
  */
 export const DEMO = process.env.WENDY_DEMO === "1";
+const AGENT_SETTING = parseAgentSetting(process.env.WENDY_AGENT);
+if (AGENT_SETTING === "invalid") console.warn('WENDY_AGENT has a value that is not "off" or "on"; it is ignored (agent availability stays unknown).');
+/** The only places the web KNOWS the agent will not process a message: demo mode, or WENDY_AGENT=off. Anything else is "not known" (undefined), never "available". Server-only (this module); the sentence travels to the client as a prop. */
+export const UNAVAILABLE_REASON: string | undefined = unavailableReason({ demo: DEMO, setting: AGENT_SETTING });
+/** Same idea for actions that write through the agent (lib/actions.ts enforces it on the server; the UI shows it). */
+export const ACTION_UNAVAILABLE_REASON: string | undefined = actionUnavailableReason({ setting: AGENT_SETTING });
 const DEMO_PRINCIPAL = { id: "demo", display_name: "Visitante", primary_email: "demo@example.invalid", timezone: "America/Sao_Paulo" };
 function demo(path: string): unknown {
   switch (path) {
@@ -30,8 +38,16 @@ function demo(path: string): unknown {
       return { tasks: [] };
     case "/api/chat":
       return { messages: [] };
+    case "/api/history":
+      return { questions: [] };
     case "/api/memories":
       return { memories: [] };
+    case "/api/market":
+      return { market: null };
+    case "/api/digest":
+      return { digest: null };
+    case "/api/review":
+      return { review: { generatedAt: new Date().toISOString(), windowDays: 7, overdue: [], upcoming: [], undated: [], waitingOnYou: [], load: [], closedLastWeek: { tasks: 0, commitments: 0 }, next: null, empty: true } };
     default:
       throw new Error(`Modo demonstração: ${path} não tem dados.`);
   }
@@ -43,7 +59,7 @@ async function get<T>(path: string, params: Record<string, string> = {}): Promis
     return demo(path) as T;
   }
   const q = new URLSearchParams({ schema: SCHEMA, ...params });
-  const res = await fetch(`${API}${path}?${q}`, { cache: "no-store" });
+  const res = await fetch(`${API}${path}?${q}`, { cache: "no-store", headers: apiHeaders(process.env.WENDY_API_TOKEN) });
   if (!res.ok) throw new Error(`Wendy API ${path} → ${res.status}`);
   return (await res.json()) as T;
 }
@@ -58,6 +74,11 @@ export interface Principal {
 export async function principal(): Promise<Principal | null> {
   const all = await get<Principal[]>("/api/principals");
   return all.find((p) => p.primary_email === PRINCIPAL_EMAIL) ?? all[0] ?? null;
+}
+
+/** Like principal(), but "the API did not answer" is its own state, so a page can say so instead of crashing or claiming nobody is registered. */
+export function principalState(): Promise<PrincipalState<Principal>> {
+  return resolvePrincipalState(principal);
 }
 
 export interface Claim {
@@ -78,6 +99,9 @@ export interface InsightCard {
   other_model: string | null;
   claims: Claim[] | null;
   explanation: string[] | null;
+  /** Evidence the validated claims cite, and the actions Wendy attached (both straight from her records). */
+  cited?: { handle: string; kind: string; id: string }[] | null;
+  actions?: { id: string; type: string; state: string }[] | null;
 }
 export interface NeedsYou {
   id: string;
@@ -288,6 +312,98 @@ export interface ChatMessage {
 
 export async function chatHistory(principalId: string): Promise<ChatMessage[]> {
   return (await get<{ messages: ChatMessage[] }>("/api/chat", { principal: principalId })).messages;
+}
+
+/** One of the principal's recent questions (a message of the restored conversation), newest first. */
+export interface PastQuestion {
+  id: string;
+  text: string;
+  at: string;
+  /** The task this message started, when it started one (the server links them; null for older runs and plain questions). */
+  runId?: string | null;
+}
+export async function recentQuestions(principalId: string): Promise<PastQuestion[]> {
+  try {
+    return (await get<{ questions: PastQuestion[] }>("/api/history", { principal: principalId })).questions;
+  } catch {
+    return []; // resuming is a convenience: never take the home down with it
+  }
+}
+
+/** The weekly review as the inspector serves it (src/review/weekly.ts): dates travel as ISO strings. */
+export interface ReviewItemView {
+  kind: "task" | "commitment" | "meeting" | "approval";
+  id: string;
+  title: string;
+  at: string | null;
+}
+export interface ReviewView {
+  generatedAt: string;
+  windowDays: number;
+  overdue: ReviewItemView[];
+  upcoming: ReviewItemView[];
+  undated: ReviewItemView[];
+  waitingOnYou: ReviewItemView[];
+  load: { day: string; count: number; busy: boolean }[];
+  closedLastWeek: { tasks: number; commitments: number };
+  next: { item: ReviewItemView; rule: string } | null;
+  empty: boolean;
+}
+/** null when the review cannot be read (never invented): the page says so. */
+export async function weeklyReviewFor(principalId: string): Promise<ReviewView | null> {
+  try {
+    return (await get<{ review: ReviewView | null }>("/api/review", { principal: principalId })).review;
+  } catch {
+    return null;
+  }
+}
+
+export interface DigestItemView {
+  id: string;
+  title: string;
+  url: string;
+  source: string;
+  publishedAt: string | null;
+  summary: string | null;
+  why: string | null;
+  read: boolean;
+  addedAt: string;
+}
+export interface DigestView {
+  routine: { enabled: boolean; localTime: string; timezone: string; pausedUntil: string | null } | null;
+  lastRun: { date: string; status: string; error: string | null } | null;
+  items: DigestItemView[];
+}
+/** null when the digest cannot be read (never invented): the card says so. */
+export async function digestFor(principalId: string): Promise<DigestView | null> {
+  try {
+    return (await get<{ digest: DigestView | null }>("/api/digest", { principal: principalId })).digest;
+  } catch {
+    return null;
+  }
+}
+
+export interface MarketAlertView {
+  id: string;
+  symbol: string;
+  kind: "MOVE_OUTLIER" | "VOLUME_SPIKE" | "RANGE_EXPANSION";
+  observedAt: string;
+  explanation: string;
+  seen: boolean;
+}
+export interface MarketView {
+  routine: DigestView["routine"];
+  lastRun: DigestView["lastRun"];
+  alerts: MarketAlertView[];
+  symbolsWithAlerts: number;
+}
+/** null when the market monitor cannot be read (never invented): the card says so. */
+export async function marketFor(principalId: string): Promise<MarketView | null> {
+  try {
+    return (await get<{ market: MarketView | null }>("/api/market", { principal: principalId })).market;
+  } catch {
+    return null;
+  }
 }
 
 export interface MemoryItem {

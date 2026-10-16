@@ -3,10 +3,12 @@ import { Suspense } from "react";
 import { SiteCard, type SitePayload } from "@/components/cards";
 import { ImportanceControl } from "@/components/importance";
 import { SiteViewingTracker } from "@/components/share-viewing";
-import { WendySidebar } from "@/components/wendy-chat";
+import { ACTIONS_OFF_NOTE_ID, ActionsOffNote, AgentAvailability } from "@/components/agent-availability";
+import { ApiDown } from "@/components/api-down";
+import { ConversationDrawer } from "@/components/concierge/conversation-drawer";
 import { TopBar } from "@/components/top-bar";
 import { stripRefs } from "@/lib/format";
-import { principal as getPrincipal, sites as getSites, today as getToday, reasonerLabel, type Site } from "@/lib/wendy";
+import { principalState, sites as getSites, today as getToday, reasonerLabel, ACTION_UNAVAILABLE_REASON, UNAVAILABLE_REASON, type Site } from "@/lib/wendy";
 
 export default function Page() {
   return (
@@ -40,21 +42,26 @@ function toPayload(s: Site): SitePayload {
 }
 
 async function Sites() {
-  const p = await getPrincipal();
-  if (!p) return null;
-  const [all, t] = await Promise.all([getSites(p.id), getToday(p.id)]);
+  const st = await principalState();
+  if (st.status === "down") return <ApiDown />;
+  if (st.status === "none") return null;
+  const p = st.principal;
+  const loaded = await Promise.all([getSites(p.id), getToday(p.id)]).catch(() => null);
+  if (!loaded) return <ApiDown />;
+  const [all, t] = loaded;
   return (
-    <>
+    <AgentAvailability actionReason={ACTION_UNAVAILABLE_REASON}>
       <TopBar reasoner={reasonerLabel(t.insights ?? [])} />
       <main className="mx-auto max-w-5xl px-4 pb-24 pt-10 sm:px-6 sm:pt-14">
         <p className="eyebrow">Google Search Console · só leitura</p>
-        <h1 className="mt-4 text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
+        <h1 className="display mt-4 text-4xl leading-[1.05] tracking-tight sm:text-6xl">
           Seus sites.
           <span className="block text-muted">O que mudou na última semana.</span>
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-2">
           A Wendy compara os últimos 7 dias com a média das 4 semanas anteriores e só avisa quando a mudança é grande e tem volume suficiente.
         </p>
+        <ActionsOffNote id={ACTIONS_OFF_NOTE_ID} className="mt-8 max-w-2xl" />
         <div className="mt-12 grid gap-16">
           {all.map((s) => (
             <section key={s.id} aria-label={s.label} data-site-id={s.id} data-site-label={s.label} className="grid scroll-mt-20 gap-4">
@@ -92,7 +99,7 @@ async function Sites() {
       </main>
       <SiteViewingTracker />
       {/* "isso" follows the site on screen. */}
-      <WendySidebar suggestions={["Por que isso mudou na última semana?"]} />
-    </>
+      <ConversationDrawer unavailableReason={UNAVAILABLE_REASON} suggestions={["Por que isso mudou na última semana?"]} />
+    </AgentAvailability>
   );
 }

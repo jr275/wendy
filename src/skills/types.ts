@@ -124,6 +124,8 @@ export type ExecutionErrorCode =
   | 'CHILD_FAILED'
   | 'TIMEOUT'
   | 'MODEL_UNAVAILABLE'
+  | 'MODEL_AUTH'
+  | 'MODEL_REFUSED'
   | 'TOOL_FAILED'
   | 'NOTHING_FOUND'
   | 'INTERNAL';

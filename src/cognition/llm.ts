@@ -4,8 +4,12 @@ import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import type { z } from 'zod';
 import { MODELS, PROMPT_VERSION } from '../config.js';
 import type { Db } from '../db/db.js';
+import { maskCardDeep } from '../security/cardRedaction.js';
 import type { EvidenceRef } from '../domain/types.js';
 import { newId } from '../util/hash.js';
+import { DEFAULT_RETRY_POLICY, ReasoningUnavailableError, recordedError, withRetry, withTimeout, type RetryDeps, type RetryPolicy } from './resilience.js';
+
+export { ReasoningUnavailableError };
 
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
@@ -31,8 +35,6 @@ export interface ReasoningClient {
   generate<T>(req: ReasoningRequest<T>): Promise<ReasoningResult<T>>;
 }
 
-export class ReasoningUnavailableError extends Error {}
-
 /** Records a model call; used by every ReasoningClient implementation. */
 export async function recordModelCall(
   db: Db,
@@ -49,7 +51,7 @@ export async function recordModelCall(
   await db.query(
     `INSERT INTO model_calls(id, principal_id, purpose, model, prompt_version, input, input_evidence_refs, started_at)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [row.id, row.principalId, row.purpose, row.model, PROMPT_VERSION, JSON.stringify(row.input), JSON.stringify(row.evidenceRefs), row.startedAt],
+    [row.id, row.principalId, row.purpose, row.model, PROMPT_VERSION, JSON.stringify(maskCardDeep(row.input)), JSON.stringify(row.evidenceRefs), row.startedAt],
   );
 }
 
@@ -63,7 +65,7 @@ export async function finishModelCall(
      WHERE id = $1`,
     [
       id,
-      fields.output === undefined ? null : JSON.stringify(fields.output),
+      fields.output === undefined ? null : JSON.stringify(maskCardDeep(fields.output)),
       fields.stopReason ?? null,
       fields.usage === undefined ? null : JSON.stringify(fields.usage),
       fields.error ?? null,
@@ -114,30 +116,39 @@ export function createClaudeClient(provider: ClaudeProvider = claudeProvider()):
 export class ClaudeReasoningClient implements ReasoningClient {
   private readonly client: ClaudeClient;
   private readonly provider: ClaudeProvider;
+  private readonly policy: RetryPolicy;
+  private readonly deps: RetryDeps;
 
   constructor(
     private readonly db: Db,
-    opts: { client?: Anthropic; model?: string; provider?: ClaudeProvider } = {},
+    opts: { client?: Anthropic; model?: string; provider?: ClaudeProvider; retry?: Partial<RetryPolicy>; retryDeps?: RetryDeps } = {},
     private readonly model: string = opts.model ?? MODELS.reasoning,
   ) {
     this.provider = opts.provider ?? claudeProvider();
     this.client = opts.client ?? createClaudeClient(this.provider);
+    this.policy = { ...DEFAULT_RETRY_POLICY, ...opts.retry };
+    this.deps = opts.retryDeps ?? {};
   }
 
-  async generate<T>(req: ReasoningRequest<T>): Promise<ReasoningResult<T>> {
+  /** One logical call: transient failures are retried (see resilience.ts); each attempt is its own model_calls row. */
+  generate<T>(req: ReasoningRequest<T>): Promise<ReasoningResult<T>> {
+    return withRetry((attempt) => this.once(req, attempt), this.policy, this.deps);
+  }
+
+  private async once<T>(req: ReasoningRequest<T>, attempt: number): Promise<ReasoningResult<T>> {
     const id = newId();
     await recordModelCall(this.db, {
       id,
       principalId: req.principalId,
       purpose: req.purpose,
       model: this.model,
-      input: { system: req.system, user: req.user, effort: req.effort, provider: this.provider },
+      input: { system: req.system, user: req.user, effort: req.effort, provider: this.provider, attempt },
       evidenceRefs: req.evidenceRefs,
       startedAt: new Date(),
     });
 
     try {
-      const response = await this.client.beta.messages.parse({
+      const response = await withTimeout(this.client.beta.messages.parse({
         model: this.model,
         max_tokens: 16000,
         ...(this.provider === 'anthropic' ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
@@ -145,7 +156,7 @@ export class ClaudeReasoningClient implements ReasoningClient {
         output_config: { effort: req.effort, format: betaZodOutputFormat(req.schema) },
         system: [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }],
         messages: [{ role: 'user', content: req.user }],
-      });
+      }), this.policy.timeoutMs);
 
       const meta = {
         stopReason: response.stop_reason,
@@ -156,18 +167,18 @@ export class ClaudeReasoningClient implements ReasoningClient {
 
       if (response.stop_reason === 'refusal') {
         await finishModelCall(this.db, id, { ...meta, error: 'REFUSAL' });
-        throw new ReasoningUnavailableError(`Model refused (${req.purpose})`);
+        throw new ReasoningUnavailableError(`Model refused (${req.purpose})`, 'refusal');
       }
       if (response.stop_reason === 'max_tokens' || response.parsed_output == null) {
         await finishModelCall(this.db, id, { ...meta, error: 'UNPARSEABLE_OUTPUT' });
-        throw new ReasoningUnavailableError(`No valid structured output (${req.purpose}, stop_reason=${response.stop_reason})`);
+        throw new ReasoningUnavailableError(`No valid structured output (${req.purpose}, stop_reason=${response.stop_reason})`, 'invalid_output');
       }
 
       await finishModelCall(this.db, id, { ...meta, output: response.parsed_output });
       return { output: response.parsed_output as T, modelCallId: id, model: response.model };
     } catch (err) {
       if (!(err instanceof ReasoningUnavailableError)) {
-        await finishModelCall(this.db, id, { error: err instanceof Error ? err.message : String(err) });
+        await finishModelCall(this.db, id, { error: recordedError(err) });
       }
       throw err;
     }

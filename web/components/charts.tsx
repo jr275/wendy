@@ -44,7 +44,7 @@ export function Breakdown({ items, tone = "neutral", ariaLabel }: { items: Break
         <li key={i} className="min-w-0" title={`${it.label}: ${it.value} (${pctFmt(it.share)})`}>
           <div className="flex items-baseline justify-between gap-3">
             <span className="min-w-0 truncate font-medium">
-              {it.tag ? <span className="mr-2 rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-normal text-muted">{it.tag}</span> : null}
+              {it.tag ? <span className="mr-2 rounded bg-surface-2 px-1.5 py-0.5 text-micro font-normal text-muted">{it.tag}</span> : null}
               {it.label}
             </span>
             <span className="shrink-0 text-sm">

@@ -18,18 +18,24 @@ import { createContext } from '../runtime/context.js';
 import { systemClock } from '../util/clock.js';
 import { createSkillRuntime } from '../skills/index.js';
 import { messageRecorder, saveMessages, userMessages } from './chatLog.js';
+import { agentOffReason, gateAgentRequest, parseAgentSetting } from './availability.js';
 import { friendlyRunError, loggableError } from './errors.js';
 import { runWendyAgent } from './run.js';
 import { performWrite, WRITE_PATHS, writeErrorStatus, type WritePath } from '../../inspector/writeApi.js';
 
 loadEnv();
 const PORT = Number(process.env.WENDY_AGENT_PORT ?? 3458);
+// Loopback by default. A host other than 127.0.0.1 (a server) is the operator's explicit choice; the bearer token below is mandatory either way.
+const HOST = process.env.WENDY_AGENT_HOST ?? '127.0.0.1';
 const TOKEN = process.env.WENDY_AGENT_TOKEN ?? '';
 const PRINCIPAL_EMAIL = (process.env.WENDY_PRINCIPAL_EMAIL ?? '').toLowerCase();
 if (TOKEN.length < 24) {
   console.error('WENDY_AGENT_TOKEN missing or too short (.env)');
   process.exit(1);
 }
+
+if (parseAgentSetting(process.env.WENDY_AGENT) === 'invalid') console.warn('WENDY_AGENT has a value that is not "off" or "on"; it is ignored (the agent is not treated as switched off).');
+if (agentOffReason()) console.warn('WENDY_AGENT=off: this agent refuses every run and every write, and does not resume skill runs.');
 
 const db = createPool(databaseUrl());
 const ctx = createContext({ db, reasoner: createReasoner(db), clock: systemClock, emailProvider: new DevMailboxProvider(db) });
@@ -38,11 +44,11 @@ const skills = createSkillRuntime(ctx, { owner: `agent:${process.pid}` });
 // Resume skill runs that can move: approved in the UI, a child finished, or left by a dead process.
 let resuming = false;
 setInterval(() => {
-  if (resuming) return;
+  if (resuming || agentOffReason()) return; // switched off: no background effects either
   resuming = true;
   skills.runtime
     .runReady()
-    .catch((e) => console.error('[skills resume error]', e))
+    .catch((e) => console.error('[skills resume error]', loggableError(e)))
     .finally(() => (resuming = false));
 }, Number(process.env.WENDY_SKILLS_RESUME_MS ?? 3000));
 
@@ -66,6 +72,21 @@ http
     }
     if (!authorized(req.headers.authorization)) {
       res.writeHead(401).end();
+      return;
+    }
+    // Switched off (WENDY_AGENT=off): refuse before reading the body, before any database access, model call or effect.
+    // After authentication on purpose: an unauthenticated caller learns nothing about availability.
+    const refused = gateAgentRequest(req.method, req.url);
+    if (refused) {
+      req.resume();
+      if (refused.kind === 'write') {
+        res.writeHead(503, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: refused.message }));
+      } else {
+        // A run answers as a stream; a RUN_ERROR with no `code` is "the agent said so" for the web client.
+        const enc = new EventEncoder({ accept: req.headers.accept });
+        res.writeHead(200, { 'Content-Type': enc.getContentType(), 'Cache-Control': 'no-cache' });
+        res.end(enc.encode({ type: EventType.RUN_ERROR, message: refused.message } as BaseEvent));
+      }
       return;
     }
     if (req.url.startsWith('/write/')) {
@@ -113,7 +134,7 @@ http
       console.error('[agent run error]', loggableError(e));
       send({ type: EventType.RUN_ERROR, message: friendlyRunError(e) } as BaseEvent);
     }
-    if (pid) await saveMessages(db, pid, recorder.messages, new Date()).catch((e) => console.error('[chat log error]', e));
+    if (pid) await saveMessages(db, pid, recorder.messages, new Date()).catch((e) => console.error('[chat log error]', loggableError(e)));
     res.end();
   })
-  .listen(PORT, '127.0.0.1', () => console.log(`Wendy AG-UI agent on http://127.0.0.1:${PORT}/agui (reasoner: ${process.env.WENDY_REASONER ?? 'claude'})`));
+  .listen(PORT, HOST, () => console.log(`Wendy AG-UI agent on http://${HOST}:${PORT}/agui (reasoner: ${process.env.WENDY_REASONER ?? 'claude'})`));

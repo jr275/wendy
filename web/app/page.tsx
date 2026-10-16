@@ -5,9 +5,19 @@ import { Workspace } from "@/components/workspace";
 import { WorkspaceProvider } from "@/components/workspace-context";
 import { Sparkline } from "@/components/sparkline";
 import { TopBar } from "@/components/top-bar";
-import { ACTION_LABEL, EVENT_LABEL, dateLong, firstName, greeting, intPt, pct, stripRefs } from "@/lib/format";
+import { ACTION_LABEL, dateLong, firstName, greeting, intPt, pct, stripRefs } from "@/lib/format";
+import { InsightTile } from "@/components/insight-tile";
+import { QuietList } from "@/components/quiet-list";
+import { quietOf } from "@/lib/proactive";
+import { AgentAvailability } from "@/components/agent-availability";
+import { MarketWatch } from "@/components/market-watch";
+import { ReadingDigest } from "@/components/reading-digest";
+import { ApiDown } from "@/components/api-down";
 import { ConciergeDesk } from "@/components/concierge/desk";
-import { executions as getExecutions, principal as getPrincipal, reasonerLabel, sites as getSites, tasks as getTasks, today as getToday, type InsightCard, type Site } from "@/lib/wendy";
+import { History } from "@/components/concierge/history";
+import { Now, type AttentionItem } from "@/components/concierge/now";
+import { awaitingApproval } from "@/lib/taskStatus";
+import { executions as getExecutions, digestFor, marketFor, principalState, reasonerLabel, recentQuestions, sites as getSites, ACTION_UNAVAILABLE_REASON, UNAVAILABLE_REASON, tasks as getTasks, today as getToday, type Site } from "@/lib/wendy";
 
 const INSPECTOR = process.env.NEXT_PUBLIC_WENDY_INSPECTOR_URL ?? "http://127.0.0.1:3457";
 
@@ -30,9 +40,13 @@ function Skeleton() {
 }
 
 async function Today() {
-  const p = await getPrincipal();
-  if (!p) return <Empty title="Nenhum executivo cadastrado" body="Cadastre um executivo na Wendy para começar." />;
-  const [t, s, open, runs] = await Promise.all([getToday(p.id), getSites(p.id), getTasks(p.id).catch(() => []), getExecutions(p.id)]);
+  const st = await principalState();
+  if (st.status === "down") return <ApiDown />;
+  if (st.status === "none") return <Empty title="Nenhum executivo cadastrado" body="Cadastre um executivo na Wendy para começar." />;
+  const p = st.principal;
+  const loaded = await Promise.all([getToday(p.id), getSites(p.id), getTasks(p.id).catch(() => []), getExecutions(p.id), recentQuestions(p.id), digestFor(p.id), marketFor(p.id)]).catch(() => null);
+  if (!loaded) return <ApiDown />;
+  const [t, s, open, runs, past, readings, marketView] = loaded;
   const insights = t.insights ?? [];
   const surfaced = insights.filter((i) => i.status === "SURFACED");
   const quiet = insights.filter((i) => i.status === "SUPPRESSED");
@@ -48,22 +62,46 @@ async function Today() {
       ? [{ key: "review", tone: "info" as const, title: "Isto ainda vale?", detail: `${(t.memoriesToReview ?? []).length} memória(s) antiga(s) para rever`, href: "/memoria" }]
       : []),
   ];
+  // Everything that is waiting for the principal, most direct first: a run stopped on an approval, then the rest.
+  const runAsks: AttentionItem[] = runs
+    .filter((r) => awaitingApproval(r))
+    .map((r) => {
+      const asks = [r, ...r.children].flatMap((x) => x.approvals).filter((a) => a.state === "AWAITING_APPROVAL");
+      return { key: `r-${r.id}`, tone: "warn" as const, title: `${r.skillName}: ${asks[0]?.label ?? "aprovação"} aguardando você`, detail: asks.flatMap((a) => a.items).join(" · "), href: `#tarefa-${r.id}` };
+    });
+  const attention: AttentionItem[] = [...runAsks, ...needs];
   const reasoner = reasonerLabel(insights);
 
   // Suggestions are about the principal (Wendy is a personal assistant), shown only when they apply.
   const suggestions = [open.length ? "Quais são minhas tarefas?" : null, "O que você sabe sobre mim?"].filter((x): x is string => !!x);
 
   return (
-    <>
+    <AgentAvailability actionReason={ACTION_UNAVAILABLE_REASON}>
       <TopBar reasoner={reasoner} wide />
       <WorkspaceProvider>
-      <Workspace suggestions={suggestions}>
+      <Workspace
+        suggestions={suggestions}
+        unavailableReason={UNAVAILABLE_REASON}
+        top={
+          attention.length ? (
+            <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
+              <Now items={attention} className="mt-6" />
+            </div>
+          ) : null
+        }
+      >
       {/* Delegate first: Wendy, one field, the tasks she is handling. The Hoje overview follows. */}
-      <ConciergeDesk tasks={runs} greeting={`${greeting(now, p.timezone)}, ${firstName(p.display_name)}.`} dateLabel={dateLong(now, p.timezone)} />
+      <ConciergeDesk unavailableReason={UNAVAILABLE_REASON} tasks={runs} greeting={`${greeting(now, p.timezone)}, ${firstName(p.display_name)}.`} dateLabel={dateLong(now, p.timezone)} />
+      <History questions={past} runs={runs} timeZone={p.timezone} now={now.toISOString()} />
       <main className="mx-auto max-w-5xl px-4 pb-24 pt-6 sm:px-6">
         <div className="mt-14 border-t border-line pt-10">
-          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Hoje</h2>
-          <p className="mt-1 text-muted">{needs.length ? `${needs.length} ${needs.length === 1 ? "coisa pede" : "coisas pedem"} sua atenção.` : "Nada pendente com você."}</p>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Hoje</h2>
+            <Link href="/semana" className="inline-flex min-h-11 items-center text-sm font-medium text-accent-ink hover:underline lg:min-h-8">
+              Ver a revisão da semana →
+            </Link>
+          </div>
+          <p className="mt-1 text-muted">{attention.length ? `${attention.length} ${attention.length === 1 ? "coisa pede" : "coisas pedem"} sua atenção.` : "Nada pendente com você."}</p>
         </div>
         {surfaced[0] ? (
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-2">
@@ -71,26 +109,7 @@ async function Today() {
           </p>
         ) : null}
 
-        {needs.length ? (
-          <Section title="Precisa de você" count={needs.length}>
-            <ul className="card divide-y divide-line-2 overflow-hidden">
-              {needs.map((n) => (
-                <li key={n.key}>
-                  <a href={n.href} className="flex items-start gap-4 px-5 py-4 transition-colors hover:bg-surface-2">
-                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.tone === "warn" ? "bg-warn" : "bg-info"}`} aria-hidden />
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-medium">{n.title}</span>
-                      {n.detail ? <span className="mt-0.5 block truncate text-sm text-muted">{n.detail}</span> : null}
-                    </span>
-                    <span className="text-faint" aria-hidden>→</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </Section>
-        ) : null}
-
-        <Section title="O que a Wendy encontrou" count={surfaced.length} hint={quiet.length ? `${quiet.length} outros registrados sem interromper` : undefined}>
+        <Section title="O que a Wendy encontrou" count={surfaced.length}>
           {surfaced.length ? (
             <div className="grid gap-4">
               {surfaced.slice(0, 6).map((i, n) => (
@@ -100,6 +119,15 @@ async function Today() {
           ) : (
             <Empty title="Nada urgente" body="Quando algo merecer sua atenção, aparece aqui — com a fonte de cada afirmação." />
           )}
+          <QuietList items={quietOf(insights)} total={quiet.length} timeZone={p.timezone} />
+        </Section>
+
+        <Section title="Leituras do dia" hint="ML, IA e ciência · fontes públicas">
+          <ReadingDigest digest={readings} canWrite={!ACTION_UNAVAILABLE_REASON} />
+        </Section>
+
+        <Section title="Mercado" hint="B3 e tecnologia dos EUA · só acompanhamento">
+          <MarketWatch market={marketView} />
         </Section>
 
         {open.length ? (
@@ -114,7 +142,7 @@ async function Today() {
                     <span className="block">{task.title}</span>
                     {task.notes ? <span className="mt-0.5 block truncate text-sm text-muted">{task.notes}</span> : null}
                   </span>
-                  {task.created_by === "WENDY" ? <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-muted">pela Wendy</span> : null}
+                  {task.created_by === "WENDY" ? <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-micro text-muted">pela Wendy</span> : null}
                 </li>
               ))}
             </ul>
@@ -134,7 +162,7 @@ async function Today() {
         <ShareViewing viewing={{ kind: "today", label: "Hoje" }} />
       </Workspace>
       </WorkspaceProvider>
-    </>
+    </AgentAvailability>
   );
 }
 
@@ -148,37 +176,6 @@ function Section({ title, count, hint, children }: { title: string; count?: numb
       </div>
       {children}
     </section>
-  );
-}
-
-function Dots({ score }: { score: number }) {
-  const n = score >= 0.75 ? 3 : score >= 0.5 ? 2 : 1;
-  return (
-    <span className="flex gap-1" aria-label={`prioridade ${score.toFixed(2)}`}>
-      {[0, 1, 2].map((k) => (
-        <span key={k} className={`h-1.5 w-1.5 rounded-full ${k < n ? "bg-accent" : "bg-line"}`} />
-      ))}
-    </span>
-  );
-}
-
-function InsightTile({ i, n }: { i: InsightCard; n: number }) {
-  return (
-    <Link href={`/insight/${i.id}`} className="card group block p-5 transition-shadow hover:shadow-md sm:p-6">
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="num text-faint">{String(n).padStart(2, "0")}</span>
-        <span className="rounded-full bg-surface-2 px-2 py-0.5 text-ink-2">{EVENT_LABEL[i.event_type] ?? i.event_type}</span>
-        <Dots score={i.score} />
-        <span className="num text-faint">prioridade {i.score.toFixed(2)}</span>
-        {i.other_model ? <span className="rounded-full bg-warn-soft px-2 py-0.5 text-warn">{i.other_model} · não é o Claude</span> : null}
-        {i.test_double ? <span className="rounded-full bg-warn-soft px-2 py-0.5 text-warn">substituto de teste</span> : null}
-      </div>
-      <h3 className="mt-3 text-lg font-semibold leading-snug tracking-tight group-hover:text-accent-ink">{stripRefs(i.headline)}</h3>
-      {i.narrative ? <p className="mt-2 line-clamp-3 text-[15px] leading-relaxed text-ink-2">{stripRefs(i.narrative)}</p> : null}
-      <p className="mt-3 text-sm text-muted">
-        {(i.claims ?? []).length} afirmações validadas · ver evidências <span aria-hidden>→</span>
-      </p>
-    </Link>
   );
 }
 

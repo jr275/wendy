@@ -1,8 +1,10 @@
 import { Suspense } from "react";
 import { MemoryRow } from "@/components/memory-row";
 import { TopBar } from "@/components/top-bar";
-import { WendySidebar } from "@/components/wendy-chat";
-import { memories as getMemories, principal as getPrincipal, reasonerLabel, today as getToday, type MemoryItem } from "@/lib/wendy";
+import { ACTIONS_OFF_NOTE_ID, ActionsOffNote, AgentAvailability } from "@/components/agent-availability";
+import { ApiDown } from "@/components/api-down";
+import { ConversationDrawer } from "@/components/concierge/conversation-drawer";
+import { memories as getMemories, principalState, reasonerLabel, today as getToday, ACTION_UNAVAILABLE_REASON, UNAVAILABLE_REASON, type MemoryItem } from "@/lib/wendy";
 
 export default function Page() {
   return (
@@ -33,9 +35,13 @@ function Group({ title, hint, items, tagFor }: { title: string; hint?: string; i
 }
 
 async function Memory() {
-  const p = await getPrincipal();
-  if (!p) return null;
-  const [all, t] = await Promise.all([getMemories(p.id), getToday(p.id)]);
+  const st = await principalState();
+  if (st.status === "down") return <ApiDown />;
+  if (st.status === "none") return null;
+  const p = st.principal;
+  const loaded = await Promise.all([getMemories(p.id), getToday(p.id)]).catch(() => null);
+  if (!loaded) return <ApiDown />;
+  const [all, t] = loaded;
   const proposed = all.filter((m) => m.status === "PROPOSED");
   const active = all.filter((m) => m.status === "ACTIVE");
   const review = active.filter((m) => m.freshness.needsReview);
@@ -43,14 +49,15 @@ async function Memory() {
   const kind = (m: MemoryItem) => (m.kind === "PREFERENCE" ? "Preferência" : "Fato");
 
   return (
-    <>
+    <AgentAvailability actionReason={ACTION_UNAVAILABLE_REASON}>
       <TopBar reasoner={reasonerLabel(t.insights ?? [])} />
       <main className="mx-auto max-w-3xl px-4 pb-24 pt-10 sm:px-6 sm:pt-14">
         <p className="eyebrow">Memória da Wendy</p>
-        <h1 className="mt-4 text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
+        <h1 className="display mt-4 text-4xl leading-[1.05] tracking-tight sm:text-6xl">
           O que a Wendy sabe
           <span className="block text-muted">sobre você, {firstName(p.display_name)}.</span>
         </h1>
+        <ActionsOffNote id={ACTIONS_OFF_NOTE_ID} className="mt-6 max-w-2xl" />
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-2">
           Cada memória mostra de onde veio. A Wendy só usa o que você confirmou, e você pode fazê-la esquecer qualquer coisa a qualquer momento.
         </p>
@@ -66,7 +73,7 @@ async function Memory() {
           </div>
         ) : null}
       </main>
-      <WendySidebar suggestions={["Leia meu artigo na pasta sobre-mim para me conhecer melhor", "O que você sabe sobre mim?"]} />
-    </>
+      <ConversationDrawer unavailableReason={UNAVAILABLE_REASON} suggestions={["Leia meu artigo na pasta sobre-mim para me conhecer melhor", "O que você sabe sobre mim?"]} />
+    </AgentAvailability>
   );
 }

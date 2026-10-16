@@ -17,11 +17,21 @@ import { loadEnv } from '../src/config.js';
 import { createPool } from '../src/db/db.js'; // also registers pg type parsers
 import { readOnlyPool } from './readOnlyPool.js';
 import { createWriteApi } from './writeApi.js';
-import { activity, actionsList, chat, configuration, execution, executions, memoryOverview, radar, sites, sources, insightDetail, modelCalls, ontology, people, principals, tasks, today } from './views.js';
+import { checkBinding, hostedDecision } from '../src/security/apiAuth.js';
+import { activity, actionsList, chat, configuration, digest, history, market, review, execution, executions, memoryOverview, radar, sites, sources, insightDetail, modelCalls, ontology, people, principals, tasks, today } from './views.js';
 
 loadEnv();
 const DB_URL = process.env.INSPECT_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres:///wendy';
 const PORT = Number(process.env.INSPECT_PORT ?? 3457);
+// Where it listens, and the optional API token. Local (default): 127.0.0.1, no token, everything as before. With WENDY_API_TOKEN set (hosted):
+// only the read API answers, behind that token. Any address other than loopback is refused unless the token is set (src/security/apiAuth.ts).
+const HOST = process.env.INSPECT_HOST ?? '127.0.0.1';
+const API_TOKEN = (process.env.WENDY_API_TOKEN ?? '').trim();
+const BINDING = checkBinding(HOST, API_TOKEN);
+if (!BINDING.ok) {
+  console.error(BINDING.reason);
+  process.exit(1);
+}
 const PAGE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'index.html');
 const TECH_PAGE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'technical.html');
 const SCHEMA_RE = /^[a-z_][a-z0-9_]{0,62}$/;
@@ -181,6 +191,11 @@ http
   .createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     try {
+      if (API_TOKEN) {
+        const d = hostedDecision(req.method ?? 'GET', url.pathname, req.headers.authorization, API_TOKEN);
+        if ('health' in d) return send(res, 200, { ok: true });
+        if (!d.allow) return send(res, d.status, { error: d.status === 401 ? 'unauthorized' : 'not found' });
+      }
       if (await writeApi.handle(req, res, url, () => schemaGuard(url.searchParams.get('schema')))) return;
       if (req.method !== 'GET') return send(res, 405, { error: 'method not allowed' });
       if (url.pathname === '/') {
@@ -211,13 +226,18 @@ http
       if (url.pathname === '/api/sites') return send(res, 200, await sites(db, principal));
       if (url.pathname === '/api/tasks') return send(res, 200, await tasks(db, principal));
       if (url.pathname === '/api/chat') return send(res, 200, await chat(db, principal));
+      if (url.pathname === '/api/history') return send(res, 200, await history(db, principal));
+      if (url.pathname === '/api/review') return send(res, 200, await review(db, principal));
+      if (url.pathname === '/api/digest') return send(res, 200, await digest(db, principal));
+      if (url.pathname === '/api/market') return send(res, 200, await market(db, principal));
       if (url.pathname === '/api/memories') return send(res, 200, await memoryOverview(db, principal));
       if (url.pathname === '/api/ledger') return send(res, 200, await ledger(db));
+      // A list, not one record: it takes the principal, never an id (it sat after the id check, so every call answered "invalid id").
+      if (url.pathname === '/api/executions') return send(res, 200, await executions(db, principal));
       if (!UUID_RE.test(id)) return send(res, 400, { error: 'invalid id' });
       if (url.pathname === '/api/event') return send(res, 200, await eventDetail(db, id));
       if (url.pathname === '/api/model-call') return send(res, 200, await modelCall(db, id));
       if (url.pathname === '/api/insight') return send(res, 200, await insightDetail(db, id));
-      if (url.pathname === '/api/executions') return send(res, 200, await executions(db, principal));
       if (url.pathname === '/api/execution') {
         const v = await execution(db, principal, id);
         return v ? send(res, 200, v) : send(res, 404, { error: 'not found' });
@@ -228,7 +248,11 @@ http
       send(res, e.status ?? 500, { error: e.message });
     }
   })
-  .listen(PORT, '127.0.0.1', () => {
+  .listen(PORT, HOST, () => {
+    if (API_TOKEN) {
+      console.log(`Wendy read API (hosted mode, token required) on ${HOST}:${PORT} — database ${DB_URL.replace(/\/\/[^@]*@/, '//')}`);
+      return; // no pages and no write login in this mode
+    }
     console.log(`Wendy UI on http://127.0.0.1:${PORT} — database ${DB_URL}`);
     console.log(`Para habilitar aprovações e edições, abra (uso único, vale 10 min):\n  http://127.0.0.1:${PORT}/login?t=${writeApi.issueLoginToken()}`);
   });

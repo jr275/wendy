@@ -24,7 +24,9 @@ import { MemoryService, MemoryTransitionError } from '../src/memory/memoryServic
 import { PeopleService } from '../src/people/peopleService.js';
 import { setSiteImportance } from '../src/sensors/searchConsole.js';
 import { DevMailboxProvider } from '../src/providers/devMailbox.js';
+import { markDigestRead, refreshDigest } from '../src/routines/digestService.js';
 import { cancelExecution } from '../src/skills/cancel.js';
+import { agentOffReason } from '../src/agent/availability.js';
 import { effectsToolbox } from '../src/tools/index.js';
 import { newId, sha256 } from '../src/util/hash.js';
 
@@ -63,6 +65,9 @@ const ROUTES = {
   '/api/write/execution/cancel': route(z.object({ principalId: uuid, executionId: uuid, reason: z.string().max(500).nullable().optional() }), async (db, b, at) =>
     cancelExecution(db, b.principalId, b.executionId, b.reason ?? 'cancelled by the principal', at),
   ),
+  '/api/write/digest/read': route(z.object({ principalId: uuid, itemId: uuid }), (db, b, at) => markDigestRead(db, b.principalId, b.itemId, at)),
+  // Runs the reading digest now (public RSS feeds only). Same runner as the schedule: never more than one finished run per local day.
+  '/api/write/digest/refresh': route(z.object({ principalId: uuid }), (db, b, at) => refreshDigest(db, b.principalId, at)),
   '/api/write/memory/confirm': route(z.object({ principalId: uuid, memoryId: uuid }), async (db, b, at) => {
     await new MemoryService(db).confirm(b.principalId, b.memoryId, at);
     return { status: 'ACTIVE' };
@@ -122,11 +127,23 @@ export const WRITE_PATHS = Object.keys(ROUTES) as WritePath[];
  * Validates and performs one write through the domain services (same table the cookie-authenticated
  * UI API uses). Callers must have authenticated the request and must supply the principal themselves.
  */
-export async function performWrite(db: Db, path: WritePath, body: unknown, now = new Date()): Promise<unknown> {
+export async function performWrite(db: Db, path: WritePath, body: unknown, now = new Date(), env: NodeJS.ProcessEnv = process.env): Promise<unknown> {
+  assertWritesAllowed(env);
   const r = ROUTES[path] as { schema: z.ZodType; run: (db: Db, body: unknown, at: Date) => Promise<unknown> };
   const parsed = r.schema.safeParse(body);
   if (!parsed.success) throw new HttpError(400, `invalid body: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
   return r.run(db, parsed.data, now);
+}
+
+/**
+ * The availability gate shared by BOTH entries to ROUTES (performWrite, used by the agent's /write/, and the inspector's own
+ * perform). Called after the caller was authenticated and before validation, any database access or any effect.
+ * Refused with 503 and the existing { ok:false, error } shape; it is not a success, not a validation error and not an
+ * authorization error. When WENDY_AGENT is not "off" this does nothing.
+ */
+function assertWritesAllowed(env: NodeJS.ProcessEnv): void {
+  const reason = agentOffReason(env);
+  if (reason) throw new HttpError(503, reason);
 }
 
 /** HTTP status for an error thrown by performWrite / the domain services. */
@@ -143,6 +160,8 @@ export interface WriteApiOptions {
   /** Exact origins allowed to write, e.g. http://127.0.0.1:3457 */
   allowedOrigins: string[];
   now?: () => Date;
+  /** Environment the availability gate reads (defaults to process.env). Injected by tests. */
+  env?: NodeJS.ProcessEnv;
 }
 
 class HttpError extends Error {
@@ -243,6 +262,7 @@ export function createWriteApi(opts: WriteApiOptions) {
   }
 
   async function perform(path: WritePath, body: unknown, schema: string | null) {
+    assertWritesAllowed(opts.env ?? process.env); // before validation and before the writable pool is even opened
     const r = ROUTES[path] as { schema: z.ZodType; run: (db: Db, body: unknown, at: Date) => Promise<unknown> };
     const parsed = r.schema.safeParse(body);
     if (!parsed.success) throw new HttpError(400, `invalid body: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);

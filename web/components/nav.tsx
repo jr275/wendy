@@ -19,7 +19,7 @@ export function Nav() {
             key={l.href}
             href={l.href}
             aria-current={active ? "page" : undefined}
-            className={`rounded-full px-2 py-1.5 text-sm transition-colors sm:px-3 ${active ? "bg-surface-2 font-medium text-ink" : "text-muted hover:text-ink"}`}
+            className={`inline-flex min-h-11 items-center rounded-full px-2 py-1.5 text-sm transition-colors sm:px-3 lg:min-h-9 ${active ? "bg-surface-2 font-medium text-ink" : "text-muted hover:text-ink"}`}
           >
             {l.label}
           </Link>

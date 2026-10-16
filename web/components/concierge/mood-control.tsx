@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
-import { characterFor, CHARACTERS } from "@/lib/characters";
+import { characterFor, CHARACTERS, hasAnyScene } from "@/lib/characters";
+import { use3dEnabled } from "./use-3d-preference";
 import { MOOD_CATEGORIES, MOOD_CHOICE_LABEL, MOOD_LABEL, type MoodCategory, type MoodPrefs, type MoodPresentation, type Selection } from "@/lib/mood";
 
 /**
@@ -10,6 +11,7 @@ import { MOOD_CATEGORIES, MOOD_CHOICE_LABEL, MOOD_LABEL, type MoodCategory, type
  */
 export function MoodControl({ selection, reading, prefs, onPrefs, onCorrect }: { selection: Selection; reading: MoodPresentation | null; prefs: MoodPrefs; onPrefs: (p: MoodPrefs) => void; onCorrect: () => void }) {
   const [open, setOpen] = useState(false);
+  const [on3d, set3d] = use3dEnabled();
   const btn = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const panelId = useId();
@@ -81,6 +83,15 @@ export function MoodControl({ selection, reading, prefs, onPrefs, onCorrect }: {
             <input type="checkbox" checked={prefs.enabled} onChange={(e) => onPrefs({ ...prefs, enabled: e.target.checked })} />
             Mostrar personagens
           </label>
+          {hasAnyScene() ? (
+            <label className="mt-2 flex items-start gap-2 text-ink-2">
+              <input type="checkbox" className="mt-1" checked={on3d} disabled={!prefs.enabled} onChange={(e) => set3d(e.target.checked)} />
+              <span>
+                Personagens em 3D
+                <span className="block text-xs text-muted">Carrega a cena do Spline (um serviço de terceiros). Desligado, nada é pedido a eles.</span>
+              </span>
+            </label>
+          ) : null}
         </div>
       ) : null}
     </div>

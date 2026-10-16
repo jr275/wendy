@@ -32,7 +32,9 @@
     "search": "tsx scripts/search-console.ts",
     "agent": "tsx src/agent/server.ts",
     "google:connect": "tsx scripts/google-connect.ts",
-    "google:sync": "tsx scripts/google-sync.ts"
+    "google:sync": "tsx scripts/google-sync.ts",
+    "check:resume": "node scripts/browser/check-resume.mjs",
+    "check:voice": "node scripts/browser/check-voice.mjs"
   },
   "dependencies": {
     "@ag-ui/core": "^1.0.2",
@@ -40,6 +42,7 @@
     "@anthropic-ai/sdk": "^0.131.0",
     "@anthropic-ai/vertex-sdk": "^0.20.3",
     "@google/genai": "^2.28.0",
+    "fast-xml-parser": "5.11.2",
     "google-auth-library": "^10.9.1",
     "pg": "^8.23.1",
     "unpdf": "1.8.1",

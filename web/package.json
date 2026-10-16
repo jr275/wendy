@@ -12,6 +12,8 @@
     "@ag-ui/client": "^1.0.2",
     "@copilotkit/react-core": "^1.77.1",
     "@copilotkit/runtime": "^1.77.1",
+    "@splinetool/react-spline": "4.1.0",
+    "@splinetool/runtime": "2.0.85",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",

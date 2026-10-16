@@ -1,5 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { createLiveGate } from "@/lib/focus";
 import type { AnswerPayload, SitePayload } from "./cards";
 
 /**
@@ -17,8 +18,11 @@ interface Workspace {
   focus: FocusCard[];
   /** Put one card in the panel (from a click). */
   open: (card: FocusCard) => void;
-  /** Called once per card as it arrives: an answer starts a new focus, sites join it. */
+  /** Called once per card as it arrives: an answer starts a new focus, sites join it — but only during a live turn (lib/focus.ts). */
   arrived: (card: FocusCard) => void;
+  /** A turn started from this page begins / ends: cards that appear meanwhile may take the focus. */
+  beginLive: () => void;
+  endLive: () => void;
   clear: () => void;
 }
 
@@ -28,6 +32,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<Mode>("painel");
   const [focus, setFocus] = useState<FocusCard[]>([]);
   const seen = useRef(new Set<string>());
+  const gate = useRef(createLiveGate());
 
   const open = useCallback((card: FocusCard) => {
     setFocus([card]);
@@ -36,11 +41,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const arrived = useCallback((card: FocusCard) => {
     if (seen.current.has(card.id)) return;
     seen.current.add(card.id);
+    if (!gate.current.accepts()) return; // restored from history, not produced now: the panel stays on today's Hoje
     setFocus((f) => (card.kind === "answer" ? [card] : f.some((c) => c.id === card.id) ? f : [...f, card]));
   }, []);
   const clear = useCallback(() => setFocus([]), []);
+  const beginLive = useCallback(() => gate.current.begin(), []);
+  const endLive = useCallback(() => gate.current.end(), []);
 
-  const value = useMemo(() => ({ mode, setMode, focus, open, arrived, clear }), [mode, focus, open, arrived, clear]);
+  const value = useMemo(() => ({ mode, setMode, focus, open, arrived, clear, beginLive, endLive }), [mode, focus, open, arrived, clear, beginLive, endLive]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

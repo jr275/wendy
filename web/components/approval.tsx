@@ -1,6 +1,7 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { approveAction, rejectAction } from "@/lib/actions";
+import { ActionsOffNote, useActionsOffReason } from "./agent-availability";
 import type { DetailAction } from "@/lib/wendy";
 
 /** An e-mail Wendy prepared: approve as is, edit then approve, or reject (with a reason she learns from). */
@@ -11,12 +12,16 @@ export function ApprovalCard({ a }: { a: DetailAction }) {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
+  const off = useActionsOffReason(); // set only when the environment says the agent is off
+  const noteId = useId();
+  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
+    if (off) return; // the controls are disabled; this also covers a stale or programmatic call
     start(async () => {
       setError(null);
       const r = await fn();
       if (!r.ok) setError(r.error ?? "Não foi possível concluir.");
     });
+  };
 
   return (
     <div className="card overflow-hidden">
@@ -59,13 +64,13 @@ export function ApprovalCard({ a }: { a: DetailAction }) {
       <div className="flex flex-wrap items-center gap-2 border-t border-line-2 bg-surface-2/50 px-6 py-4">
         {mode === "view" ? (
           <>
-            <button type="button" disabled={pending} onClick={() => run(() => approveAction(a.id))} className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-bg disabled:opacity-50">
+            <button type="button" disabled={pending || !!off} aria-describedby={off ? noteId : undefined} onClick={() => run(() => approveAction(a.id))} className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-bg disabled:opacity-50">
               {pending ? "Enviando…" : "Aprovar e enviar"}
             </button>
-            <button type="button" disabled={pending} onClick={() => setMode("edit")} className="rounded-full border border-line px-4 py-2 text-sm hover:bg-surface">
+            <button type="button" disabled={pending || !!off} aria-describedby={off ? noteId : undefined} onClick={() => setMode("edit")} className="rounded-full border border-line px-4 py-2 text-sm hover:bg-surface">
               Editar
             </button>
-            <button type="button" disabled={pending} onClick={() => setMode("reject")} className="rounded-full px-4 py-2 text-sm text-muted hover:text-bad">
+            <button type="button" disabled={pending || !!off} aria-describedby={off ? noteId : undefined} onClick={() => setMode("reject")} className="rounded-full px-4 py-2 text-sm text-muted hover:text-bad">
               Rejeitar
             </button>
           </>
@@ -73,7 +78,8 @@ export function ApprovalCard({ a }: { a: DetailAction }) {
           <>
             <button
               type="button"
-              disabled={pending || !subject.trim() || !body.trim()}
+              disabled={pending || !!off || !subject.trim() || !body.trim()}
+              aria-describedby={off ? noteId : undefined}
               onClick={() => run(() => approveAction(a.id, { subject: subject.trim(), body: body.trim() }))}
               className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-bg disabled:opacity-50"
             >
@@ -85,7 +91,7 @@ export function ApprovalCard({ a }: { a: DetailAction }) {
           </>
         ) : (
           <>
-            <button type="button" disabled={pending} onClick={() => run(() => rejectAction(a.id, reason.trim() || null))} className="rounded-full bg-bad px-4 py-2 text-sm font-medium text-bg disabled:opacity-50">
+            <button type="button" disabled={pending || !!off} aria-describedby={off ? noteId : undefined} onClick={() => run(() => rejectAction(a.id, reason.trim() || null))} className="rounded-full bg-bad px-4 py-2 text-sm font-medium text-bg disabled:opacity-50">
               {pending ? "Rejeitando…" : "Confirmar rejeição"}
             </button>
             <button type="button" disabled={pending} onClick={() => setMode("view")} className="rounded-full px-4 py-2 text-sm text-muted hover:text-ink">
@@ -93,6 +99,7 @@ export function ApprovalCard({ a }: { a: DetailAction }) {
             </button>
           </>
         )}
+        <ActionsOffNote id={noteId} className="basis-full" />
         <span className="ml-auto text-xs text-faint">Vai para a caixa de saída local — nada é entregue a ninguém nesta fase.</span>
       </div>
     </div>

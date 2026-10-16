@@ -1,6 +1,7 @@
 "use client";
 import { useOptimistic, useState, useTransition } from "react";
 import { setSiteImportance } from "@/lib/actions";
+import { ACTIONS_OFF_NOTE_ID, useActionsOffReason } from "./agent-availability";
 
 const OPTIONS: { value: number | null; label: string; hint: string }[] = [
   { value: null, label: "Não definida", hint: "peso baixo por padrão" },
@@ -14,6 +15,7 @@ export function ImportanceControl({ propertyId, label, value }: { propertyId: st
   const [optimistic, setOptimistic] = useOptimistic(value);
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const off = useActionsOffReason(); // set only when the environment says the agent is off; the page shows the one shared note
   return (
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -29,17 +31,19 @@ export function ImportanceControl({ propertyId, label, value }: { propertyId: st
               type="button"
               role="radio"
               aria-checked={active}
-              disabled={pending}
+              disabled={pending || !!off}
+              aria-describedby={off ? ACTIONS_OFF_NOTE_ID : undefined}
               aria-label={`${o.label} — ${o.hint}`}
               title={o.hint}
-              onClick={() =>
+              onClick={() => {
+                if (off) return; // also covers a stale or programmatic call
                 start(async () => {
                   setError(null);
                   setOptimistic(o.value);
                   const r = await setSiteImportance(propertyId, o.value);
                   if (!r.ok) setError(r.error);
-                })
-              }
+                });
+              }}
               className={`whitespace-nowrap rounded-xl px-2 py-2 text-xs transition-colors ${active ? "bg-surface font-medium text-ink shadow-sm" : "text-muted hover:text-ink"}`}
             >
               {o.label}

@@ -6,6 +6,7 @@
 import type { Queryable } from '../db/db.js';
 import { DAY_MS } from '../util/clock.js';
 import { siteChangeContributors } from './searchDetector.js';
+import { inSearchScope } from './searchScope.js';
 
 export interface SearchEvidenceItem {
   id: string;
@@ -43,7 +44,7 @@ export async function searchEvidenceForTerms(q: Queryable, principalId: string, 
        WHERE principal_id = $1 AND EXISTS (SELECT 1 FROM unnest($2::text[]) t WHERE label ILIKE '%' || t || '%' OR site_url ILIKE '%' || t || '%')`,
       [principalId, clean],
     )
-  ).rows;
+  ).rows.filter((p) => inSearchScope(p)); // only the properties the principal chose to consider (searchScope.ts)
   const out: SearchEvidenceItem[] = [];
   for (const p of props) {
     const totals = (await q.query<MetricRow>(`${ROW_SQL} WHERE property_id = $1 AND dimension = 'total' ORDER BY window_end DESC LIMIT 2`, [p.id])).rows;

@@ -39,7 +39,13 @@ async function session(width, scenario) {
     const pending = new Map();
     let mood = null;
     let failWith = null;
+    let withCard = false; // the fixture answer also carries a show_answer card (a LIVE answer)
     const external = [];
+    const card = () => {
+      const tc = `fx-card-${Math.random().toString(36).slice(2)}`;
+      const payload = { question: 'p', answer: 'Resposta ao vivo de teste.', answerValid: true, models: ['teste'], notClaude: true, claims: [], rejectedClaims: 0, evidence: [], conflicts: [], gaps: [] };
+      return [{ type: 'TOOL_CALL_START', toolCallId: tc, toolCallName: 'show_answer' }, { type: 'TOOL_CALL_ARGS', toolCallId: tc, delta: JSON.stringify(payload) }, { type: 'TOOL_CALL_END', toolCallId: tc }, { type: 'TOOL_CALL_RESULT', messageId: `fx-r-${tc}`, toolCallId: tc, content: 'rendered' }];
+    };
     const send = (method, params = {}) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
     ws.onmessage = (m) => {
       const d = JSON.parse(m.data);
@@ -51,7 +57,7 @@ async function session(width, scenario) {
         const mid = `fx-${Math.random().toString(36).slice(2)}`;
         const evs = failWith
           ? [{ type: 'RUN_STARTED', threadId: 'main', runId: 'fx' }, { type: 'RUN_ERROR', message: failWith }]
-          : [{ type: 'RUN_STARTED', threadId: 'main', runId: 'fx' }, ...(mood ? [{ type: 'STATE_SNAPSHOT', snapshot: { mood } }] : []), { type: 'TEXT_MESSAGE_START', messageId: mid, role: 'assistant' }, { type: 'TEXT_MESSAGE_CONTENT', messageId: mid, delta: 'Resposta de teste.' }, { type: 'TEXT_MESSAGE_END', messageId: mid }, { type: 'RUN_FINISHED', threadId: 'main', runId: 'fx' }];
+          : [{ type: 'RUN_STARTED', threadId: 'main', runId: 'fx' }, ...(mood ? [{ type: 'STATE_SNAPSHOT', snapshot: { mood } }] : []), { type: 'TEXT_MESSAGE_START', messageId: mid, role: 'assistant' }, { type: 'TEXT_MESSAGE_CONTENT', messageId: mid, delta: 'Resposta de teste.' }, { type: 'TEXT_MESSAGE_END', messageId: mid }, ...(withCard ? card() : []), { type: 'RUN_FINISHED', threadId: 'main', runId: 'fx' }];
         send('Fetch.fulfillRequest', { requestId: d.params.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'text/event-stream' }], body: Buffer.from(evs.map((e) => `data: ${JSON.stringify(e)}\n\n`).join('')).toString('base64') });
         return;
       }
@@ -76,12 +82,14 @@ async function session(width, scenario) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: width < 768 ? 812 : 900, deviceScaleFactor: 2, mobile: width < 768 });
     await send('Page.navigate', { url: BASE + '/' });
     await wait(9000);
-    if (width < 768) { await click('Perguntar à Wendy'); await wait(1200); }
+    if (width < 768) { await click('Abrir conversa'); await wait(1200); }
 
     if (scenario === 'mood') {
+      if (width >= 1024) expect(!(await ev(`!!document.querySelector('section[aria-label="Em foco"]')`)), 'Hoje opened with "Em foco" covering the page: a card restored from history took the focus');
       const s0 = await state(); await shot(`${width}-0-neutro`);
       expect(s0.halo && s0.imgs.length === 0, `expected the neutral halo first, got ${JSON.stringify(s0)}`);
-      mood = mk({ category: 'concerned' }); await say('Estou muito ansioso com essa viagem');
+      mood = mk({ category: 'concerned' }); withCard = true; await say('Estou muito ansioso com essa viagem'); withCard = false;
+      if (width >= 1024) expect(await ev(`!!document.querySelector('section[aria-label="Em foco"]')`), 'a LIVE answer card did not take the "Em foco" panel');
       const s1 = await state(); await shot(`${width}-1-ansiedade`);
       expect(s1.imgs.join() === '/characters/anxiety.webp', `explicit concern should show anxiety, got ${s1.imgs}`);
       mood = mk({ category: 'frustrated', confidence: 0.65, evidenceSource: 'current_conversation' }); await say('segunda mensagem');
@@ -109,6 +117,19 @@ async function session(width, scenario) {
       const t = await ev(`document.querySelector('[role="log"] [role="alert"]')?.textContent ?? null`);
       await shot(`${width}-erro`);
       expect(t && t.includes('gcloud auth application-default login') && t.includes('Sua mensagem ficou na conversa'), `the agent's error sentence was not shown: ${t}`);
+      // The failed message can be handed back to the composer to be edited and sent as a NEW message (never re-run on its own).
+      const runsBefore = await ev(`window.__runs ?? 0`);
+      const offered = await ev(`!![...document.querySelectorAll('[role="alert"] button')].find((b) => b.textContent.trim() === 'Reenviar mensagem')`);
+      expect(offered, 'the failed message cannot be sent again (no "Reenviar mensagem" in the error)');
+      if (offered) {
+        await ev(`(() => { [...document.querySelectorAll('[role="alert"] button')].find((b) => b.textContent.trim() === 'Reenviar mensagem').click(); return true; })()`);
+        await wait(500);
+        const back = await ev(`(() => { const ta = document.querySelector('form textarea[placeholder^="Pergunte"]'); return { value: ta?.value, focused: document.activeElement === ta, alert: !!document.querySelector('[role="log"] [role="alert"]') }; })()`);
+        expect(back.value === 'Teste de erro', `the composer did not get the message back (value: ${JSON.stringify(back.value)})`);
+        expect(back.focused, 'the composer is not focused after "Reenviar mensagem"');
+        expect(!back.alert, 'the error stayed on screen after handing the message back');
+      }
+      void runsBefore;
     }
     expect(external.length === 0, `external requests attempted: ${external.join(', ')}`);
     ws.close();

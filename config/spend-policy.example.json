@@ -1,0 +1,8 @@
+{
+  "perActionUsd": 100,
+  "perDayUsd": 300,
+  "askAbove": 50,
+  "neverWithoutAsk": ["flights", "hotels"],
+  "allowedMerchants": [],
+  "blockedMerchants": []
+}

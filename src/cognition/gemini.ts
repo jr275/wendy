@@ -14,6 +14,7 @@ import { z } from 'zod';
 import type { Db } from '../db/db.js';
 import { newId } from '../util/hash.js';
 import { finishModelCall, recordModelCall, ReasoningUnavailableError, type ReasoningClient, type ReasoningRequest, type ReasoningResult } from './llm.js';
+import { DEFAULT_RETRY_POLICY, recordedError, withRetry, withTimeout, type RetryDeps, type RetryPolicy } from './resilience.js';
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.1-pro-preview';
 
@@ -22,12 +23,17 @@ const THINKING_LEVEL: Record<ReasoningRequest<unknown>['effort'], 'LOW' | 'MEDIU
 
 export class GeminiReasoningClient implements ReasoningClient {
   private readonly ai: Pick<GoogleGenAI, 'models'>;
+  private readonly policy: RetryPolicy;
+  private readonly deps: RetryDeps;
 
   constructor(
     private readonly db: Db,
     private readonly model: string = process.env.GEMINI_MODEL ?? DEFAULT_GEMINI_MODEL,
     ai?: Pick<GoogleGenAI, 'models'>,
+    retry: { policy?: Partial<RetryPolicy>; deps?: RetryDeps } = {},
   ) {
+    this.policy = { ...DEFAULT_RETRY_POLICY, ...retry.policy };
+    this.deps = retry.deps ?? {};
     if (ai) this.ai = ai;
     else {
       const project = process.env.GOOGLE_CLOUD_PROJECT;
@@ -36,20 +42,25 @@ export class GeminiReasoningClient implements ReasoningClient {
     }
   }
 
-  async generate<T>(req: ReasoningRequest<T>): Promise<ReasoningResult<T>> {
+  /** One logical call: transient failures are retried (see resilience.ts); each attempt is its own model_calls row. */
+  generate<T>(req: ReasoningRequest<T>): Promise<ReasoningResult<T>> {
+    return withRetry((attempt) => this.once(req, attempt), this.policy, this.deps);
+  }
+
+  private async once<T>(req: ReasoningRequest<T>, attempt: number): Promise<ReasoningResult<T>> {
     const id = newId();
     await recordModelCall(this.db, {
       id,
       principalId: req.principalId,
       purpose: req.purpose,
       model: this.model,
-      input: { system: req.system, user: req.user, effort: req.effort, provider: 'vertex-gemini' },
+      input: { system: req.system, user: req.user, effort: req.effort, provider: 'vertex-gemini', attempt },
       evidenceRefs: req.evidenceRefs,
       startedAt: new Date(),
     });
 
     try {
-      const response = await this.ai.models.generateContent({
+      const response = await withTimeout(this.ai.models.generateContent({
         model: this.model,
         contents: req.user,
         config: {
@@ -59,7 +70,7 @@ export class GeminiReasoningClient implements ReasoningClient {
           maxOutputTokens: 32000,
           thinkingConfig: { thinkingLevel: THINKING_LEVEL[req.effort] as never },
         },
-      });
+      }), this.policy.timeoutMs);
       const finish = response.candidates?.[0]?.finishReason ?? null;
       const meta = { stopReason: finish, usage: response.usageMetadata, servedBy: response.modelVersion ?? this.model, apiMessageId: response.responseId };
 
@@ -71,12 +82,12 @@ export class GeminiReasoningClient implements ReasoningClient {
       }
       if (!parsed?.success) {
         await finishModelCall(this.db, id, { ...meta, error: `UNPARSEABLE_OUTPUT${parsed ? `: ${parsed.error.issues.slice(0, 3).map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}` : ''}` });
-        throw new ReasoningUnavailableError(`No valid structured output from ${this.model} (${req.purpose}, finish=${finish})`);
+        throw new ReasoningUnavailableError(`No valid structured output from ${this.model} (${req.purpose}, finish=${finish})`, 'invalid_output');
       }
       await finishModelCall(this.db, id, { ...meta, output: parsed.data });
       return { output: parsed.data, modelCallId: id, model: this.model };
     } catch (err) {
-      if (!(err instanceof ReasoningUnavailableError)) await finishModelCall(this.db, id, { error: err instanceof Error ? err.message : String(err) });
+      if (!(err instanceof ReasoningUnavailableError)) await finishModelCall(this.db, id, { error: recordedError(err) });
       throw err;
     }
   }

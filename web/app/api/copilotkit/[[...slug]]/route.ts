@@ -1,7 +1,8 @@
 import { EventType, HttpAgent, type BaseEvent } from "@ag-ui/client";
 import { CopilotRuntime, createCopilotRuntimeHandler, InMemoryAgentRunner } from "@copilotkit/runtime/v2";
 import { Observable } from "rxjs";
-import { chatHistory, principal } from "@/lib/wendy";
+import { guardRun } from "@/lib/runGuard";
+import { chatHistory, principal, UNAVAILABLE_REASON } from "@/lib/wendy";
 
 /**
  * CopilotKit runtime. No model is configured here: the only agent is Wendy, reached server-to-server
@@ -40,4 +41,10 @@ const runtimeInstance = new CopilotRuntime({
 
 const handler = createCopilotRuntimeHandler({ runtime: runtimeInstance, basePath: "/api/copilotkit" });
 
-export { handler as GET, handler as POST, handler as PATCH, handler as DELETE };
+/**
+ * A run is refused here, on the server, when this environment says the agent is off (lib/runGuard.ts). Everything else
+ * goes to the runtime unchanged.
+ */
+const POST = (req: Request, ...rest: unknown[]): Promise<Response> => guardRun(req, UNAVAILABLE_REASON, () => (handler as (...a: unknown[]) => Promise<Response>)(req, ...rest));
+
+export { handler as GET, POST, handler as PATCH, handler as DELETE };

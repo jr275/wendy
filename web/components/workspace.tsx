@@ -2,7 +2,6 @@
 import { CopilotChatConfigurationProvider } from "@copilotkit/react-core/v2";
 import { AnswerCard, SiteCard } from "./cards";
 import { ConciergeConversation } from "./concierge/conversation";
-import { SeeingChip } from "./wendy-chat";
 import { useWorkspace, type Mode } from "./workspace-context";
 
 function ModeToggle() {
@@ -12,7 +11,7 @@ function ModeToggle() {
       type="button"
       aria-pressed={mode === m}
       onClick={() => setMode(m)}
-      className={`rounded-full px-3 py-1 text-xs transition-colors ${mode === m ? "bg-surface font-medium text-ink shadow-sm" : "text-muted hover:text-ink"}`}
+      className={`inline-flex min-h-11 items-center rounded-full px-3 py-1 text-xs transition-colors lg:min-h-8 ${mode === m ? "bg-surface font-medium text-ink shadow-sm" : "text-muted hover:text-ink"}`}
     >
       {label}
     </button>
@@ -49,39 +48,34 @@ function Focus() {
  * Chat + panel. In "painel" the chat is a side column (hidden on phones, where a button opens it);
  * in "conversa" the chat takes the page and the panel is hidden. The chat stays mounted in both.
  */
-export function Workspace({ suggestions, children }: { suggestions: string[]; children: React.ReactNode }) {
+/** `top`: what is waiting for the principal ("Agora"); it comes before everything else in the panel. */
+export function Workspace({ suggestions, top, unavailableReason, children }: { suggestions: string[]; top?: React.ReactNode; unavailableReason?: string; children: React.ReactNode }) {
   const { mode, setMode } = useWorkspace();
   const painel = mode === "painel";
   return (
-    <div className="flex h-[calc(100dvh-3.5rem-1px)] min-h-0">
+    <div className="flex h-[calc(100dvh-var(--header-h)-1px)] min-h-0">
       <section
         aria-label="Conversa com a Wendy"
         className={painel ? "hidden w-[400px] shrink-0 flex-col border-r border-line/70 bg-surface/55 backdrop-blur-xl lg:flex xl:w-[440px]" : "flex min-w-0 flex-1 flex-col"}
       >
-        <div className="flex items-center justify-between gap-3 px-4 pt-3">
-          <span className="flex min-w-0 items-center gap-2">
-            <p className="shrink-0 text-sm font-medium">Wendy</p>
-            <SeeingChip />
-          </span>
-          <ModeToggle />
-        </div>
         <div className={`min-h-0 flex-1 ${painel ? "" : "mx-auto w-full max-w-3xl"}`}>
           {/* Every chat hook resolves to Wendy, the only agent (some read only this configuration). */}
           <CopilotChatConfigurationProvider agentId="wendy" threadId="main">
-            <ConciergeConversation suggestions={suggestions} />
+            <ConciergeConversation suggestions={suggestions} trail={<ModeToggle />} unavailableReason={unavailableReason} />
           </CopilotChatConfigurationProvider>
         </div>
       </section>
 
       <section aria-label="Painel" className={painel ? "flex min-w-0 flex-1 flex-col overflow-y-auto lg:block" : "hidden"}>
+        {top}
         <Focus />
         {children}
         <button
           type="button"
           onClick={() => setMode("conversa")}
-          className="fixed bottom-5 right-5 z-30 flex items-center gap-2 rounded-full bg-accent px-4 py-3 text-sm font-medium text-bg shadow-lg lg:hidden"
+          className="fixed bottom-5 right-5 z-30 flex min-h-11 items-center gap-2 rounded-full bg-accent px-4 py-3 text-sm font-medium text-bg shadow-lg lg:hidden"
         >
-          Perguntar à Wendy
+          Abrir conversa
         </button>
       </section>
     </div>

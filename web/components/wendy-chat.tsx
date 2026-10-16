@@ -1,7 +1,7 @@
 "use client";
-import { CopilotChat, CopilotSidebar, UseAgentUpdate, useAgent, useConfigureSuggestions, useRenderTool } from "@copilotkit/react-core/v2";
+import { UseAgentUpdate, useAgent, useConfigureSuggestions, useRenderTool } from "@copilotkit/react-core/v2";
 import Link from "next/link";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { AnswerCard, SiteCard, type AnswerPayload, type SitePayload } from "./cards";
 import { ExecutionCard } from "./execution-card";
@@ -10,7 +10,7 @@ import { Sparkline } from "./sparkline";
 import { useOptionalWorkspace, type FocusCard } from "./workspace-context";
 
 /**
- * The conversation with Wendy, on CopilotKit's chat.
+ * Wendy's side of the conversation: the agent's render-only tool calls, on CopilotKit's headless hooks.
  * Wendy's agent (AG-UI) answers in text and then emits `show_answer` / `show_site` tool calls;
  * those are render-only here (useRenderTool), so the browser never runs a model or a tool.
  */
@@ -46,7 +46,7 @@ function ProofCompact({ a, onOpen }: { a: AnswerPayload; onOpen?: () => void }) 
     <div className="my-2 rounded-2xl border border-line bg-surface p-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="eyebrow">Verificado</span>
-        {a.notClaude ? <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[11px] text-warn">não é o Claude</span> : null}
+        {a.notClaude ? <span className="rounded-full bg-warn-soft px-2 py-0.5 text-micro text-warn">não é o Claude</span> : null}
       </div>
       <p className="mt-2 text-sm">
         <span className="num font-medium">{a.claims.length}</span> afirmaç{a.claims.length === 1 ? "ão comprovada" : "ões comprovadas"} por <span className="num font-medium">{a.evidence.length}</span> registro{a.evidence.length === 1 ? "" : "s"}
@@ -60,7 +60,7 @@ function ProofCompact({ a, onOpen }: { a: AnswerPayload; onOpen?: () => void }) 
           {a.gaps.length ? ` · ${a.gaps.length} lacuna${a.gaps.length === 1 ? "" : "s"}` : ""}
         </p>
       ) : null}
-      <button type="button" onClick={onOpen ?? (() => setExpanded((x) => !x))} aria-expanded={onOpen ? undefined : expanded} className="mt-3 text-sm font-medium text-accent-ink hover:underline">
+      <button type="button" onClick={onOpen ?? (() => setExpanded((x) => !x))} aria-expanded={onOpen ? undefined : expanded} className="-mx-1 mt-2 inline-flex min-h-6 items-center rounded px-1 py-1 text-sm font-medium text-accent-ink hover:underline">
         {onOpen ? "Ver raciocínio e fontes →" : expanded ? "Esconder raciocínio" : "Ver raciocínio e fontes"}
       </button>
       {expanded ? (
@@ -110,36 +110,9 @@ function SiteCompact({ s, onOpen }: { s: SitePayload; onOpen?: () => void }) {
   );
 }
 
-/** One continuous conversation with Wendy (an explicit thread makes the chat replay it on open). */
-const THREAD = "main";
-
-const LABELS = {
-  welcomeMessageText: "O que você quer saber hoje?",
-  chatInputPlaceholder: "Pergunte à Wendy…",
-  chatDisclaimerText: "Cada afirmação é validada contra registros reais · nada é enviado sem sua aprovação",
-  assistantMessageToolbarCopyMessageLabel: "Copiar",
-  userMessageToolbarCopyMessageLabel: "Copiar",
-  userMessageToolbarEditMessageLabel: "Editar",
-  chatInputToolbarAddButtonLabel: "Adicionar",
-  modalHeaderTitle: "Wendy",
-  chatToggleOpenLabel: "Abrir conversa com a Wendy",
-  chatToggleCloseLabel: "Fechar conversa",
-};
-
 /**
- * Accessible names for the side chat's input controls (CopilotKit's defaults leave the two icon
- * buttons unnamed and name the textarea only by its placeholder). Passed through CopilotKit's slot
- * API: each slot object's props are merged into the default control, so its behavior is unchanged.
- */
-const SIDEBAR_INPUT = {
-  textArea: { "aria-label": "Mensagem para a Wendy" },
-  sendButton: { "aria-label": "Enviar mensagem" },
-  addMenuButton: { "aria-label": "Adicionar anexos" },
-};
-
-/**
- * Everything both chat shells share: Wendy's card renderers, data-derived suggestions and the run step.
- * In the Hoje workspace cards can open in the panel; elsewhere (sidebar) they expand in place.
+ * What the conversation needs from CopilotKit: Wendy's card renderers, data-derived suggestions and the run step.
+ * In the Hoje workspace cards can open in the panel; elsewhere (the drawer) they expand in place.
  */
 export function useWendyChat(suggestions: string[]) {
   const ws = useOptionalWorkspace();
@@ -224,80 +197,15 @@ export function useWendyChat(suggestions: string[]) {
   return step;
 }
 
-function StepBadge({ step }: { step: string | null }) {
-  if (!step) return null;
-  return (
-    <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-4" role="status" aria-live="polite">
-      <span className="flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-ink-2 shadow-sm">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" aria-hidden />
-        {STEPS[step] ?? step}… pode levar até um minuto
-      </span>
-    </div>
-  );
-}
-
 /** Shows back what the page shared with Wendy (agent state), so "isso" is never a guess for the principal either. */
-export function SeeingChip() {
+export function SeeingChip({ className = "" }: { className?: string }) {
   const { agent } = useAgent({ agentId: "wendy", updates: [UseAgentUpdate.OnStateChanged] });
   const label = (agent.state as { viewing?: { label?: string } } | undefined)?.viewing?.label;
   if (!label) return null;
   return (
-    <span className="inline-flex max-w-full items-center gap-1.5 truncate rounded-full bg-accent-soft px-2.5 py-1 text-xs text-accent-ink" title="O que a Wendy considera quando você diz “isso”">
+    <span className={`inline-flex max-w-full items-center gap-1.5 truncate rounded-full bg-accent-soft px-2.5 py-1 text-xs text-accent-ink ${className}`} title="O que a Wendy considera quando você diz “isso”">
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
       <span className="truncate">Vendo: {label}</span>
     </span>
-  );
-}
-
-export function WendyChat({ suggestions }: { suggestions: string[] }) {
-  const step = useWendyChat(suggestions);
-  return (
-    <div className="relative flex h-full min-h-0 flex-col">
-      <StepBadge step={step} />
-      <CopilotChat agentId="wendy" threadId={THREAD} className="h-full min-h-0" labels={LABELS} />
-    </div>
-  );
-}
-
-const WIDE = "(min-width: 1280px)";
-const subscribeWide = (fn: () => void) => {
-  const mq = window.matchMedia(WIDE);
-  mq.addEventListener("change", fn);
-  return () => mq.removeEventListener("change", fn);
-};
-
-/**
- * The same conversation as a right-hand sidebar on the other pages (it carries over as you navigate).
- * Opens by itself only where it fits beside the page; on smaller screens it waits for the button.
- */
-export function WendySidebar({ suggestions }: { suggestions: string[] }) {
-  const step = useWendyChat(suggestions);
-  const wide = useSyncExternalStore(subscribeWide, () => window.matchMedia(WIDE).matches, () => false);
-  const [choice, setChoice] = useState<boolean | null>(null);
-  return (
-    <>
-      <StepBadge step={step} />
-      <CopilotSidebar
-        agentId="wendy"
-        threadId={THREAD}
-        open={choice ?? wide}
-        onOpenChange={setChoice}
-        width={420}
-        labels={LABELS}
-        input={SIDEBAR_INPUT}
-        header={{
-          title: "Wendy",
-          children: ({ titleContent, closeButton }) => (
-            <div className="flex items-center gap-3 border-b border-line px-4 py-3">
-              {titleContent}
-              <span className="flex min-w-0 max-w-[65%] shrink-0 justify-end">
-                <SeeingChip />
-              </span>
-              {closeButton}
-            </div>
-          ),
-        }}
-      />
-    </>
   );
 }

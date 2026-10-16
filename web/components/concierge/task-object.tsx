@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { approveAction, cancelExecution, rejectAction } from "@/lib/actions";
+import { ActionsOffNote, useActionsOffReason } from "../agent-availability";
 import { toTaskPresentation, type TaskPresentation, type TimelineStep } from "@/lib/concierge";
 import { fetchExecution } from "@/lib/live";
 import type { ExecutionView } from "@/lib/wendy";
@@ -72,7 +73,7 @@ function Elapsed({ since, label, until }: { since: string; label: string; until?
 }
 
 function SimulationTag({ onStage = false }: { onStage?: boolean }) {
-  return <span className={`rounded-full px-2 py-0.5 text-[11px] ${onStage ? "bg-white/10 text-white/80" : "bg-info-soft text-info"}`}>Simulação</span>;
+  return <span className={`rounded-full px-2 py-0.5 text-micro ${onStage ? "bg-white/10 text-white/80" : "bg-info-soft text-info"}`}>Simulação</span>;
 }
 
 // ── panels ──────────────────────────────────────────────────────────────────────────────
@@ -82,17 +83,21 @@ function ApprovalPanel({ a, onDecided, interactive }: { a: NonNullable<TaskPrese
   const [error, setError] = useState<string | null>(null);
   const approveRef = useRef<HTMLButtonElement>(null);
   const headingId = useId();
+  const off = useActionsOffReason(); // set only when the environment says the agent is off
+  const noteId = useId();
   // Bring the decision to the keyboard — only when the principal is not typing somewhere else.
   useEffect(() => {
     if (interactive && (document.activeElement === document.body || document.activeElement === null)) approveRef.current?.focus({ preventScroll: true });
   }, [interactive]);
-  const act = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
+  const act = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
+    if (off) return; // the controls are disabled; this also covers a stale or programmatic call
     start(async () => {
       setError(null);
       const r = await fn();
       if (!r.ok) setError(r.error ?? "Não foi possível concluir.");
       onDecided();
     });
+  };
   return (
     <section aria-labelledby={headingId} className="mt-5 overflow-hidden rounded-2xl border border-line bg-surface">
       <div className="px-5 pt-5">
@@ -109,7 +114,7 @@ function ApprovalPanel({ a, onDecided, interactive }: { a: NonNullable<TaskPrese
       {a.terms.length ? (
         <div className="mt-4 border-t border-line-2 px-5 py-4">
           <p className="eyebrow">Combinado</p>
-          <ul className="mt-2 grid gap-1.5 text-[15px] leading-snug">
+          <ul className="mt-2 grid gap-1.5 text-body leading-snug">
             {a.terms.map((t, i) => (
               <li key={i} className="flex gap-2.5">
                 <span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-faint" />
@@ -134,7 +139,8 @@ function ApprovalPanel({ a, onDecided, interactive }: { a: NonNullable<TaskPrese
         <button
           ref={approveRef}
           type="button"
-          disabled={pending || !interactive}
+          disabled={pending || !interactive || !!off}
+          aria-describedby={off ? noteId : undefined}
           onClick={() => act(() => approveAction(a.actionId))}
           className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-50"
         >
@@ -142,13 +148,15 @@ function ApprovalPanel({ a, onDecided, interactive }: { a: NonNullable<TaskPrese
         </button>
         <button
           type="button"
-          disabled={pending || !interactive}
+          disabled={pending || !interactive || !!off}
+          aria-describedby={off ? noteId : undefined}
           onClick={() => act(() => rejectAction(a.actionId, "Agora não"))}
           className="rounded-full px-4 py-2.5 text-sm text-ink-2 hover:bg-surface-2 disabled:opacity-50"
         >
           Agora não
         </button>
       </div>
+      <ActionsOffNote id={noteId} className="mx-5 mb-4" />
       {error ? (
         <p className="px-5 pb-4 text-sm text-bad" role="alert">
           {error}
@@ -220,7 +228,7 @@ function BlockedPanel({ b }: { b: NonNullable<TaskPresentation["blocked"]> }) {
   return (
     <section aria-label="Ligação não permitida agora" className="mt-5 rounded-2xl border border-line bg-surface p-5">
       <p className="text-lg font-semibold tracking-tight">{b.title}</p>
-      <p className="mt-1 text-[15px] text-ink-2">{b.body}</p>
+      <p className="mt-1 text-body text-ink-2">{b.body}</p>
       {b.usage ? (
         <div className="mt-4">
           <div className="flex items-baseline justify-between text-sm">
@@ -239,7 +247,7 @@ function BlockedPanel({ b }: { b: NonNullable<TaskPresentation["blocked"]> }) {
 function Questions({ qs }: { qs: string[] }) {
   return (
     <section aria-label="O que falta" className="mt-5 rounded-2xl border border-line bg-surface p-5">
-      <ul className="grid gap-2 text-[15px]">
+      <ul className="grid gap-2 text-body">
         {qs.map((q, i) => (
           <li key={i} className="flex gap-2.5">
             <span aria-hidden className="text-faint">
@@ -287,13 +295,13 @@ function ResultPanel({ p }: { p: TaskPresentation }) {
           {r.facts.map((f) => (
             <div key={f.label} className="bg-surface px-5 py-3">
               <dt className="text-xs text-muted">{f.label}</dt>
-              <dd className="num mt-0.5 text-[15px]">{f.value}</dd>
+              <dd className="num mt-0.5 text-body">{f.value}</dd>
             </div>
           ))}
         </dl>
       ) : null}
       {r.whatHappened || r.next ? (
-        <div className="grid gap-3 border-t border-line-2 px-5 py-4 text-[15px]">
+        <div className="grid gap-3 border-t border-line-2 px-5 py-4 text-body">
           {r.whatHappened ? (
             <div>
               <p className="eyebrow">O que aconteceu</p>
@@ -362,23 +370,28 @@ function Timeline({ steps }: { steps: TimelineStep[] }) {
 function CancelTask({ id, onDone }: { id: string; onDone: () => void }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const off = useActionsOffReason(); // set only when the environment says the agent is off
+  const noteId = useId();
   return (
     <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line-2 pt-3">
       <button
         type="button"
-        disabled={pending}
-        onClick={() =>
+        disabled={pending || !!off}
+        aria-describedby={off ? noteId : undefined}
+        onClick={() => {
+          if (off) return; // also covers a stale or programmatic call
           start(async () => {
             setError(null);
             const r = await cancelExecution(id);
             if (!r.ok) setError(r.error);
             onDone();
-          })
-        }
+          });
+        }}
         className="text-sm text-muted underline-offset-4 hover:text-ink hover:underline disabled:opacity-50"
       >
         {pending ? "Cancelando…" : "Cancelar esta tarefa"}
       </button>
+      <ActionsOffNote id={noteId} className="py-1" />
       {error ? (
         <span className="text-sm text-bad" role="alert">
           {error}
@@ -426,7 +439,7 @@ export function TaskObject({
       </header>
       {/* The state in words: what screen readers announce when it changes. */}
       {/* When a result is shown its title says it; the line stays for screen readers only. */}
-      <p className={p.result ? "sr-only" : `mt-4 font-medium ${compact ? "text-[15px]" : "text-lg"}`} role="status" aria-live="polite">
+      <p className={p.result ? "sr-only" : `mt-4 font-medium ${compact ? "text-body" : "text-lg"}`} role="status" aria-live="polite">
         {p.line}
       </p>
       {p.approval ? <ApprovalPanel a={p.approval} onDecided={() => void reload()} interactive={interactive && live} /> : null}

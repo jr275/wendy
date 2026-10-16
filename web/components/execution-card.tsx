@@ -1,24 +1,18 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { approveAction, rejectAction } from "@/lib/actions";
+import { ActionsOffNote, useActionsOffReason } from "./agent-availability";
 import { MemoryRow } from "./memory-row";
 import { TaskObject } from "./concierge/task-object";
 import { fetchExecution } from "@/lib/live";
 import type { ExecutionView } from "@/lib/wendy";
+import { taskPhase } from "@/lib/taskStatus";
+import { TaskStatus } from "./task-status";
 
 /**
  * A skill run in the chat: what Wendy is doing, what she needs from you, and what came out.
  * The card only displays what Wendy persisted; approving goes through her action state machine.
  */
-const STATUS: Record<ExecutionView["status"], { label: string; tone: string }> = {
-  queued: { label: "Na fila", tone: "bg-surface-2 text-ink-2" },
-  running: { label: "Trabalhando", tone: "bg-info-soft text-info" },
-  waiting_child: { label: "Trabalhando", tone: "bg-info-soft text-info" },
-  waiting_permission: { label: "Precisa de você", tone: "bg-warn-soft text-warn" },
-  completed: { label: "Concluída", tone: "bg-accent-soft text-accent-ink" },
-  failed: { label: "Não concluída", tone: "bg-bad-soft text-bad" },
-  cancelled: { label: "Cancelada", tone: "bg-surface-2 text-muted" },
-};
 const KIND: Record<string, string> = { INFERENCE: "Conclusão", HYPOTHESIS: "Hipótese", ANTICIPATION: "Antecipação", RECOMMENDATION: "Recomendação" };
 const CATEGORY_NOTE: Record<string, string> = {
   WRITE: "Fica só na sua lista de tarefas; nada é enviado a ninguém.",
@@ -41,13 +35,17 @@ interface Analysis {
 function Approval({ a, onDone }: { a: ExecutionView["approvals"][number]; onDone: () => void }) {
   const [pendingT, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const act = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
+  const off = useActionsOffReason(); // set only when the environment says the agent is off
+  const noteId = useId();
+  const act = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
+    if (off) return; // the controls are disabled; this also covers a stale or programmatic call
     start(async () => {
       setError(null);
       const r = await fn();
       if (!r.ok) setError(r.error ?? "erro");
       onDone();
     });
+  };
   return (
     <div className="rounded-2xl border border-warn/30 bg-warn-soft p-4">
       <p className="text-sm font-medium text-warn">{a.label}?</p>
@@ -65,13 +63,14 @@ function Approval({ a, onDone }: { a: ExecutionView["approvals"][number]; onDone
       ) : null}
       <p className="mt-2 text-xs text-ink-2">{CATEGORY_NOTE[a.category] ?? ""}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" disabled={pendingT} onClick={() => act(() => approveAction(a.actionId))} className="rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-bg disabled:opacity-50">
+        <button type="button" disabled={pendingT || !!off} aria-describedby={off ? noteId : undefined} onClick={() => act(() => approveAction(a.actionId))} className="inline-flex min-h-11 items-center rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-bg disabled:opacity-50 lg:min-h-9">
           Aprovar
         </button>
-        <button type="button" disabled={pendingT} onClick={() => act(() => rejectAction(a.actionId, null))} className="rounded-full border border-line bg-surface px-4 py-1.5 text-sm text-ink-2 disabled:opacity-50">
+        <button type="button" disabled={pendingT || !!off} aria-describedby={off ? noteId : undefined} onClick={() => act(() => rejectAction(a.actionId, null))} className="inline-flex min-h-11 items-center rounded-full border border-line bg-surface px-4 py-1.5 text-sm text-ink-2 disabled:opacity-50 lg:min-h-9">
           Recusar
         </button>
       </div>
+      <ActionsOffNote id={noteId} className="mt-2" />
       {error ? (
         <p className="mt-2 text-xs text-bad" role="alert">
           {error}
@@ -87,7 +86,7 @@ function Findings({ o }: { o: Analysis }) {
     <div className="grid gap-3">
       {o.claims.map((c) => (
         <div key={c.label} className="rounded-xl border border-line-2 bg-surface-2/50 p-3">
-          <div className="flex items-center gap-2 text-[11px]">
+          <div className="flex items-center gap-2 text-micro">
             <span className="rounded-full bg-info-soft px-2 py-0.5 text-info">{KIND[c.kind] ?? c.kind}</span>
             <span className="num text-faint">confiança {c.confidence.toFixed(2)}</span>
           </div>
@@ -187,7 +186,7 @@ function SkillCard({ initial }: { initial: ExecutionView }) {
   }, [v]);
 
   const asks = pending(v);
-  const status = asks.length ? STATUS.waiting_permission : STATUS[v.status];
+  const phase = taskPhase(v);
   const notClaude = v.models.some((m) => !m.startsWith("claude-"));
   const research = v.children.filter((c) => c.skillId === "web-research" || c.skillId === "document-analysis");
 
@@ -196,8 +195,8 @@ function SkillCard({ initial }: { initial: ExecutionView }) {
       <div className="flex flex-wrap items-center gap-2">
         <span className="eyebrow">Habilidade</span>
         <span className="text-sm font-medium">{v.skillName}</span>
-        <span className={`rounded-full px-2 py-0.5 text-[11px] ${status.tone}`}>{status.label}</span>
-        {notClaude ? <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[11px] text-warn">não é o Claude</span> : null}
+        <TaskStatus phase={phase} />
+        {notClaude ? <span className="rounded-full bg-warn-soft px-2 py-0.5 text-micro text-warn">não é o Claude</span> : null}
       </div>
 
       <ol className="mt-3 grid gap-1 text-xs" aria-label="Etapas">

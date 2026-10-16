@@ -2,11 +2,14 @@
 import { CopilotKitCoreErrorCode, UseAgentUpdate, useAgent, useCopilotKit } from "@copilotkit/react-core/v2";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { COMMUNICATION_FAILURE, describeRunFailure } from "@/lib/conversation";
 import { deskPresence, toTaskPresentation, type PresenceState, type TaskPresentation } from "@/lib/concierge";
 import type { ExecutionView } from "@/lib/wendy";
 import { ExecutionCard } from "../execution-card";
 import { WendyPresence } from "./presence";
 import { TaskObject } from "./task-object";
+import { PHASE_LABEL, taskPhase } from "@/lib/taskStatus";
+import { useOptionalWorkspace } from "../workspace-context";
 
 /**
  * The concierge desk: where the principal delegates. Wendy's presence, one field ("O que eu
@@ -34,7 +37,10 @@ function RecentRow({ v }: { v: ExecutionView }) {
           {mark}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{p ? p.title : v.skillName}</span>
+          <span className="block truncate font-medium">
+            <span className="sr-only">{PHASE_LABEL[taskPhase(v)]}: </span>
+            {p ? p.title : v.skillName}
+          </span>
           <span className="block truncate text-sm text-muted">{p ? [p.subtitle, p.line].filter(Boolean).join(" — ") : new Date(v.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
         </span>
         <span aria-hidden className={`text-faint transition-transform ${open ? "rotate-90" : ""}`}>
@@ -46,7 +52,7 @@ function RecentRow({ v }: { v: ExecutionView }) {
   );
 }
 
-export function ConciergeDesk({ tasks, greeting, dateLabel }: { tasks: ExecutionView[]; greeting: string; dateLabel: string }) {
+export function ConciergeDesk({ tasks, greeting, dateLabel, unavailableReason }: { tasks: ExecutionView[]; greeting: string; dateLabel: string; unavailableReason?: string }) {
   const router = useRouter();
   // Re-render on run status: the conversation beside the desk drives the same agent.
   const { agent } = useAgent({ agentId: "wendy", updates: [UseAgentUpdate.OnRunStatusChanged] });
@@ -59,6 +65,7 @@ export function ConciergeDesk({ tasks, greeting, dateLabel }: { tasks: Execution
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState<Record<string, TaskPresentation>>({});
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const ws = useOptionalWorkspace();
   const titleId = useId();
 
   // A task that finishes while on screen stays where it is and turns into its result.
@@ -80,13 +87,16 @@ export function ConciergeDesk({ tasks, greeting, dateLabel }: { tasks: Execution
 
   // Run failures arrive as CopilotKit error events (runAgent does not throw on them); shown only for
   // the run this field started, so an error from the conversation beside it is not repeated here.
-  const deskRun = useRef(false);
+  const deskRun = useRef(false); // also the synchronous one-at-a-time guard: `running` (state) is stale within the same tick
+  const lastRequest = useRef("");
   useEffect(() => {
     const sub = copilotkit.subscribe({
-      onError: ({ code, context }) => {
+      onError: ({ code, error, context }) => {
         if (!deskRun.current || (context?.agentId && context.agentId !== "wendy")) return;
-        if (code === CopilotKitCoreErrorCode.AGENT_RUN_FAILED || code === CopilotKitCoreErrorCode.AGENT_RUN_FAILED_EVENT || code === CopilotKitCoreErrorCode.AGENT_RUN_ERROR_EVENT)
-          setError("A Wendy não respondeu agora. Tente de novo em instantes.");
+        if (code === CopilotKitCoreErrorCode.AGENT_RUN_FAILED || code === CopilotKitCoreErrorCode.AGENT_RUN_FAILED_EVENT || code === CopilotKitCoreErrorCode.AGENT_RUN_ERROR_EVENT) {
+          setError(describeRunFailure({ agentEvent: code === CopilotKitCoreErrorCode.AGENT_RUN_ERROR_EVENT, message: error?.message, runtimeErrorCode: context?.runtimeErrorCode ?? (error as { code?: unknown } | undefined)?.code }));
+          setText((t) => t || lastRequest.current); // the failure arrives as an event (no throw): give the request back instead of leaving the field empty
+        }
       },
     });
     return () => sub.unsubscribe();
@@ -95,11 +105,13 @@ export function ConciergeDesk({ tasks, greeting, dateLabel }: { tasks: Execution
   const delegate = async () => {
     const request = text.trim();
     // One turn at a time on the shared agent (the library itself would start a second, concurrent run).
-    if (!request || running || agent.isRunning) return;
+    if (!request || running || agent.isRunning || deskRun.current || unavailableReason) return;
+    deskRun.current = true;
+    lastRequest.current = request;
     setError(null);
     setReply(null);
     setRunning(true);
-    deskRun.current = true;
+    ws?.beginLive();
     try {
       agent.addMessage({ id: crypto.randomUUID(), role: "user", content: request });
       const sentAt = agent.messages.length; // only what arrives after this request is its reply
@@ -109,9 +121,10 @@ export function ConciergeDesk({ tasks, greeting, dateLabel }: { tasks: Execution
       setReply(last ? String(last.content) : null);
       router.refresh(); // the task Wendy created comes back from her runtime
     } catch {
-      setError("A Wendy não respondeu agora. Tente de novo em instantes.");
+      setError(COMMUNICATION_FAILURE);
       setText(request);
     } finally {
+      ws?.endLive();
       deskRun.current = false;
       setRunning(false);
       setStep(null);
@@ -123,13 +136,24 @@ export function ConciergeDesk({ tasks, greeting, dateLabel }: { tasks: Execution
       <section aria-labelledby={titleId} className="flex flex-col items-center pt-10 text-center sm:pt-16">
         <WendyPresence state={presence} size="lg" />
         <p className="eyebrow mt-6">{dateLabel}</p>
-        <h1 id={titleId} className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">
+        <h1 id={titleId} className="display mt-3 text-4xl tracking-tight sm:text-6xl">
           {greeting}
         </h1>
         <p className="mt-2 text-lg text-muted sm:text-xl">O que eu resolvo para você?</p>
 
+        {/* One real field at every width. Where the conversation is already a column beside this page (lg+), this is only a way
+            into that column's field: same agent, same thread, no second composer to choose between. Below lg the field is real. */}
+        <button
+          type="button"
+          disabled={!!unavailableReason}
+          onClick={() => document.querySelector<HTMLTextAreaElement>('section[aria-label="Conversa com a Wendy"] textarea')?.focus()}
+          className="card mt-8 hidden min-h-[4.25rem] w-full items-center px-5 text-left text-lead text-faint transition-colors hover:border-accent disabled:opacity-60 lg:flex"
+        >
+          {unavailableReason ? "Conversa indisponível" : "Peça algo à Wendy…"}
+          <span className="sr-only"> — vai para o campo de mensagem da conversa</span>
+        </button>
         <form
-          className="mt-8 w-full"
+          className="mt-8 w-full lg:hidden"
           onSubmit={(e) => {
             e.preventDefault();
             void delegate();
@@ -138,7 +162,7 @@ export function ConciergeDesk({ tasks, greeting, dateLabel }: { tasks: Execution
           <label htmlFor={`${titleId}-ask`} className="sr-only">
             Pedido para a Wendy
           </label>
-          <div className="card flex items-end gap-2 p-2 pl-5 text-left focus-within:border-accent">
+          <div className="card flex flex-col gap-1 p-2 pl-4 text-left focus-within:border-accent sm:flex-row sm:items-end sm:gap-2 sm:pl-5">
             <textarea
               id={`${titleId}-ask`}
               ref={inputRef}
@@ -153,17 +177,17 @@ export function ConciergeDesk({ tasks, greeting, dateLabel }: { tasks: Execution
                   void delegate();
                 }
               }}
-              placeholder="Ex.: liga para o Aprazível e reserva uma mesa para 2 amanhã às 20h"
-              className="min-h-[3.25rem] flex-1 resize-none bg-transparent py-3 text-[17px] leading-snug outline-none placeholder:text-faint"
-              disabled={running || agent.isRunning}
+              placeholder={unavailableReason ? "Delegar indisponível" : "Ex.: liga para o Aprazível e reserva uma mesa para 2 amanhã às 20h"}
+              className="max-h-48 min-h-[3.25rem] flex-1 resize-none bg-transparent py-3 text-lead leading-snug outline-none [field-sizing:content] placeholder:text-faint"
+              disabled={running || agent.isRunning || !!unavailableReason}
             />
-            <button type="submit" disabled={running || agent.isRunning || !text.trim()} className="mb-1 shrink-0 rounded-full bg-ink px-5 py-3 text-sm font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-40">
+            <button type="submit" disabled={running || agent.isRunning || !text.trim() || !!unavailableReason} className="mb-1 shrink-0 self-end rounded-full bg-ink px-5 py-3 text-sm font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-40 sm:self-auto">
               {running ? "Cuidando…" : "Delegar"}
             </button>
           </div>
         </form>
         <div className="mt-3 min-h-6 text-sm" role="status" aria-live="polite">
-          {running ? <span className="text-muted">{(step && STEP[step]) || "Deixa comigo…"}</span> : error ? <span className="text-bad">{error}</span> : reply ? <span className="text-ink-2">{reply}</span> : null}
+          {unavailableReason ? <span className="text-info">{unavailableReason}</span> : running ? <span className="text-muted">{(step && STEP[step]) || "Deixa comigo…"}</span> : error ? <span className="text-bad">{error}</span> : reply ? <span className="text-ink-2">{reply}</span> : null}
         </div>
       </section>
 
@@ -171,7 +195,11 @@ export function ConciergeDesk({ tasks, greeting, dateLabel }: { tasks: Execution
         <section aria-label="Em andamento" className="mt-10">
           <h2 className="eyebrow mb-3">Em andamento</h2>
           <div className="grid gap-4">
-            {active.map((v) => (v.skillId === "voice-concierge" ? <TaskObject key={v.id} initial={v} onChange={onTask} /> : <ExecutionCard key={v.id} initial={v} />))}
+            {active.map((v) => (
+              <div key={v.id} id={`tarefa-${v.id}`} className="scroll-mt-20">
+                {v.skillId === "voice-concierge" ? <TaskObject initial={v} onChange={onTask} /> : <ExecutionCard initial={v} />}
+              </div>
+            ))}
           </div>
         </section>
       ) : null}

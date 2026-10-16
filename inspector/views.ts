@@ -3,6 +3,7 @@
  * queries over persisted state — nothing is computed for display that the core did not record.
  */
 import type pg from 'pg';
+import { inSearchScope, outOfScopeInsightIds } from '../src/sensors/searchScope.js';
 
 const HOUR = 3_600_000;
 
@@ -87,7 +88,8 @@ export async function today(db: pg.Pool, principalIdParam: string | null) {
       [pid, since, in48h],
     )
   ).rows[0];
-  const insights = (await db.query(`${INSIGHT_CARD_SQL} WHERE i.principal_id = $1 ORDER BY (i.salience->>'score')::float DESC, i.created_at DESC LIMIT 100`, [pid])).rows;
+  const outOfScope = await outOfScopeInsightIds(db, pid); // insights about Search Console properties the principal chose not to consider
+  const insights = (await db.query(`${INSIGHT_CARD_SQL} WHERE i.principal_id = $1 ORDER BY (i.salience->>'score')::float DESC, i.created_at DESC LIMIT 100`, [pid])).rows.filter((i: { id: string }) => !outOfScope.has(i.id));
   await labelEvidence(db, insights);
   const prepared = (
     await db.query(
@@ -384,7 +386,7 @@ export async function sources(db: pg.Pool, principalIdParam: string | null) {
        FROM web_properties wp WHERE wp.principal_id = $1 ORDER BY wp.label`,
       [pid],
     )
-  ).rows;
+  ).rows.filter((p: { label: string; site_url: string }) => inSearchScope(p));
   return { messages, meetings, lastImport, webProperties };
 }
 
@@ -479,7 +481,7 @@ export async function radar(db: pg.Pool, principalIdParam: string | null, days =
 export async function sites(db: pg.Pool, principalIdParam: string | null) {
   const pid = await resolvePrincipal(db, principalIdParam);
   if (!pid) return { sites: [] };
-  const props = (await db.query(`SELECT id, label, site_url, explicit_importance, last_synced_at FROM web_properties WHERE principal_id = $1 ORDER BY label`, [pid])).rows;
+  const props = (await db.query(`SELECT id, label, site_url, explicit_importance, last_synced_at FROM web_properties WHERE principal_id = $1 ORDER BY label`, [pid])).rows.filter((p: { label: string; site_url: string }) => inSearchScope(p));
   const out = [];
   for (const p of props) {
     const daily = (await db.query(`SELECT to_char(date,'YYYY-MM-DD') AS date, clicks, impressions, ctr, position FROM search_daily_totals WHERE property_id = $1 ORDER BY date`, [p.id])).rows;
@@ -543,6 +545,39 @@ export async function chat(db: pg.Pool, principalIdParam: string | null) {
   if (!pid) return { messages: [] };
   const { chatHistory } = await import('../src/agent/chatLog.js');
   return { messages: await chatHistory(db, pid) };
+}
+
+/** The principal's recent questions in the conversation (to resume from), newest first. Read-only. */
+export async function history(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { questions: [] };
+  const { recentQuestions } = await import('../src/agent/chatLog.js');
+  return { questions: await recentQuestions(db, pid) };
+}
+
+/** The weekly review: a deterministic reading of the principal's own records (src/review). Read-only. */
+export async function review(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { review: null };
+  const timeZone = ((await db.query('SELECT timezone FROM principals WHERE id = $1', [pid])).rows[0] as { timezone?: string } | undefined)?.timezone ?? 'UTC';
+  const { weeklyReview } = await import('../src/review/loader.js');
+  return { review: await weeklyReview(db, pid, timeZone) };
+}
+
+/** The reading digest: today's items and the routine's schedule. Read-only. */
+export async function digest(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { digest: null };
+  const { digestFor } = await import('../src/routines/digestService.js');
+  return { digest: await digestFor(db, pid) };
+}
+
+/** Market monitoring observations (never advice) and the routine's schedule. Read-only. */
+export async function market(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { market: null };
+  const { marketAlertsFor } = await import('../src/routines/digestService.js');
+  return { market: await marketAlertsFor(db, pid) };
 }
 
 /** What Wendy knows: proposals to confirm and active memories, with freshness. */

@@ -4,6 +4,7 @@
  * style ever comes from a model. Artwork: the product owner's, supplied as local files (see
  * assets/characters/README.md) and replaceable by editing `src` here.
  */
+import { isAllowedSceneUrl } from "./scene3d";
 import type { MoodCategory } from "./mood";
 
 export const CHARACTER_IDS = ["joy", "anxiety", "anger", "sadness", "envy", "ennui", "disgust", "fear"] as const;
@@ -19,6 +20,11 @@ export interface CharacterDef {
   accent: string;
   /** Mood categories this character presents. Empty = registered but not used yet. */
   categories: readonly MoodCategory[];
+  /**
+   * OPTIONAL 3D scene (Spline): https://prod.spline.design/<id>/scene.splinecode, published by the owner. Unset = 2D only. Anything that is not an
+   * allowed address is ignored (lib/scene3d.ts). Shown only when the person turned 3D on; the 2D `src` is always the fallback.
+   */
+  scene?: string;
 }
 
 export const CHARACTERS: Record<CharacterId, CharacterDef> = {
@@ -43,3 +49,11 @@ export function characterFor(category: MoodCategory): CharacterId | null {
 export function resolveCharacter(id: unknown): CharacterDef | null {
   return isCharacterId(id) ? CHARACTERS[id] : null;
 }
+
+/** The allowed 3D scene of a character, or null (none configured, or not an allowed address). */
+export function sceneOf(def: Pick<CharacterDef, "scene"> | null | undefined): string | null {
+  return def && isAllowedSceneUrl(def.scene) ? def.scene : null;
+}
+
+/** Whether any character has a usable 3D scene — the 3D switch is only offered when there is something to switch on. */
+export const hasAnyScene = (): boolean => CHARACTER_IDS.some((id) => sceneOf(CHARACTERS[id]) !== null);

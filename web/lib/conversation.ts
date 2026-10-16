@@ -55,6 +55,17 @@ export function conversationItems(messages: readonly AgUiMessage[]): Conversatio
   return items;
 }
 
+/**
+ * The text to hand back to the composer after a failed turn: the last thing on screen is the principal's
+ * own message and Wendy produced nothing after it. It is offered for editing and a NEW send, never
+ * re-run: re-running the same message could start a second task (and a second approval) if the first
+ * attempt had already begun one, because starting a run is not de-duplicated per message.
+ */
+export function unansweredUserText(items: readonly ConversationItem[]): string | null {
+  const last = items[items.length - 1];
+  return last?.kind === "user" ? last.text : null;
+}
+
 export type ConversationStatus = "connecting" | "empty" | "ready" | "running" | "error";
 
 /** What the conversation shows around the messages (one place, so it can be tested). */
@@ -63,4 +74,21 @@ export function conversationStatus(s: { connected: boolean; connectFailed: boole
   if (s.running) return "running";
   if (!s.connected && !s.connectFailed) return "connecting";
   return s.items ? "ready" : "empty";
+}
+
+/** What the principal is told when no answer came back and the client cannot know whether the message arrived. */
+export const COMMUNICATION_FAILURE = "Não consegui falar com a Wendy agora. Não tenho confirmação de que esta mensagem chegou até ela.";
+
+/**
+ * The sentence shown when a run did not complete, built only from what the client really knows.
+ *
+ * A RUN_ERROR the agent itself emits carries just a message (src/agent/errors.ts writes it in pt-BR for the
+ * principal) and no `code`. One the CopilotKit runtime emits because it could not talk to the agent has a code
+ * (for example INCOMPLETE_STREAM with the raw "fetch failed"): that is a communication failure, not something
+ * Wendy said, and it must neither be shown raw nor read as "the agent is off" (it is also what a stream cut
+ * after the agent started would look like). Whether the message reached the agent is then unknown, and is said so.
+ */
+export function describeRunFailure(f: { agentEvent: boolean; message?: string; runtimeErrorCode?: unknown }): string {
+  const agentSaid = f.agentEvent && !f.runtimeErrorCode && typeof f.message === "string" && f.message.trim();
+  return agentSaid ? f.message!.trim().slice(0, 300) : COMMUNICATION_FAILURE;
 }

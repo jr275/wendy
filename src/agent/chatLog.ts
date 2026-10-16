@@ -5,6 +5,7 @@
  */
 import { EventType, type BaseEvent } from '@ag-ui/core';
 import type { Queryable } from '../db/db.js';
+import { maskCardData, maskCardDeep } from '../security/cardRedaction.js';
 
 export const MAIN_THREAD = 'main';
 const HISTORY_LIMIT = 200;
@@ -59,7 +60,7 @@ export async function saveMessages(q: Queryable, principalId: string, messages: 
     await q.query(
       `INSERT INTO chat_messages(id, principal_id, thread_id, role, content, tool_calls, tool_call_id, created_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (principal_id, id) DO NOTHING`,
-      [m.id, principalId, MAIN_THREAD, m.role, m.content ?? null, m.toolCalls ? JSON.stringify(m.toolCalls) : null, m.toolCallId ?? null, now],
+      [m.id, principalId, MAIN_THREAD, m.role, m.content == null ? null : maskCardData(m.content), m.toolCalls ? JSON.stringify(maskCardDeep(m.toolCalls)) : null, m.toolCallId ?? null, now],
     );
   }
 }
@@ -67,6 +68,27 @@ export async function saveMessages(q: Queryable, principalId: string, messages: 
 /** The principal's own messages from a run's input (user role only; the agent's are recorded from events). */
 export function userMessages(input: { messages: { id: string; role: string; content?: unknown }[] }): ChatMessage[] {
   return input.messages.filter((m) => m.role === 'user' && typeof m.content === 'string').map((m) => ({ id: m.id, role: 'user', content: m.content as string }));
+}
+
+/**
+ * The principal's recent questions, newest first, for resuming ("go back to this"). Taken from the
+ * SAME window the conversation restores (the last HISTORY_LIMIT messages), so every entry can be
+ * reached in the conversation on screen. Text is clipped for a list; the message stays whole in the log.
+ */
+export async function recentQuestions(q: Queryable, principalId: string, limit = 15): Promise<{ id: string; text: string; at: Date; runId: string | null }[]> {
+  // runId: the task this message started, when it started one (skill_executions.trigger.messageId, written by the agent when it starts a run
+  // from a chat turn). Older runs, and questions that did not start one, have none: nothing is guessed from the text.
+  const rows = (
+    await q.query<{ id: string; content: string | null; created_at: Date; run_id: string | null }>(
+      `SELECT last.id, last.content, last.created_at,
+              (SELECT e.id::text FROM skill_executions e WHERE e.principal_id = $1 AND e.parent_id IS NULL AND e.trigger->>'messageId' = last.id ORDER BY e.created_at DESC LIMIT 1) AS run_id
+         FROM (
+           SELECT * FROM chat_messages WHERE principal_id = $1 AND thread_id = $2 ORDER BY seq DESC LIMIT $3
+         ) last WHERE last.role = 'user' AND last.content IS NOT NULL ORDER BY last.seq DESC LIMIT $4`,
+      [principalId, MAIN_THREAD, HISTORY_LIMIT, limit],
+    )
+  ).rows;
+  return rows.map((r) => ({ id: r.id, text: r.content!.replace(/\s+/g, ' ').trim().slice(0, 200), at: r.created_at, runId: r.run_id }));
 }
 
 export async function chatHistory(q: Queryable, principalId: string, limit = HISTORY_LIMIT): Promise<ChatMessage[]> {

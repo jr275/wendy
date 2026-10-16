@@ -8,6 +8,7 @@
  */
 import { z } from 'zod';
 import type { Queryable } from '../db/db.js';
+import { inSearchScope } from '../sensors/searchScope.js';
 
 export const ViewingSchema = z.object({
   kind: z.enum(['today', 'sites', 'site', 'insight']),
@@ -31,7 +32,7 @@ export async function resolveViewing(q: Queryable, principalId: string, raw: unk
   if (v.kind === 'today') return { description: "the Today overview (what needs the principal's attention)", label: 'Hoje', searchTerms: [] };
 
   if (v.kind === 'sites') {
-    const sites = (await q.query<{ label: string }>('SELECT label FROM web_properties WHERE principal_id = $1 ORDER BY label', [principalId])).rows;
+    const sites = (await q.query<{ label: string; site_url: string }>('SELECT label, site_url FROM web_properties WHERE principal_id = $1 ORDER BY label', [principalId])).rows.filter((s) => inSearchScope(s));
     return { description: `the list of the principal's websites (${sites.map((s) => s.label).join(', ')})`, label: 'Sites', searchTerms: sites.map((s) => s.label) };
   }
 
@@ -39,7 +40,7 @@ export async function resolveViewing(q: Queryable, principalId: string, raw: unk
 
   if (v.kind === 'site') {
     const s = (await q.query<{ label: string; site_url: string }>('SELECT label, site_url FROM web_properties WHERE id = $1 AND principal_id = $2', [v.id, principalId])).rows[0];
-    return s ? { description: `the website "${s.label}" (${s.site_url}) and its Search Console numbers`, label: s.label, searchTerms: [s.label] } : null;
+    return s && inSearchScope(s) ? { description: `the website "${s.label}" (${s.site_url}) and its Search Console numbers`, label: s.label, searchTerms: [s.label] } : null;
   }
 
   const i = (

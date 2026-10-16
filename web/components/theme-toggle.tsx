@@ -24,7 +24,7 @@ export function ThemeToggle() {
         } catch {}
         listeners.forEach((l) => l());
       }}
-      className="shrink-0 rounded-full border border-line px-2.5 py-1.5 text-xs text-ink-2 hover:bg-surface-2 sm:min-w-[72px] sm:px-3"
+      className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full border border-line px-2.5 py-1.5 text-xs text-ink-2 hover:bg-surface-2 sm:min-w-[72px] sm:px-3 lg:min-h-9"
       aria-label={theme === null ? "Tema" : `Mudar para tema ${next === "dark" ? "escuro" : "claro"}`}
     >
       {theme === null ? "Tema" : next === "dark" ? "Escuro" : "Claro"}

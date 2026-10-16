@@ -10,7 +10,7 @@ export function Lead({ text, size = "lg" }: { text: string | null | undefined; s
   return (
     <div>
       <p className={`${size === "xl" ? "text-2xl sm:text-[28px]" : "text-xl sm:text-2xl"} font-medium leading-snug tracking-tight`}>{lead}</p>
-      {rest ? <p className="mt-3 max-w-3xl text-[17px] leading-relaxed text-ink-2">{rest}</p> : null}
+      {rest ? <p className="mt-3 max-w-3xl text-lead leading-relaxed text-ink-2">{rest}</p> : null}
     </div>
   );
 }

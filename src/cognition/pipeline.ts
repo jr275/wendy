@@ -24,6 +24,7 @@ import { renderInsight } from './render.js';
 import { computeSalience, type SalienceResult } from './salience.js';
 import { relationshipMetrics } from '../people/relationshipMetrics.js';
 import { siteChangeContributors } from '../sensors/searchDetector.js';
+import { inSearchScope } from '../sensors/searchScope.js';
 import { ReasoningSchema, UnderstandingSchema, type Reasoning, type Understanding } from './schemas.js';
 import { validateReasoning, validateUnderstanding, type ValidationReport } from './validator.js';
 
@@ -131,6 +132,7 @@ async function buildFocus(ctx: WendyContext, principal: Principal, event: WendyE
     case 'SEARCH_PERFORMANCE_CHANGE': {
       const prop = (await db.query<{ id: string; site_url: string; label: string; explicit_importance: number | null }>('SELECT id, site_url, label, explicit_importance FROM web_properties WHERE principal_id = $1 AND id = $2', [principal.id, String(p.property_id)])).rows[0];
       if (!prop) return SKIP('web property no longer exists');
+      if (!inSearchScope(prop)) return SKIP('web property is outside the configured Search Console scope');
       const ch = p.change as { kind: string; dimension: string; key: string; currentRowId: string; baselineRowId: string; changePct: number | null; positionDelta: number | null };
       const rows = (
         await db.query<{ id: string; window_start: string; window_end: string; dimension: string; key: string; clicks: number; impressions: number; ctr: number; position: number; fetched_at: Date }>(

@@ -10,6 +10,7 @@ import { GoogleAuth } from 'google-auth-library';
 import { withTx, type Db, type Queryable } from '../db/db.js';
 import { DAY_MS } from '../util/clock.js';
 import { newId } from '../util/hash.js';
+import { inSearchScope } from './searchScope.js';
 
 export const SEARCH_SYNC_CONFIG = {
   dataLagDays: 3, // Search Console "final" data is ~2–3 days behind
@@ -132,7 +133,7 @@ export async function syncDueProperties(db: Db, api: SearchConsoleApi, now: Date
        WHERE last_synced_at IS NULL OR last_synced_at < $1 ORDER BY label`,
       [new Date(now.getTime() - minIntervalHours * 3_600_000)],
     )
-  ).rows;
+  ).rows.filter((p) => inSearchScope(p)); // out-of-scope properties are not even fetched from Google
   const results: { label: string; ok: boolean; detail: string }[] = [];
   for (const p of due) {
     try {

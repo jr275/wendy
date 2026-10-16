@@ -16,6 +16,7 @@
 import { ActionService, proposeAction, type ActionRow } from '../actions/actions.js';
 import type { ActionExecutor } from '../actions/executor.js';
 import { ReasoningUnavailableError, type ReasoningClient } from '../cognition/llm.js';
+import { redactSecrets } from '../cognition/resilience.js';
 import { quoteInSource } from '../cognition/validator.js';
 import { withTx, type Db, type Queryable } from '../db/db.js';
 import type { Clock } from '../util/clock.js';
@@ -76,10 +77,32 @@ const clip = (v: unknown, n = 600) => {
   return s.length > n ? `${s.slice(0, n)}…` : s;
 };
 
-function toExecutionError(e: unknown, step: string | null): ExecutionError {
+/**
+ * How a failure is reported, and whether the step may try again. A model failure is judged by WHY it
+ * failed (cognition/resilience.ts): a transient provider error is worth another try; a refusal or an
+ * expired login is not; an invalid output was already retried by the client, so it is not repeated here.
+ * A legacy ReasoningUnavailableError without a reason keeps its old behaviour (retryable).
+ */
+export function toExecutionError(e: unknown, step: string | null): ExecutionError {
+  const r = describeError(e, step);
+  return { ...r, message: redactSecrets(r.message) };
+}
+
+function describeError(e: unknown, step: string | null): ExecutionError {
   if (e instanceof SkillError) return { code: e.code, message: e.message, step, retryable: e.retryable };
   if (e instanceof ToolError) return { code: e.code === 'TIMEOUT' ? 'TIMEOUT' : e.code === 'NOT_ALLOWED' || e.code === 'BLOCKED' ? 'NOT_ALLOWED' : 'TOOL_FAILED', message: `${e.code}: ${e.message}`, step, retryable: e.retryable };
-  if (e instanceof ReasoningUnavailableError) return { code: 'MODEL_UNAVAILABLE', message: e.message, step, retryable: true };
+  if (e instanceof ReasoningUnavailableError) {
+    switch (e.kind) {
+      case 'auth':
+        return { code: 'MODEL_AUTH', message: e.message, step, retryable: false };
+      case 'refusal':
+        return { code: 'MODEL_REFUSED', message: e.message, step, retryable: false };
+      case 'invalid_output':
+        return { code: 'MODEL_UNAVAILABLE', message: e.message, step, retryable: false };
+      default: // transient, or a legacy error with no reason
+        return { code: 'MODEL_UNAVAILABLE', message: e.message, step, retryable: true };
+    }
+  }
   return { code: 'INTERNAL', message: e instanceof Error ? `${e.name}: ${e.message}` : String(e), step, retryable: false };
 }
 

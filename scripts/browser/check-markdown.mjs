@@ -35,7 +35,7 @@ ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && pending.has(d.
 await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] }); await send('Page.enable'); await send('Runtime.enable');
 await send('Page.navigate', { url }); await new Promise((r) => setTimeout(r, 9000));
 const res = (await send('Runtime.evaluate', { returnByValue: true, expression: `(() => Object.fromEntries([...document.querySelectorAll('section[data-case]')].map((s) => [s.dataset.case, {
-  img: s.querySelectorAll('img').length, blockedImage: !!s.querySelector('[data-blocked-image]'), script: s.querySelectorAll('script').length, iframe: s.querySelectorAll('iframe').length,
+  english: /Image blocked|\\[blocked\\]/.test(s.textContent) || [...s.querySelectorAll('[title]')].some((e) => /^Blocked URL/.test(e.title)), img: s.querySelectorAll('img').length, blockedImage: !!s.querySelector('[data-blocked-image]'), script: s.querySelectorAll('script').length, iframe: s.querySelectorAll('iframe').length,
   handlers: [...s.querySelectorAll('*')].filter((e) => [...e.attributes].some((a) => /^on/i.test(a.name))).length,
   jsHref: [...s.querySelectorAll('a')].filter((a) => /^\\s*javascript:/i.test(a.getAttribute('href') || '')).length,
   links: [...s.querySelectorAll('a')].map((a) => a.getAttribute('href')), tags: [...new Set([...s.querySelectorAll('strong,em,code,li,h2')].map((e) => e.tagName.toLowerCase()))],
@@ -45,6 +45,7 @@ await cleanup();
 const problems = [];
 const need = (ok, msg) => ok || problems.push(msg);
 for (const [k, v] of Object.entries(res)) {
+  need(!v.english, `${k}: English blocked text shown`);
   need(v.img === 0, `${k}: ${v.img} <img> rendered`);
   need(v.script === 0 && v.iframe === 0, `${k}: script/iframe rendered`);
   need(v.handlers === 0, `${k}: event-handler attribute rendered`);

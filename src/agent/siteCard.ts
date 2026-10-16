@@ -1,6 +1,7 @@
 /** Deterministic website card data (no model involved): series, windows and largest movers. */
 import type { Queryable } from '../db/db.js';
 import { siteChangeContributors } from '../sensors/searchDetector.js';
+import { inSearchScope } from '../sensors/searchScope.js';
 
 export interface SiteCard {
   propertyId: string;
@@ -31,7 +32,7 @@ export async function topPages(q: Queryable, propertyId: string, windowEnd: stri
 
 export async function siteCard(q: Queryable, principalId: string, propertyId: string): Promise<SiteCard | null> {
   const p = (await q.query<{ id: string; label: string; site_url: string; explicit_importance: number | null }>('SELECT id, label, site_url, explicit_importance FROM web_properties WHERE principal_id = $1 AND id = $2', [principalId, propertyId])).rows[0];
-  if (!p) return null;
+  if (!p || !inSearchScope(p)) return null;
   const daily = (await q.query<{ date: string; clicks: number; impressions: number }>(`SELECT to_char(date,'YYYY-MM-DD') AS date, clicks, impressions FROM search_daily_totals WHERE property_id = $1 ORDER BY date`, [p.id])).rows;
   const w = (
     await q.query<{ start: string; end: string; clicks: number; impressions: number; ctr: number; position: number }>(

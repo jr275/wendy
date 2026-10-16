@@ -13,3 +13,11 @@ config/import-exclusions.json
 # personal retrieval questions and their results (contain real subjects)
 config/retrieval-cases.json
 eval-results/
+
+# personal choice of which Search Console properties Wendy considers (see config/search-scope.example.json)
+config/search-scope.json
+# personal spend limits (see config/spend-policy.example.json); no file means no spending
+config/spend-policy.json
+
+# personal choice of which GitHub repositories Wendy may look at (see config/github-scope.example.json); no file means none
+config/github-scope.json

@@ -1,38 +1,50 @@
 @import "tailwindcss";
+/* The Markdown renderer ships Tailwind utility classes (list-decimal, space-y-4, ...). Tailwind v4 does not scan node_modules, so without this they never exist. */
+@source "../node_modules/streamdown/dist/*.js";
+/* Tailwind's `dark:` follows the OS by default; Wendy's theme is its own switch (the `dark` class mirrored on <html> by the boot script in layout.tsx). */
+@custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Wendy design tokens.
- * Cool neutral background with a soft pastel "bloom" at the top of each screen (Apple Card–like),
- * white cards on top, one green accent, quiet lines. Numbers in Geist Mono.
+ * Wendy design tokens — single source of truth ("papel e musgo").
+ * Warm paper neutrals, one moss-green accent, a quiet warm glow at the top of each screen, a serif
+ * voice for headlines (Newsreader) over Geist for the interface. Numbers in Geist Mono.
  * Status colors carry meaning only: amber = needs you, red = decline, green = rise / done.
+ * Every text/background pair below was measured against WCAG 2.2 AA (4.5:1 text, 3:1 focus ring).
  */
 :root {
   color-scheme: light;
-  --bg: #f5f5f7;
-  --surface: #ffffff;
-  --surface-2: #f0f0f3;
-  --ink: #1d1d1f;
-  --ink-2: #424245;
-  --subtle: #6e6e73;
-  --faint: #a1a1a6;
-  --line: #e3e3e8;
-  --line-2: #ececf0;
-  --brand: #2f7a55;
-  --accent-ink: #1f5a3e;
-  --accent-soft: #e3efe8;
-  --warn: #a76a12;
-  --warn-soft: #f7ecd9;
-  --bad: #b3412f;
-  --bad-soft: #f6e3df;
-  --good: #2f7a55;
-  --info: #3b5ea8;
-  --info-soft: #e5ebf6;
+  --bg: #f7f4ee;
+  --surface: #fffefb;
+  --surface-2: #f1ede5;
+  --ink: #1c1a17;
+  --ink-2: #45413a;
+  --subtle: #6b665c;
+  --faint: #787265;
+  --line: #e5dfd3;
+  --line-2: #ede8de;
+  --brand: #2b6f4e;
+  --accent-ink: #1d4f37;
+  --accent-soft: #e2eee6;
+  --warn: #8f5a0c;
+  --warn-soft: #f7ead3;
+  --bad: #a63a28;
+  --bad-soft: #f6e1dc;
+  --good: #2b6f4e;
+  --info: #34559c;
+  --info-soft: #e6ebf5;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 30px rgba(0, 0, 0, 0.05);
-  /* Pastel bloom: pink, lavender, peach, amber, yellow-green. */
-  --bloom: radial-gradient(circle at 15% 40%, rgba(255, 149, 255, 0.55) 2%, transparent 36%), radial-gradient(at 97% 30%, rgba(218, 228, 104, 0.5) 6%, transparent 24%),
-    radial-gradient(circle at 22% 85%, rgba(197, 159, 255, 0.55) 15%, transparent 50%), radial-gradient(circle at 84% 80%, rgba(255, 207, 109, 0.5) 25%, transparent 60%),
-    radial-gradient(circle at 50% 30%, rgba(254, 185, 131, 0.5) 20%, transparent 70%);
-  --bloom-opacity: 0.7;
+  /* Quiet glow: moss and warm peach, low strength (a hint of place, not decoration). */
+  --bloom: radial-gradient(60% 55% at 22% 0%, rgba(43, 111, 78, 0.22), transparent 70%), radial-gradient(55% 50% at 88% 6%, rgba(233, 168, 110, 0.28), transparent 70%);
+  --bloom-opacity: 0.55;
+  /* Shape, reading width and motion */
+  --header-h: 3.5rem; /* top bar height; +1.5rem when the honesty strip is shown below md */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --read: 42rem;
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   /* Chart categorical slots (validated: dataviz validator, light surface) + neutral "other". */
   --series-1: #2a78d6;
   --series-2: #eb6834;
@@ -42,18 +54,18 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #0b0b0d;
-  --surface: #1c1c1e;
-  --surface-2: #26262a;
-  --ink: #f5f5f7;
-  --ink-2: #d2d2d7;
-  --subtle: #a1a1a6;
-  --faint: #6e6e73;
-  --line: #333338;
-  --line-2: #2a2a2e;
-  --brand: #6cc59a;
-  --accent-ink: #8fd9b3;
-  --accent-soft: rgba(108, 197, 154, 0.14);
+  --bg: #0f0e0c;
+  --surface: #1b1a17;
+  --surface-2: #25231f;
+  --ink: #f4f1ea;
+  --ink-2: #d4cfc4;
+  --subtle: #a39d90;
+  --faint: #8a8478;
+  --line: #34312b;
+  --line-2: #2a2823;
+  --brand: #7fcaa0;
+  --accent-ink: #9fdbb9;
+  --accent-soft: rgba(127, 202, 160, 0.14);
   --warn: #e7b066;
   --warn-soft: rgba(231, 176, 102, 0.13);
   --bad: #f08a78;
@@ -62,7 +74,7 @@
   --info: #93adf0;
   --info-soft: rgba(147, 173, 240, 0.13);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --bloom-opacity: 0.22;
+  --bloom-opacity: 0.3;
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
@@ -78,6 +90,9 @@
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-muted: var(--subtle);
+  /* names the Markdown renderer's classes use (shadcn-style) */
+  --color-border: var(--line);
+  --color-muted-foreground: var(--subtle);
   --color-faint: var(--faint);
   --color-line: var(--line);
   --color-line-2: var(--line-2);
@@ -92,7 +107,34 @@
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
   --font-sans: var(--font-geist-sans);
+  --font-display: var(--font-display-face), Georgia, serif;
+  --text-body: 15px;
+  --text-body--line-height: 1.55;
+  --text-lead: 17px;
+  --text-lead--line-height: 1.5;
+  --text-micro: 11px;
+  --text-micro--line-height: 1.4;
+  --radius-card: var(--radius-lg);
+  --ease-wendy: var(--ease);
   --font-mono: var(--font-geist-mono);
+}
+
+@media (max-width: 1023.98px) {
+  body:has([data-header-strip]) {
+    --header-h: 5rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  body[data-drawer="docked"] {
+    padding-right: 420px;
+  }
+}
+
+/* Native checkboxes and radios follow the brand, not the browser's blue. */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--brand);
 }
 
 html {
@@ -122,10 +164,168 @@ body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+.wendy-flash {
+  animation: wendy-flash 1.8s var(--ease);
+}
+@keyframes wendy-flash {
+  0%,
+  60% {
+    outline: 2px solid var(--brand);
+    outline-offset: 4px;
+    border-radius: 14px;
+  }
+  100% {
+    outline-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wendy-flash {
+    animation: none;
+    outline: 2px solid var(--brand);
+    outline-offset: 4px;
+    border-radius: 14px;
+  }
+}
+.wendy-chat {
+  /* The chat's own token layer (the CopilotKit CSS guide scopes under a wrapper); everything maps onto the global tokens. */
+  --chat-user-bg: var(--ink);
+  --chat-user-fg: var(--bg);
+  --chat-radius: 1.25rem;
+  --chat-composer-bg: var(--surface);
+  --chat-composer-border: var(--line);
+  --chat-focus: var(--brand);
+}
+.chat-user {
+  background: var(--chat-user-bg);
+  color: var(--chat-user-fg);
+  border-radius: var(--chat-radius) var(--chat-radius) 0.375rem var(--chat-radius);
+  padding: 0.625rem 1rem;
+}
+.chat-form {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); /* clear of the home indicator on phones */
+}
+.chat-composer {
+  background: var(--chat-composer-bg);
+  border: 1px solid var(--chat-composer-border);
+  border-radius: var(--chat-radius);
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+}
+.chat-composer:focus-within {
+  border-color: var(--chat-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--chat-focus) 18%, transparent);
+}
+.chat-send {
+  background: var(--chat-user-bg);
+  color: var(--chat-user-fg);
+  border-radius: 9999px;
+  transition: opacity var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+.chat-send:not(:disabled):active {
+  transform: scale(0.97);
+}
+.chat-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.wendy-answer [data-streamdown="code-block-body"] code > span:last-child:empty {
+  display: none; /* the renderer adds an empty numbered line at the end of every block */
+}
+.wendy-answer {
+  --answer-gap: 1rem;
+  overflow-wrap: break-word;
+  hyphens: manual;
+}
+/* Scoped to the answer (as CopilotKit's CSS guide recommends); hooks are the renderer's own data-streamdown attributes. */
+.wendy-answer a[data-streamdown="link"] {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent-ink) 40%, transparent);
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere; /* a long URL wraps inside the column instead of widening the page */
+  transition: text-decoration-color var(--dur-1) var(--ease);
+}
+.wendy-answer a[data-streamdown="link"]:hover {
+  text-decoration-color: currentColor;
+}
+.wendy-answer ol,
+.wendy-answer ul {
+  padding-inline-start: 1.25rem;
+}
+.wendy-answer ol {
+  list-style: decimal outside;
+}
+.wendy-answer ul {
+  list-style: disc outside;
+}
+.wendy-answer li {
+  padding-block: 0.125rem;
+}
+.wendy-answer li::marker {
+  color: var(--faint);
+}
+.wendy-answer li > ul,
+.wendy-answer li > ol {
+  margin-top: 0.25rem;
+}
+.wendy-answer [data-streamdown="blockquote"] {
+  border-inline-start: 3px solid color-mix(in srgb, var(--brand) 55%, transparent);
+  padding-inline-start: 1rem;
+  color: var(--ink-2);
+  font-style: normal;
+}
+.wendy-answer hr {
+  margin-block: 1.5rem;
+  border-color: var(--line);
+}
+.wendy-answer [data-streamdown="inline-code"],
+.wendy-answer p code,
+.wendy-answer li code {
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+.wendy-answer [data-streamdown="table-wrapper"] {
+  overflow-x: auto; /* a wide table scrolls inside the answer, never the page */
+}
+/* The renderer paints surfaces with bg-muted (a background in its design language; in ours, "muted" is a text colour). */
+.wendy-answer [data-streamdown="table-header"],
+.wendy-answer [data-streamdown="code-block-header"] {
+  background: var(--surface-2);
+}
+.wendy-answer [data-streamdown="table-body"] {
+  background: transparent;
+}
+.wendy-answer [data-streamdown="code-block"] {
+  border-color: var(--line);
+  background: var(--surface);
+}
+.wendy-answer th {
+  font-weight: 600;
+}
+.wendy-in {
+  animation: wendy-in var(--dur-2) var(--ease) both;
+}
+@keyframes wendy-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wendy-in {
+    animation: none;
+  }
+}
+.display {
+  font-family: var(--font-display-face), Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
 }
 .num {
@@ -468,7 +668,7 @@ body {
   position: relative;
   display: inline-flex;
   align-items: center;
-  width: 64px;
+  width: 52px; /* the 48px portrait + its ring; a second character is a badge on its corner, not another column */
   height: 56px;
   flex: none;
 }
@@ -480,6 +680,21 @@ body {
   background: var(--surface-2);
   box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px color-mix(in srgb, var(--char-accent, var(--brand)) 70%, transparent), 0 6px 14px rgba(0, 0, 0, 0.12);
   transition: box-shadow 0.5s ease, filter 0.5s ease, opacity 0.5s ease;
+}
+/* the optional 3D scene sits over the 2D portrait and fades in only once it is ready; until then, and on failure, the portrait is what shows */
+.char .char-3d {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease);
+}
+.char .char-3d[data-ready="true"] {
+  opacity: 1;
+}
+.char .char-3d canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
 }
 .char img {
   display: block;
@@ -541,3 +756,4 @@ body {
 }
 
 /* character presence styles: rebuilt 1791651867 */
+/* rebuild: 101 */

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Menlo / Remax AI Platform</title>
+<title>Wendy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -304,7 +304,7 @@
 <body>
 <div class="app">
   <aside class="side">
-    <div class="brand"><span class="mark">M</span><span><span class="b1">Menlo / Remax</span><span class="b2">AI Platform · Wendy</span></span></div>
+    <div class="brand"><span class="mark">W</span><span><span class="b1">Wendy</span><span class="b2">Assistente pessoal</span></span></div>
     <div class="ws"><span class="avatar" id="wsAvatar">·</span><select id="principal" aria-label="Executivo"></select></div>
     <div class="navlabel">Operação</div>
     <nav id="nav">
@@ -449,7 +449,7 @@ async function boot() {
   const { schemas } = await api('/api/schemas');
   state.schemas = schemas;
   const sel = $('#schema');
-  if (!schemas.length) { $('#main').innerHTML = head('Menlo / Remax AI Platform', '') + '<div class="canvas"><div class="card empty"><h3>Nenhum dado ainda</h3>Rode a Wendy para gerar eventos.</div></div>'; return; }
+  if (!schemas.length) { $('#main').innerHTML = head('Wendy', '') + '<div class="canvas"><div class="card empty"><h3>Nenhum dado ainda</h3>Rode a Wendy para gerar eventos.</div></div>'; return; }
   sel.innerHTML = schemas.map((s) => `<option value="${esc(s.schema)}">${esc(s.schema)}</option>`).join('');
   state.schema = localStorage.getItem('wendy.schema') && schemas.some((s) => s.schema === localStorage.getItem('wendy.schema')) ? localStorage.getItem('wendy.schema') : schemas[0].schema;
   sel.value = state.schema;

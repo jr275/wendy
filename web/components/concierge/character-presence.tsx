@@ -1,7 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { resolveCharacter } from "@/lib/characters";
+import { resolveCharacter, sceneOf } from "@/lib/characters";
+import { shouldLoad3D } from "@/lib/scene3d";
 import type { Selection } from "@/lib/mood";
+import { Character3D } from "./character-3d";
+import { use3dEnabled, useReducedMotion, useSaveData } from "./use-3d-preference";
 import { WendyPresence } from "./presence";
 
 /** What Wendy is doing — a separate dimension from the mood. */
@@ -33,12 +36,18 @@ export function EmotionalPresence({ selection, interaction }: { selection: Selec
   const [ref, visible] = useVisible<HTMLSpanElement>();
   const primary = resolveCharacter(selection.primary);
   const secondary = resolveCharacter(selection.secondary);
+  const [enabled3d] = use3dEnabled();
+  const reducedMotion = useReducedMotion();
+  const saveData = useSaveData();
+  // The 3D scene replaces nothing: it is laid over the 2D portrait, and only when every condition in lib/scene3d.ts holds.
+  const scene = shouldLoad3D({ sceneUrl: sceneOf(primary), enabled: enabled3d, reducedMotion, visible, awaiting: interaction === "awaiting", saveData }) ? sceneOf(primary) : null;
   return (
     <span ref={ref} className="char-slot" data-visible={visible} aria-hidden>
       {primary ? (
         <span className="char" data-interaction={interaction} data-size="primary" style={{ "--char-accent": primary.accent } as React.CSSProperties}>
           {/* eslint-disable-next-line @next/next/no-img-element -- small local avatar; next/image adds nothing here */}
           <img src={primary.src} alt="" width={48} height={48} draggable={false} />
+          {scene ? <Character3D scene={scene} /> : null}
         </span>
       ) : (
         <WendyPresence state={NEUTRAL_HALO[interaction]} size="sm" />

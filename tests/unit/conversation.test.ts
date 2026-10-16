@@ -110,3 +110,32 @@ describe('message → item rules', () => {
     expect(s({ items: 3, running: true, error: 'x' })).toBe('error');
   });
 });
+
+describe('resending after a failed turn', () => {
+  const user = (id: string, text: string) => ({ kind: 'user' as const, id, text });
+  const assistant = (id: string, text: string) => ({ kind: 'assistant' as const, id, text });
+  it('offers the last message only when Wendy produced nothing after it', async () => {
+    const { unansweredUserText } = await import('../../web/lib/conversation.js');
+    expect(unansweredUserText([user('u1', 'oi'), assistant('a1', 'olá'), user('u2', 'quais são minhas tarefas?')])).toBe('quais são minhas tarefas?');
+    expect(unansweredUserText([user('u1', 'oi'), assistant('a1', 'olá')])).toBeNull(); // she answered: nothing to resend
+    expect(unansweredUserText([])).toBeNull();
+  });
+  it('a card after the message means something was produced (maybe a task started): never offered', async () => {
+    const { unansweredUserText } = await import('../../web/lib/conversation.js');
+    const card = { kind: 'card' as const, id: 'c1', name: 'show_execution' as const, toolCall: { id: 'c1', type: 'function' as const, function: { name: 'show_execution', arguments: '{}' } }, toolMessage: undefined };
+    expect(unansweredUserText([user('u1', 'crie uma tarefa'), card])).toBeNull();
+  });
+});
+
+describe('what may take the "Em foco" panel', () => {
+  it('a card restored from history never does; one that arrives during a live turn does, with a short grace after it ends', async () => {
+    const { createLiveGate, LIVE_GRACE_MS } = await import('../../web/lib/focus.js');
+    const g = createLiveGate();
+    expect(g.accepts(1_000)).toBe(false); // opening Hoje: restored cards must not cover the page
+    g.begin();
+    expect(g.accepts(5_000)).toBe(true); // a turn started from this page is running
+    g.end(10_000);
+    expect(g.accepts(10_000 + LIVE_GRACE_MS)).toBe(true); // a card that renders a moment after the turn finished
+    expect(g.accepts(10_000 + LIVE_GRACE_MS + 1)).toBe(false); // and then it is closed again
+  });
+});

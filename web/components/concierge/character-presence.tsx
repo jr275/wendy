@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { resolveCharacter, sceneOf } from "@/lib/characters";
+import { orbScene, resolveCharacter, sceneOf } from "@/lib/characters";
 import { shouldLoad3D } from "@/lib/scene3d";
 import type { Selection } from "@/lib/mood";
 import { Character3D } from "./character-3d";
+import { Orb3D } from "./orb-3d";
+import type { OrbState } from "@/lib/orbPose";
 import { use3dEnabled, useReducedMotion, useSaveData } from "./use-3d-preference";
 import { WendyPresence } from "./presence";
 
@@ -41,6 +43,9 @@ export function EmotionalPresence({ selection, interaction }: { selection: Selec
   const saveData = useSaveData();
   // The 3D scene replaces nothing: it is laid over the 2D portrait, and only when every condition in lib/scene3d.ts holds.
   const scene = shouldLoad3D({ sceneUrl: sceneOf(primary), enabled: enabled3d, reducedMotion, visible, awaiting: interaction === "awaiting", saveData }) ? sceneOf(primary) : null;
+  // With no character presenting, the neutral Wendy orb may replace the halo — same conditions, its own scene address, and the real interaction as its state.
+  const orb = !primary && shouldLoad3D({ sceneUrl: orbScene(), enabled: enabled3d, reducedMotion, visible, awaiting: interaction === "awaiting", saveData }) ? orbScene() : null;
+  const orbState: OrbState = interaction === "completed" ? "completed" : interaction;
   return (
     <span ref={ref} className="char-slot" data-visible={visible} aria-hidden>
       {primary ? (
@@ -50,7 +55,10 @@ export function EmotionalPresence({ selection, interaction }: { selection: Selec
           {scene ? <Character3D scene={scene} /> : null}
         </span>
       ) : (
-        <WendyPresence state={NEUTRAL_HALO[interaction]} size="sm" />
+        <span className="orb-slot">
+          <WendyPresence state={NEUTRAL_HALO[interaction]} size="sm" />
+          {orb ? <Orb3D scene={orb} state={orbState} /> : null}
+        </span>
       )}
       {primary && secondary ? (
         <span className="char" data-interaction="idle" data-size="secondary" style={{ "--char-accent": secondary.accent } as React.CSSProperties}>

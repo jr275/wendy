@@ -56,4 +56,11 @@ export function sceneOf(def: Pick<CharacterDef, "scene"> | null | undefined): st
 }
 
 /** Whether any character has a usable 3D scene — the 3D switch is only offered when there is something to switch on. */
-export const hasAnyScene = (): boolean => CHARACTER_IDS.some((id) => sceneOf(CHARACTERS[id]) !== null);
+export const hasAnyScene = (): boolean => CHARACTER_IDS.some((id) => sceneOf(CHARACTERS[id]) !== null) || orbScene() !== null;
+
+/**
+ * The neutral Wendy orb (Spline file "Wendy Orb", parts named in lib/orbPose.ts): shown in place of the halo when no character is presenting, and only
+ * when the person turned 3D on. UNSET = nothing loads. Set it to the https://prod.spline.design/<id>/scene.splinecode address from Spline's Export → Code.
+ */
+export const WENDY_ORB_SCENE: string | undefined = undefined;
+export const orbScene = (): string | null => (isAllowedSceneUrl(WENDY_ORB_SCENE) ? WENDY_ORB_SCENE : null);

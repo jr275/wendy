@@ -52,6 +52,8 @@ function demo(path: string): unknown {
       return { digest: null };
     case "/api/briefing/preview":
       return { briefing: null };
+    case "/api/agenda":
+      return { agenda: null };
     case "/api/review":
       return { review: { generatedAt: new Date().toISOString(), windowDays: 7, overdue: [], upcoming: [], undated: [], waitingOnYou: [], load: [], closedLastWeek: { tasks: 0, commitments: 0 }, next: null, empty: true } };
     default:
@@ -539,6 +541,34 @@ export interface BriefingPreview {
 export async function briefingPreviewFor(days: number): Promise<BriefingPreview | null> {
   try {
     return (await get<{ briefing: BriefingPreview | null }>("/api/briefing/preview", { days: String(days) })).briefing;
+  } catch {
+    return null;
+  }
+}
+
+export interface AgendaDay {
+  day: string;
+  workingDay: boolean;
+  meetings: { id: string; title: string; start: string; end: string }[];
+  meetingMinutes: number;
+  conflicts: { a: { id: string; title: string }; b: { id: string; title: string }; overlapMinutes: number }[];
+  noBreak: { meetingIds: string[]; count: number; totalMinutes: number }[];
+  overloaded: { minutes: number; limit: number } | null;
+  focus: { start: string; end: string; minutes: number }[];
+}
+export interface AgendaView {
+  generatedAt: string;
+  timeZone: string;
+  days: AgendaDay[];
+  reminders: { meetingId: string; title: string; label: string; at: string }[];
+  departure: string;
+  rules: string[];
+  summary: { conflicts: number; overloadedDays: number; noBreakRuns: number; focusBlocks: number; meetings: number };
+}
+/** null when the agenda cannot be read (never invented): the page says so. */
+export async function agendaFor(principalId: string, days: number): Promise<AgendaView | null> {
+  try {
+    return (await get<{ agenda: AgendaView | null }>("/api/agenda", { principal: principalId, days: String(days) })).agenda;
   } catch {
     return null;
   }

@@ -19,7 +19,7 @@ import { readOnlyPool } from './readOnlyPool.js';
 import { createWriteApi } from './writeApi.js';
 import { checkBinding, hostedDecision } from '../src/security/apiAuth.js';
 import { buildBriefing, type Briefing } from '../src/briefing/briefing.js';
-import { activity, actionsList, chat, configuration, digest, history, market, marketAssetView, marketOverviewView, review, execution, executions, memoryOverview, radar, sites, sources, insightDetail, modelCalls, ontology, people, principals, tasks, today } from './views.js';
+import { agenda as agendaView, activity, actionsList, chat, configuration, digest, history, market, marketAssetView, marketOverviewView, review, execution, executions, memoryOverview, radar, sites, sources, insightDetail, modelCalls, ontology, people, principals, tasks, today } from './views.js';
 
 loadEnv();
 const DB_URL = process.env.INSPECT_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgres:///wendy';
@@ -229,6 +229,7 @@ http
       if (url.pathname === '/api/chat') return send(res, 200, await chat(db, principal));
       if (url.pathname === '/api/history') return send(res, 200, await history(db, principal));
       if (url.pathname === '/api/review') return send(res, 200, await review(db, principal));
+      if (url.pathname === '/api/agenda') return send(res, 200, await agendaView(db, principal, Number(url.searchParams.get('days') ?? 7)));
       if (url.pathname === '/api/digest') return send(res, 200, await digest(db, principal));
       if (url.pathname === '/api/briefing/preview') return send(res, 200, { briefing: await briefingPreview(Number(url.searchParams.get('days') ?? 7)) });
       if (url.pathname === '/api/market') return send(res, 200, await market(db, principal));

@@ -613,3 +613,12 @@ export async function memoryOverview(db: pg.Pool, principalIdParam: string | nul
   ).rows;
   return { memories: rows.map((m) => ({ ...m, freshness: memoryFreshness(m, new Date()) })) };
 }
+
+/** Smart agenda: conflicts, runs with no break, overloaded days, focus suggestions and layered reminders for the next days. Read-only; it only suggests. */
+export async function agenda(db: pg.Pool, principalIdParam: string | null, days: number) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { agenda: null };
+  const timeZone = ((await db.query('SELECT timezone FROM principals WHERE id = $1', [pid])).rows[0] as { timezone?: string } | undefined)?.timezone ?? 'America/Sao_Paulo';
+  const { agendaFor } = await import('../src/agenda/loader.js');
+  return { agenda: await agendaFor(db, pid, timeZone, Number.isFinite(days) ? days : 7) };
+}

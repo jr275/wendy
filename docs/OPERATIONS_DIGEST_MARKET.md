@@ -60,3 +60,13 @@ Rotinas: `UPDATE routines SET enabled=false;`. Migrations: o cabeçalho de `009_
 - Ver: abra `/briefing` no app (7, 14 ou 30 dias) ou rode `npx tsx scripts/briefing-preview.ts [--days 7]` (salva `~/Wendy/Briefing/briefing-<data>.html`, modo 600). Lê só feeds públicos; nada é enviado.
 - Contar corpos de e-mail que a política esvaziaria (não altera nada): `npx tsx scripts/mail-retention.ts --days 180`.
 - Esvaziar de verdade (irreversível; faça backup antes): `npx tsx scripts/mail-retention.ts --days 180 --apply --yes`.
+
+## Agenda
+- Abra `/agenda` no app (7, 14 ou 30 dias). Só lê e sugere; não escreve no Google.
+
+## Depois de reiniciar o Mac: o banco não sobe
+Se tudo der "conexão recusada" na porta 5432, veja `tail /opt/homebrew/var/log/postgresql@16.log`. Se aparecer `lock file "postmaster.pid" already exists` apontando para um processo que NÃO é o Postgres (acontece quando o Mac reinicia sem desligar o banco), a trava é velha:
+1. Confirme: `ps -p <pid do arquivo>` mostra outro programa, e `pgrep -fl postgres` não mostra nada.
+2. Faça uma cópia da pasta de dados: `cp -Rp /opt/homebrew/var/postgresql@16 ~/wendy-backups/pgdata-antes-$(date +%Y%m%d)`.
+3. Remova só a trava: `rm /opt/homebrew/var/postgresql@16/postmaster.pid`. O serviço do Homebrew sobe sozinho em até ~15 s e recupera o log de transações.
+4. `./scripts/dev-up.sh` para subir o agente, o inspetor, o worker e o web.

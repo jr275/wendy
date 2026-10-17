@@ -100,6 +100,9 @@ async function Today() {
             <Link href="/semana" className="inline-flex min-h-11 items-center text-sm font-medium text-accent-ink hover:underline lg:min-h-8">
               Ver a revisão da semana →
             </Link>
+            <Link href="/agenda" className="ml-4 inline-flex min-h-11 items-center text-sm font-medium text-accent-ink hover:underline lg:min-h-8">
+              Ver a agenda →
+            </Link>
           </div>
           <p className="mt-1 text-muted">{attention.length ? `${attention.length} ${attention.length === 1 ? "coisa pede" : "coisas pedem"} sua atenção.` : "Nada pendente com você."}</p>
         </div>

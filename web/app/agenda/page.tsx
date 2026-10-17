@@ -3,7 +3,8 @@ import { Suspense } from "react";
 import { ApiDown } from "@/components/api-down";
 import { TopBar } from "@/components/top-bar";
 import { dateLong } from "@/lib/format";
-import { agendaFor, principalState, today as getToday, reasonerLabel, type AgendaDay } from "@/lib/wendy";
+import { EveningPlan } from "@/components/evening-plan";
+import { agendaFor, eveningPlanFor, principalState, today as getToday, reasonerLabel, type AgendaDay } from "@/lib/wendy";
 
 const PERIODS = [7, 14, 30];
 
@@ -22,7 +23,7 @@ async function Agenda({ searchParams }: { searchParams: Promise<{ dias?: string 
   if (st.status === "down") return <ApiDown />;
   const p = st.status === "ok" ? st.principal : null;
   const today = p ? await getToday(p.id).catch(() => null) : null;
-  const a = p ? await agendaFor(p.id, days) : null;
+  const [a, plan] = p ? await Promise.all([agendaFor(p.id, days), eveningPlanFor(p.id)]) : [null, null];
   const tz = a?.timeZone ?? "America/Sao_Paulo";
   const hm = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: tz, hour: "2-digit", minute: "2-digit" });
   const dayLabel = (d: AgendaDay) => new Date(`${d.day}T12:00:00Z`).toLocaleDateString("pt-BR", { timeZone: "UTC", weekday: "long", day: "2-digit", month: "long" });
@@ -55,6 +56,9 @@ async function Agenda({ searchParams }: { searchParams: Promise<{ dias?: string 
               {a.summary.meetings} {a.summary.meetings === 1 ? "compromisso" : "compromissos"} · {a.summary.conflicts} {a.summary.conflicts === 1 ? "conflito" : "conflitos"} · {a.summary.noBreakRuns} {a.summary.noBreakRuns === 1 ? "sequência sem pausa" : "sequências sem pausa"} · {a.summary.overloadedDays} {a.summary.overloadedDays === 1 ? "dia pesado" : "dias pesados"} · {a.summary.focusBlocks} {a.summary.focusBlocks === 1 ? "bloco de foco sugerido" : "blocos de foco sugeridos"}
             </p>
             {quiet ? <p className="mt-2 text-muted">Não há compromissos nesse período. Os horários livres abaixo são só sugestões.</p> : null}
+            <section className="mt-8" aria-label="Planejamento de amanhã">
+              <EveningPlan plan={plan} showWhenClosed />
+            </section>
             <ul className="mt-6 space-y-4">
               {a.days.map((d) => (
                 <li key={d.day} className="card px-5 py-4">

@@ -15,7 +15,7 @@ start() { # name, port-or-pattern, command...
   disown 2>/dev/null || true
   echo "start $name (log: $LOGS/$name.log)"
 }
-start agent 3458 env GEMINI_FAST_MODEL="${GEMINI_FAST_MODEL:-}" npm run agent
+start agent 3458 npm run agent # GEMINI_FAST_MODEL (optional) comes from .env; never pass it empty here: an empty variable would beat the .env value
 start inspector 3457 npx tsx inspector/server.ts
 if pgrep -f "src/runtime/workerCli.ts" >/dev/null 2>&1; then echo "ok    worker already running"; else nohup npm run worker >"$LOGS/worker.log" 2>&1 & disown 2>/dev/null || true; echo "start worker (log: $LOGS/worker.log)"; fi
 ( cd web && start web 3010 npx next dev -H 127.0.0.1 -p 3010 ) 

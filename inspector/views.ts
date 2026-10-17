@@ -622,3 +622,12 @@ export async function agenda(db: pg.Pool, principalIdParam: string | null, days:
   const { agendaFor } = await import('../src/agenda/loader.js');
   return { agenda: await agendaFor(db, pid, timeZone, Number.isFinite(days) ? days : 7) };
 }
+
+/** The 21:00 planning for tomorrow (computed on request, nothing stored). Read-only; it only proposes and asks. */
+export async function eveningPlan(db: pg.Pool, principalIdParam: string | null) {
+  const pid = await resolvePrincipal(db, principalIdParam);
+  if (!pid) return { plan: null };
+  const timeZone = ((await db.query('SELECT timezone FROM principals WHERE id = $1', [pid])).rows[0] as { timezone?: string } | undefined)?.timezone ?? 'America/Sao_Paulo';
+  const { eveningPlanFor } = await import('../src/agenda/loader.js');
+  return { plan: await eveningPlanFor(db, pid, timeZone) };
+}

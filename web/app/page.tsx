@@ -11,13 +11,14 @@ import { QuietList } from "@/components/quiet-list";
 import { quietOf } from "@/lib/proactive";
 import { AgentAvailability } from "@/components/agent-availability";
 import { MarketWatch } from "@/components/market-watch";
+import { EveningPlan } from "@/components/evening-plan";
 import { ReadingDigest } from "@/components/reading-digest";
 import { ApiDown } from "@/components/api-down";
 import { ConciergeDesk } from "@/components/concierge/desk";
 import { History } from "@/components/concierge/history";
 import { Now, type AttentionItem } from "@/components/concierge/now";
 import { awaitingApproval } from "@/lib/taskStatus";
-import { executions as getExecutions, digestFor, marketFor, principalState, reasonerLabel, recentQuestions, sites as getSites, ACTION_UNAVAILABLE_REASON, UNAVAILABLE_REASON, tasks as getTasks, today as getToday, type Site } from "@/lib/wendy";
+import { executions as getExecutions, digestFor, eveningPlanFor, marketFor, principalState, reasonerLabel, recentQuestions, sites as getSites, ACTION_UNAVAILABLE_REASON, UNAVAILABLE_REASON, tasks as getTasks, today as getToday, type Site } from "@/lib/wendy";
 
 const INSPECTOR = process.env.NEXT_PUBLIC_WENDY_INSPECTOR_URL ?? "http://127.0.0.1:3457";
 
@@ -44,9 +45,9 @@ async function Today() {
   if (st.status === "down") return <ApiDown />;
   if (st.status === "none") return <Empty title="Nenhum executivo cadastrado" body="Cadastre um executivo na Wendy para começar." />;
   const p = st.principal;
-  const loaded = await Promise.all([getToday(p.id), getSites(p.id), getTasks(p.id).catch(() => []), getExecutions(p.id), recentQuestions(p.id), digestFor(p.id), marketFor(p.id)]).catch(() => null);
+  const loaded = await Promise.all([getToday(p.id), getSites(p.id), getTasks(p.id).catch(() => []), getExecutions(p.id), recentQuestions(p.id), digestFor(p.id), marketFor(p.id), eveningPlanFor(p.id)]).catch(() => null);
   if (!loaded) return <ApiDown />;
-  const [t, s, open, runs, past, readings, marketView] = loaded;
+  const [t, s, open, runs, past, readings, marketView, eveningPlan] = loaded;
   const insights = t.insights ?? [];
   const surfaced = insights.filter((i) => i.status === "SURFACED");
   const quiet = insights.filter((i) => i.status === "SUPPRESSED");
@@ -73,7 +74,7 @@ async function Today() {
   const reasoner = reasonerLabel(insights);
 
   // Suggestions are about the principal (Wendy is a personal assistant), shown only when they apply.
-  const suggestions = [open.length ? "Quais são minhas tarefas?" : null, "O que você sabe sobre mim?"].filter((x): x is string => !!x);
+  const suggestions = [eveningPlan?.inWindow ? "Quais são as prioridades de amanhã?" : null, open.length ? "Quais são minhas tarefas?" : null, "O que você sabe sobre mim?"].filter((x): x is string => !!x);
 
   return (
     <AgentAvailability actionReason={ACTION_UNAVAILABLE_REASON}>
@@ -106,6 +107,11 @@ async function Today() {
           </div>
           <p className="mt-1 text-muted">{attention.length ? `${attention.length} ${attention.length === 1 ? "coisa pede" : "coisas pedem"} sua atenção.` : "Nada pendente com você."}</p>
         </div>
+        {eveningPlan?.inWindow ? (
+          <div className="mt-6">
+            <EveningPlan plan={eveningPlan} />
+          </div>
+        ) : null}
         {surfaced[0] ? (
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-2">
             O mais importante agora: <Link className="font-medium text-ink underline decoration-line underline-offset-4 hover:decoration-accent" href={`/insight/${surfaced[0].id}`}>{stripRefs(surfaced[0].headline)}</Link>

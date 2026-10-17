@@ -54,6 +54,8 @@ function demo(path: string): unknown {
       return { briefing: null };
     case "/api/agenda":
       return { agenda: null };
+    case "/api/agenda/plan":
+      return { plan: null };
     case "/api/review":
       return { review: { generatedAt: new Date().toISOString(), windowDays: 7, overdue: [], upcoming: [], undated: [], waitingOnYou: [], load: [], closedLastWeek: { tasks: 0, commitments: 0 }, next: null, empty: true } };
     default:
@@ -569,6 +571,29 @@ export interface AgendaView {
 export async function agendaFor(principalId: string, days: number): Promise<AgendaView | null> {
   try {
     return (await get<{ agenda: AgendaView | null }>("/api/agenda", { principal: principalId, days: String(days) })).agenda;
+  } catch {
+    return null;
+  }
+}
+
+export interface EveningPlanView {
+  generatedAt: string;
+  timeZone: string;
+  inWindow: boolean;
+  day: string;
+  meetings: { id: string; title: string; start: string; end: string }[];
+  conflicts: { a: { id: string; title: string }; b: { id: string; title: string }; overlapMinutes: number }[];
+  overloaded: { minutes: number; limit: number } | null;
+  focus: { start: string; end: string; minutes: number }[];
+  tasks: { id: string; title: string; why: string; dueAt: string | null }[];
+  proposal: string[];
+  question: string;
+  notes: string[];
+}
+/** null when the plan cannot be read (never invented). */
+export async function eveningPlanFor(principalId: string): Promise<EveningPlanView | null> {
+  try {
+    return (await get<{ plan: EveningPlanView | null }>("/api/agenda/plan", { principal: principalId })).plan;
   } catch {
     return null;
   }

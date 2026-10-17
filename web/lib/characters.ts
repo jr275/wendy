@@ -62,5 +62,5 @@ export const hasAnyScene = (): boolean => CHARACTER_IDS.some((id) => sceneOf(CHA
  * The neutral Wendy orb (Spline file "Wendy Orb", parts named in lib/orbPose.ts): shown in place of the halo when no character is presenting, and only
  * when the person turned 3D on. UNSET = nothing loads. Set it to the https://prod.spline.design/<id>/scene.splinecode address from Spline's Export → Code.
  */
-export const WENDY_ORB_SCENE: string | undefined = undefined;
+export const WENDY_ORB_SCENE: string | undefined = "https://prod.spline.design/CvMDwyTuzdBlD4ff/scene.splinecode";
 export const orbScene = (): string | null => (isAllowedSceneUrl(WENDY_ORB_SCENE) ? WENDY_ORB_SCENE : null);

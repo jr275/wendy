@@ -4,7 +4,7 @@
  * configured (today) nothing can load.
  */
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_IDS, CHARACTERS, hasAnyScene, sceneOf } from '../../web/lib/characters.js';
+import { CHARACTER_IDS, CHARACTERS, hasAnyScene, orbScene, sceneOf, WENDY_ORB_SCENE } from '../../web/lib/characters.js';
 import { isAllowedSceneUrl, shouldLoad3D, SPLINE_HOST, type Load3DInput } from '../../web/lib/scene3d.js';
 
 const OK = `https://${SPLINE_HOST}/6Wq1Q7YGyM-iab9i/scene.splinecode`; // the shape only; this test never contacts it
@@ -67,10 +67,14 @@ describe('shouldLoad3D: every condition must hold', () => {
   });
 });
 
-describe('registry today: no scene configured, so nothing can load', () => {
-  it('every character is 2D only, and the 3D switch has nothing to offer', () => {
+describe('registry today: only the neutral Wendy orb has a scene; every character is still 2D', () => {
+  it('every character is 2D only', () => {
     for (const id of CHARACTER_IDS) expect(sceneOf(CHARACTERS[id]), id).toBeNull();
-    expect(hasAnyScene()).toBe(false);
+  });
+  it('the orb scene is an allowed Spline address, and it is what makes the 3D switch available', () => {
+    expect(isAllowedSceneUrl(WENDY_ORB_SCENE)).toBe(true);
+    expect(orbScene()).toBe(WENDY_ORB_SCENE);
+    expect(hasAnyScene()).toBe(true);
   });
   it('sceneOf returns a scene only when it is an allowed address; a bad one is ignored, not loaded', () => {
     expect(sceneOf({ scene: OK })).toBe(OK);

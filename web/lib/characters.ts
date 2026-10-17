@@ -55,8 +55,13 @@ export function sceneOf(def: Pick<CharacterDef, "scene"> | null | undefined): st
   return def && isAllowedSceneUrl(def.scene) ? def.scene : null;
 }
 
+/** The scene a CHARACTER presents in 3D (the shared emotion scene), or null. */
+export function characterScene(id: CharacterId): string | null {
+  return emotionOrbScene() !== null && CHARACTERS[id] ? emotionOrbScene() : null;
+}
+
 /** Whether any character has a usable 3D scene — the 3D switch is only offered when there is something to switch on. */
-export const hasAnyScene = (): boolean => CHARACTER_IDS.some((id) => sceneOf(CHARACTERS[id]) !== null) || orbScene() !== null;
+export const hasAnyScene = (): boolean => CHARACTER_IDS.some((id) => sceneOf(CHARACTERS[id]) !== null) || orbScene() !== null || emotionOrbScene() !== null;
 
 /**
  * The neutral Wendy orb (Spline file "Wendy Orb", parts named in lib/orbPose.ts): shown in place of the halo when no character is presenting, and only
@@ -64,3 +69,14 @@ export const hasAnyScene = (): boolean => CHARACTER_IDS.some((id) => sceneOf(CHA
  */
 export const WENDY_ORB_SCENE: string | undefined = "https://prod.spline.design/CvMDwyTuzdBlD4ff/scene.splinecode";
 export const orbScene = (): string | null => (isAllowedSceneUrl(WENDY_ORB_SCENE) ? WENDY_ORB_SCENE : null);
+
+/**
+ * The emotion orbs (Spline file "Wendy Emocoes"): ONE scene holding eight orbs, one group per character, named by EMOTION_ORB_LABEL ("Joy" holds
+ * "Joy Core", "Joy Ring 1"…). They are abstract orbs in each character's colour, NOT models of the film's characters. The app shows only the group of the
+ * character that is presenting. UNSET = characters stay 2D. Set it to the https://prod.spline.design/<id>/scene.splinecode address from Export → Code Export.
+ */
+export const EMOTION_ORBS_SCENE: string | undefined = undefined;
+export const EMOTION_ORB_LABEL: Record<CharacterId, string> = { joy: "Joy", anxiety: "Anxiety", anger: "Anger", sadness: "Sadness", envy: "Envy", ennui: "Ennui", disgust: "Disgust", fear: "Fear" };
+export const emotionOrbScene = (): string | null => (isAllowedSceneUrl(EMOTION_ORBS_SCENE) ? EMOTION_ORBS_SCENE : null);
+/** The group names of every OTHER character, to hide when one is shown. */
+export const otherEmotionGroups = (id: CharacterId): string[] => CHARACTER_IDS.filter((c) => c !== id).map((c) => EMOTION_ORB_LABEL[c]);

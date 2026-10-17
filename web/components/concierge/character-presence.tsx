@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { orbScene, resolveCharacter, sceneOf } from "@/lib/characters";
+import { characterScene, EMOTION_ORB_LABEL, orbScene, otherEmotionGroups, resolveCharacter, sceneOf } from "@/lib/characters";
 import { shouldLoad3D } from "@/lib/scene3d";
 import type { Selection } from "@/lib/mood";
 import { Character3D } from "./character-3d";
 import { Orb3D } from "./orb-3d";
-import type { OrbState } from "@/lib/orbPose";
+import { emotionSkin, type OrbState } from "@/lib/orbPose";
 import { use3dEnabled, useReducedMotion, useSaveData } from "./use-3d-preference";
 import { WendyPresence } from "./presence";
 
@@ -42,7 +42,8 @@ export function EmotionalPresence({ selection, interaction }: { selection: Selec
   const reducedMotion = useReducedMotion();
   const saveData = useSaveData();
   // The 3D scene replaces nothing: it is laid over the 2D portrait, and only when every condition in lib/scene3d.ts holds.
-  const scene = shouldLoad3D({ sceneUrl: sceneOf(primary), enabled: enabled3d, reducedMotion, visible, awaiting: interaction === "awaiting", saveData }) ? sceneOf(primary) : null;
+  const shared = primary ? characterScene(primary.id) : null; // the emotion scene (one orb per character), when it is set
+  const scene = shouldLoad3D({ sceneUrl: shared ?? sceneOf(primary), enabled: enabled3d, reducedMotion, visible, awaiting: interaction === "awaiting", saveData }) ? (shared ?? sceneOf(primary)) : null;
   // With no character presenting, the neutral Wendy orb may replace the halo — same conditions, its own scene address, and the real interaction as its state.
   const orb = !primary && shouldLoad3D({ sceneUrl: orbScene(), enabled: enabled3d, reducedMotion, visible, awaiting: interaction === "awaiting", saveData }) ? orbScene() : null;
   const orbState: OrbState = interaction === "completed" ? "completed" : interaction;
@@ -52,7 +53,7 @@ export function EmotionalPresence({ selection, interaction }: { selection: Selec
         <span className="char" data-interaction={interaction} data-size="primary" style={{ "--char-accent": primary.accent } as React.CSSProperties}>
           {/* eslint-disable-next-line @next/next/no-img-element -- small local avatar; next/image adds nothing here */}
           <img src={primary.src} alt="" width={48} height={48} draggable={false} />
-          {scene ? <Character3D scene={scene} /> : null}
+          {scene && shared && primary ? <Orb3D key={primary.id} scene={scene} state={interaction} skin={emotionSkin(EMOTION_ORB_LABEL[primary.id])} hide={otherEmotionGroups(primary.id)} /> : scene ? <Character3D scene={scene} /> : null}
         </span>
       ) : (
         <span className="orb-slot">

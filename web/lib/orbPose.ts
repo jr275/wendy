@@ -101,3 +101,21 @@ export function orbPose(state: OrbState, t: number, sinceChange: number): OrbPos
 }
 
 export const isStill = (s: OrbState): boolean => STILL_STATES.includes(s);
+
+/**
+ * Which scene object each logical part is. The neutral Wendy orb uses the names authored as "Orb Core"… and "Orbe Wendy". The emotion scene holds eight
+ * orbs, one group per character, with the character's name as prefix ("Joy Core", "Joy Ring 1"…, and the group itself "Joy").
+ */
+export type OrbSkin = Record<OrbPart, string>;
+export const WENDY_SKIN: OrbSkin = Object.fromEntries(ORB_PARTS.map((p) => [p, p])) as OrbSkin;
+export function emotionSkin(label: string): OrbSkin {
+  return {
+    "Orb Core": `${label} Core`,
+    "Orb Glow": `${label} Glow`,
+    "Orb Ring 1": `${label} Ring 1`,
+    "Orb Ring 2": `${label} Ring 2`,
+    "Orb Orbit 1": `${label} Orbit 1`,
+    "Orb Orbit 2": `${label} Orbit 2`,
+    "Orbe Wendy": label,
+  };
+}

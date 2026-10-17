@@ -4,7 +4,8 @@
  * idle in the way their meaning says; the error shake dies out; and only the authored part names are ever written.
  */
 import { describe, expect, it } from 'vitest';
-import { ORB_PARTS, isStill, orbPose, type OrbState } from '../../web/lib/orbPose.js';
+import { ORB_PARTS, WENDY_SKIN, emotionSkin, isStill, orbPose, type OrbState } from '../../web/lib/orbPose.js';
+import { CHARACTER_IDS, EMOTION_ORB_LABEL, characterScene, emotionOrbScene, otherEmotionGroups } from '../../web/lib/characters.js';
 
 const STATES: OrbState[] = ['idle', 'listening', 'thinking', 'executing', 'awaiting', 'completed', 'error', 'unavailable'];
 const TIMES = [0, 0.016, 0.5, 1, 3.7, 60, 3600, 86_400];
@@ -57,5 +58,34 @@ describe('orbPose', () => {
     expect(rest['Orb Core']!.scale).toBeLessThan(1);
     expect(rest['Orb Ring 1']!.rotZ).toBe(0);
     expect(orbPose('error', 100, 10)).toEqual(orbPose('error', 200, 10)); // after the shake nothing depends on the clock
+  });
+});
+
+describe('skins: which scene objects are the parts', () => {
+  it('the neutral orb uses the authored names as they are', () => {
+    for (const p of ORB_PARTS) expect(WENDY_SKIN[p]).toBe(p);
+  });
+  it('an emotion orb is the character name plus the part, with the group named by the character alone', () => {
+    expect(emotionSkin('Joy')).toEqual({ 'Orb Core': 'Joy Core', 'Orb Glow': 'Joy Glow', 'Orb Ring 1': 'Joy Ring 1', 'Orb Ring 2': 'Joy Ring 2', 'Orb Orbit 1': 'Joy Orbit 1', 'Orb Orbit 2': 'Joy Orbit 2', 'Orbe Wendy': 'Joy' });
+    expect(Object.keys(emotionSkin('Fear')).sort()).toEqual([...ORB_PARTS].sort());
+  });
+  it('the eight character groups are distinct, and every character hides the other seven', () => {
+    const labels = CHARACTER_IDS.map((id) => EMOTION_ORB_LABEL[id]);
+    expect(new Set(labels).size).toBe(8);
+    for (const id of CHARACTER_IDS) {
+      const hide = otherEmotionGroups(id);
+      expect(hide).toHaveLength(7);
+      expect(hide).not.toContain(EMOTION_ORB_LABEL[id]);
+    }
+  });
+  it('the part names match what the Spline file "Wendy Emocoes" was built with (group, Core, Glow, Ring 1/2, Orbit 1/2, per character)', () => {
+    const built = ['Joy', 'Anxiety', 'Anger', 'Sadness', 'Envy', 'Ennui', 'Disgust', 'Fear'];
+    expect(CHARACTER_IDS.map((id) => EMOTION_ORB_LABEL[id]).sort()).toEqual([...built].sort());
+  });
+  it('every character presents the shared emotion scene when it is configured, and stays 2D (null) when it is not', () => {
+    const configured = emotionOrbScene();
+    for (const id of CHARACTER_IDS) expect(characterScene(id)).toBe(configured);
+    if (configured === null) expect(characterScene('joy')).toBeNull();
+    else expect(configured.endsWith('/scene.splinecode')).toBe(true);
   });
 });

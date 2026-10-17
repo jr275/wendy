@@ -1,7 +1,7 @@
 "use client";
 import dynamic from "next/dynamic";
 import { Component, useEffect, useRef, useState, type ReactNode } from "react";
-import { orbPose, ORB_PARTS, type OrbState } from "@/lib/orbPose";
+import { orbPose, ORB_PARTS, WENDY_SKIN, type OrbSkin, type OrbState } from "@/lib/orbPose";
 
 /**
  * The Wendy orb (Spline), laid over the 2D halo. The halo stays under it the whole time: while the scene loads, if it fails, or if the scene does not
@@ -12,6 +12,7 @@ const Spline = dynamic(() => import("@splinetool/react-spline"), { ssr: false, l
 
 /** The part of the Spline runtime this component uses. */
 interface Obj {
+  visible?: boolean;
   scale: { x: number; y: number; z: number };
   rotation: { x: number; y: number; z: number };
   position: { x: number; y: number; z: number };
@@ -30,7 +31,11 @@ class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   }
 }
 
-export function Orb3D({ scene, state }: { scene: string; state: OrbState }) {
+/**
+ * `skin` says which scene objects are the orb's parts (the neutral Wendy orb by default; an emotion orb passes its own prefix). `hide` lists scene
+ * groups to hide on load: the emotion scene holds eight orbs and only the presenting character's is shown.
+ */
+export function Orb3D({ scene, state, skin = WENDY_SKIN, hide = [] }: { scene: string; state: OrbState; skin?: OrbSkin; hide?: string[] }) {
   const [ready, setReady] = useState(false);
   // The state the frame loop reads. It is written in an effect (never during render); `since` is when the state last changed.
   const stateRef = useRef<{ state: OrbState; since: number } | null>(null);
@@ -44,9 +49,13 @@ export function Orb3D({ scene, state }: { scene: string; state: OrbState }) {
 
   const onLoad = (app: App) => {
     const parts = new Map<string, Obj>();
-    for (const name of ORB_PARTS) {
+    for (const part of ORB_PARTS) {
+      const o = app.findObjectByName(skin[part]);
+      if (o) parts.set(part, o);
+    }
+    for (const name of hide) {
       const o = app.findObjectByName(name);
-      if (o) parts.set(name, o);
+      if (o) o.visible = false;
     }
     // A scene that is not the orb (a wrong address) has none of the parts: the halo stays, nothing is shown, nothing is driven.
     if (!parts.has("Orb Core")) return;

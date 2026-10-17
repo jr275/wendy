@@ -50,6 +50,8 @@ function demo(path: string): unknown {
       return { asset: null };
     case "/api/digest":
       return { digest: null };
+    case "/api/briefing/preview":
+      return { briefing: null };
     case "/api/review":
       return { review: { generatedAt: new Date().toISOString(), windowDays: 7, overdue: [], upcoming: [], undated: [], waitingOnYou: [], load: [], closedLastWeek: { tasks: 0, commitments: 0 }, next: null, empty: true } };
     default:
@@ -503,4 +505,41 @@ export interface MemoryItem {
 
 export async function memories(principalId: string): Promise<MemoryItem[]> {
   return (await get<{ memories: MemoryItem[] }>("/api/memories", { principal: principalId })).memories;
+}
+
+export interface BriefingItem {
+  title: string;
+  url: string;
+  source: string;
+  publishedAt: string;
+  summary: string | null;
+  relevance: string;
+  origin: "lab" | "press";
+}
+export interface BriefingSection {
+  id: string;
+  title: string;
+  scope: string;
+  items: BriefingItem[];
+  empty: string | null;
+  unavailable: string | null;
+}
+export interface BriefingPreview {
+  kind: "PREVIEW";
+  title: string;
+  generatedAt: string;
+  period: { from: string; to: string; days: number };
+  highlights: BriefingItem[];
+  sections: BriefingSection[];
+  attention: { label: string; lines: string[] };
+  sources: { name: string; url: string; status: "lida" | "indisponível"; items: number }[];
+  notes: string[];
+}
+/** null when the preview cannot be built (never invented): the page says so. */
+export async function briefingPreviewFor(days: number): Promise<BriefingPreview | null> {
+  try {
+    return (await get<{ briefing: BriefingPreview | null }>("/api/briefing/preview", { days: String(days) })).briefing;
+  } catch {
+    return null;
+  }
 }

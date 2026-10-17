@@ -29,6 +29,6 @@ export function createContext(opts: { db: Db; reasoner: ReasoningClient; clock: 
     clock: opts.clock,
     emailProvider: opts.emailProvider,
     actions: new ActionService(opts.db),
-    executor: new ActionExecutor(opts.db, opts.emailProvider, opts.executorHooks, opts.toolbox ?? effectsToolbox()),
+    executor: new ActionExecutor(opts.db, opts.emailProvider, opts.executorHooks, opts.toolbox ?? effectsToolbox(), opts.clock),
   };
 }

@@ -9,6 +9,7 @@
  *  - VERIFIED only after an independent read-back from the provider matches the approved content.
  */
 import { assertLedgerIntegrity } from '../audit/ledger.js';
+import { systemClock, type Clock } from '../util/clock.js';
 import { withTx, type Db } from '../db/db.js';
 import type { EmailProvider } from '../providers/interfaces.js';
 import { effectsToolbox, type Toolbox } from '../tools/index.js';
@@ -81,10 +82,10 @@ function artifactEffect(db: Db): Effect {
 }
 
 /** A tool with an effect, adapted to the executor's perform / read back / compare contract. */
-function toolEffect(db: Db, toolbox: Toolbox, action: ActionRow): Effect {
+function toolEffect(db: Db, toolbox: Toolbox, action: ActionRow, clock: Clock): Effect {
   const tool = toolbox.effect(action.action_type);
   if (!tool) throw new ToolError('NOT_ALLOWED', `no tool implements ${action.action_type}`);
-  const ctx = (actionId: string) => ({ db, principalId: action.principal_id, now: new Date(), actionId, executionId: action.skill_execution_id ?? undefined });
+  const ctx = (actionId: string) => ({ db, principalId: action.principal_id, now: clock.now(), actionId, executionId: action.skill_execution_id ?? undefined });
   const parse = (c: Record<string, unknown>) => tool.input.parse(c);
   return {
     name: `TOOL:${tool.spec.name}`,
@@ -106,12 +107,14 @@ export class ActionExecutor {
     private readonly hooks: ExecutorHooks = {},
     /** Effects of tools (tasks.*). Always present, so no executor can mis-handle an approved tool action. */
     private readonly toolbox: Toolbox = effectsToolbox(),
+    /** The time a tool sees while it runs. The real clock unless a process (or a test) injects one. */
+    private readonly clock: Clock = systemClock,
   ) {}
 
   private effectFor(action: ActionRow): Effect {
     if (action.action_type === 'SEND_EMAIL') return emailEffect(this.emailProvider);
     if (action.action_type === 'PREPARE_BRIEFING') return artifactEffect(this.db);
-    return toolEffect(this.db, this.toolbox, action);
+    return toolEffect(this.db, this.toolbox, action, this.clock);
   }
 
   /** Executes all PENDING executions. Returns the action ids that reached a terminal or executed state. */

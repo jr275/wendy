@@ -55,3 +55,8 @@ O worker e os scripts que apontam para o banco real **não aplicam migrations so
 
 ## Reverter
 Rotinas: `UPDATE routines SET enabled=false;`. Migrations: o cabeçalho de `009_routines.sql` e `010_market_watch.sql` traz a ordem de remoção. Backups antes de cada uma em `~/wendy-backups/`.
+
+## Briefing de IA (prévia) e retenção de e-mails
+- Ver: abra `/briefing` no app (7, 14 ou 30 dias) ou rode `npx tsx scripts/briefing-preview.ts [--days 7]` (salva `~/Wendy/Briefing/briefing-<data>.html`, modo 600). Lê só feeds públicos; nada é enviado.
+- Contar corpos de e-mail que a política esvaziaria (não altera nada): `npx tsx scripts/mail-retention.ts --days 180`.
+- Esvaziar de verdade (irreversível; faça backup antes): `npx tsx scripts/mail-retention.ts --days 180 --apply --yes`.

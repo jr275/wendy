@@ -31,7 +31,7 @@ export function createSkillRuntime(
 ): { runtime: SkillRuntime; registry: SkillRegistry; toolbox: Toolbox } {
   const registry = opts.registry ?? builtinRegistry();
   const toolbox = opts.toolbox ?? defaultToolbox(ctx);
-  const executor = new ActionExecutor(ctx.db, ctx.emailProvider, {}, toolbox);
+  const executor = new ActionExecutor(ctx.db, ctx.emailProvider, {}, toolbox, ctx.clock);
   const runtime = new SkillRuntime({ db: ctx.db, registry, toolbox, reasoner: ctx.reasoner, clock: ctx.clock, executor, owner: opts.owner, leaseMs: opts.leaseMs, sleep: opts.sleep, hooks: opts.hooks });
   return { runtime, registry, toolbox };
 }

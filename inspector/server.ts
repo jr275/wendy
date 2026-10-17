@@ -18,6 +18,7 @@ import { createPool } from '../src/db/db.js'; // also registers pg type parsers
 import { readOnlyPool } from './readOnlyPool.js';
 import { createWriteApi } from './writeApi.js';
 import { checkBinding, hostedDecision } from '../src/security/apiAuth.js';
+import { buildBriefing, type Briefing } from '../src/briefing/briefing.js';
 import { activity, actionsList, chat, configuration, digest, history, market, marketAssetView, marketOverviewView, review, execution, executions, memoryOverview, radar, sites, sources, insightDetail, modelCalls, ontology, people, principals, tasks, today } from './views.js';
 
 loadEnv();
@@ -229,6 +230,7 @@ http
       if (url.pathname === '/api/history') return send(res, 200, await history(db, principal));
       if (url.pathname === '/api/review') return send(res, 200, await review(db, principal));
       if (url.pathname === '/api/digest') return send(res, 200, await digest(db, principal));
+      if (url.pathname === '/api/briefing/preview') return send(res, 200, { briefing: await briefingPreview(Number(url.searchParams.get('days') ?? 7)) });
       if (url.pathname === '/api/market') return send(res, 200, await market(db, principal));
       if (url.pathname === '/api/market/overview') return send(res, 200, await marketOverviewView(db, principal));
       if (url.pathname === '/api/market/asset') return send(res, 200, await marketAssetView(db, principal, url.searchParams.get('symbol') ?? ''));
@@ -258,3 +260,19 @@ http
     console.log(`Wendy UI on http://127.0.0.1:${PORT} — database ${DB_URL}`);
     console.log(`Para habilitar aprovações e edições, abra (uso único, vale 10 min):\n  http://127.0.0.1:${PORT}/login?t=${writeApi.issueLoginToken()}`);
   });
+
+
+/** The briefing preview reads public feeds (nothing is stored, nothing is sent). Kept 15 minutes per period so a page reload does not hit the sources again. */
+const briefingCache = new Map<number, { at: number; value: Briefing }>();
+async function briefingPreview(days: number): Promise<Briefing | null> {
+  const key = Number.isFinite(days) ? Math.min(30, Math.max(1, Math.floor(days))) : 7;
+  const hit = briefingCache.get(key);
+  if (hit && Date.now() - hit.at < 15 * 60_000) return hit.value;
+  try {
+    const value = await buildBriefing({ now: new Date(), days: key });
+    briefingCache.set(key, { at: Date.now(), value });
+    return value;
+  } catch {
+    return null;
+  }
+}

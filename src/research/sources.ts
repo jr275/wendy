@@ -30,8 +30,14 @@ export const FEED_SOURCES: readonly FeedSource[] = [
   { id: 'mit-tr', name: 'MIT Technology Review · IA', url: 'https://www.technologyreview.com/topic/artificial-intelligence/feed', kind: 'news', weight: 1.5 },
 ];
 
-/** The only hosts a feed may be fetched from (and redirected to). Derived from the list above. */
-export const ALLOWED_FEED_HOSTS: ReadonlySet<string> = new Set(FEED_SOURCES.map((s) => new URL(s.url).hostname));
+/**
+ * Public news search by name, used ONLY by the AI Intelligence Briefing (src/briefing). It is a press aggregator, not an official channel: the briefing
+ * labels everything that comes from it as press coverage. Not part of FEED_SOURCES, so the daily reading digest never reads it.
+ */
+export const NEWS_SEARCH_HOST = 'news.google.com';
+
+/** The only hosts a feed may be fetched from (and redirected to). Derived from the list above, plus the news search of the briefing. */
+export const ALLOWED_FEED_HOSTS: ReadonlySet<string> = new Set([...FEED_SOURCES.map((s) => new URL(s.url).hostname), NEWS_SEARCH_HOST]);
 
 export const TOPICS: readonly { label: string; re: RegExp; weight: number }[] = [
   { label: 'transformers e atenção', re: /\b(transformers?|attention|state[- ]space|mamba|long[- ]context)\b/i, weight: 1 },

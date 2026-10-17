@@ -60,6 +60,9 @@ export function ReadingDigest({ digest, canWrite }: { digest: DigestView | null;
             {pending ? "Buscando…" : "Atualizar agora"}
           </button>
         ) : null}
+        <a href="/briefing" className="inline-flex min-h-11 items-center text-sm font-medium text-accent-ink hover:underline lg:min-h-9">
+          Ver o briefing de IA (prévia)
+        </a>
         <span className="text-sm text-faint">{unread.length ? `${unread.length} não ${unread.length === 1 ? "lida" : "lidas"}` : ""}</span>
         <span role="status" className="text-sm text-muted">
           {msg}
